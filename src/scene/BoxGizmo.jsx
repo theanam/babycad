@@ -1,0 +1,549 @@
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import * as THREE from 'three'
+import { useFrame, useThree } from '@react-three/fiber'
+import { useScene } from './sceneStore'
+import { meshes } from './meshRegistry'
+import { dragBus } from './dragBus'
+import { beginDrag, endDrag, setLive } from './liveStore'
+import { SNAP } from '../constants'
+import {
+  angleInPlane,
+  distanceAlongLine,
+  emptyFrame,
+  frameFromMeshes,
+  perpendicularTo,
+  snapTo,
+  UNIT_Y,
+  UNIT_Z,
+} from './gizmoMath'
+
+/**
+ * Resize handles, in units of the box's half-extents.
+ *
+ * Deliberately few. The four corners sit on the *bottom* of the box and each
+ * one anchors to the opposite bottom corner, so resizing grows the block up
+ * and outward from the floor instead of sinking it. The single top handle
+ * changes height the same way. Anything more precise is typed into the
+ * properties panel rather than crowded onto the box.
+ */
+const CORNER_HANDLES = [
+  { key: 'c++', handle: [1, -1, 1], anchor: [-1, -1, -1] },
+  { key: 'c+-', handle: [1, -1, -1], anchor: [-1, -1, 1] },
+  { key: 'c-+', handle: [-1, -1, 1], anchor: [1, -1, -1] },
+  { key: 'c--', handle: [-1, -1, -1], anchor: [1, -1, 1] },
+].map((h) => ({ ...h, mask: [1, 1, 1] }))
+
+const HEIGHT_HANDLE = { key: 'top', handle: [0, 1, 0], anchor: [0, -1, 0], mask: [0, 1, 0] }
+
+/**
+ * Turn levers: a stick poking out of the box with a ball on the end, one per
+ * axis. Swing the ball and the block turns about that axis.
+ *
+ * Each stick points along a direction perpendicular to the axis it turns, and
+ * all three point different ways so they never overlap: the Y lever reaches
+ * along +X, the X lever along +Z, the Z lever along -X. `along` is which
+ * half-extent the stick has to clear before it starts.
+ */
+const TURN_HANDLES = [
+  { key: 'turn-y', color: '#35C46B', axis: [0, 1, 0], rotation: [0, 0, -Math.PI / 2], along: 'x' },
+  { key: 'turn-x', color: '#FF5A47', axis: [1, 0, 0], rotation: [Math.PI / 2, 0, 0], along: 'z' },
+  { key: 'turn-z', color: '#2E7DF6', axis: [0, 0, 1], rotation: [0, 0, Math.PI / 2], along: 'x' },
+]
+
+const MIN_SCALE = 0.1
+const MAX_SCALE = 40
+const READOUT_MS = 90
+// Handles hold this size on screen regardless of how far away the block is.
+// Kept small: zoomed out, a scene is mostly gizmo otherwise.
+const HANDLE_SCREEN = 0.017
+
+const euler = new THREE.Euler()
+const mat = new THREE.Matrix4()
+const quat = new THREE.Quaternion()
+const vec = new THREE.Vector3()
+const vec2 = new THREE.Vector3()
+
+/**
+ * The selection's bounding box, and every way to transform it.
+ *
+ * There are no tool modes: the corner handles resize, the top handle sets
+ * height, the cone lifts, the round knob to one side turns it, and dragging
+ * the block itself slides it across the floor. Which handle you grab is the
+ * operation.
+ *
+ * Turning is always about world Y — the "spin it round" a kid expects. Tilting
+ * on X or Z is typed into the properties panel, which keeps one knob on screen
+ * instead of three rings.
+ *
+ * As with the rest of the scene, a drag mutates the meshes directly and the
+ * store is written once at the end — that single write is also the undo entry.
+ */
+export default function BoxGizmo() {
+  const selectedIds = useScene((s) => s.selectedIds)
+  const snapEnabled = useScene((s) => s.snapEnabled)
+  const freeMove = useScene((s) => s.freeMove)
+  const stageTransform = useScene((s) => s.stageTransform)
+  const commitTransform = useScene((s) => s.commitTransform)
+
+  const { camera, gl, controls } = useThree()
+  const raycaster = useMemo(() => new THREE.Raycaster(), [])
+  const ndc = useMemo(() => new THREE.Vector2(), [])
+
+  /**
+   * The turning dial: a circle plus radial ticks every 15 degrees — the same
+   * step rotation snaps to — with a longer mark each quarter turn, so how far
+   * the block has swung is readable at a glance.
+   *
+   * Drawn as lines rather than a torus so it stays a constant hairline: a
+   * torus tube scales with the ring, which would be invisible around a small
+   * block and a fat doughnut around a big one.
+   */
+  const dialGeometry = useMemo(() => {
+    const points = []
+    const ring = 96
+    for (let i = 0; i < ring; i++) {
+      const a = (i / ring) * Math.PI * 2
+      const b = ((i + 1) / ring) * Math.PI * 2
+      points.push(Math.cos(a), Math.sin(a), 0, Math.cos(b), Math.sin(b), 0)
+    }
+    const steps = 24
+    for (let i = 0; i < steps; i++) {
+      const a = (i / steps) * Math.PI * 2
+      const c = Math.cos(a)
+      const s2 = Math.sin(a)
+      const inner = i % 6 === 0 ? 0.82 : 0.91
+      points.push(c * inner, s2 * inner, 0, c, s2, 0)
+    }
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(points, 3))
+    return g
+  }, [])
+
+  const frame = useRef(emptyFrame())
+  const boxGroup = useRef() // turns with the block
+  const flatGroup = useRef() // stays world-aligned: turn ring and lift cone
+  const handles = useRef({})
+  const drag = useRef(null)
+  const lastReadout = useRef(0)
+
+  const snapRef = useRef(true)
+  snapRef.current = snapEnabled && !freeMove
+
+  const multi = selectedIds.length > 1
+  const scaleHandles = multi ? CORNER_HANDLES : [...CORNER_HANDLES, HEIGHT_HANDLE]
+
+  /* ------------------------------------------------------------- input -- */
+
+  const rayAt = useCallback(
+    (event) => {
+      const rect = gl.domElement.getBoundingClientRect()
+      ndc.set(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        -((event.clientY - rect.top) / rect.height) * 2 + 1
+      )
+      raycaster.setFromCamera(ndc, camera)
+      return raycaster.ray
+    },
+    [camera, gl, ndc, raycaster]
+  )
+
+  /** Push a transform straight onto the live mesh — no React in the loop. */
+  const paint = (id, position, rotation, scale) => {
+    const mesh = meshes.get(id)
+    if (!mesh) return
+    mesh.position.set(position.x, position.y, position.z)
+    if (rotation) mesh.rotation.set(rotation.x, rotation.y, rotation.z)
+    if (scale) mesh.scale.set(scale.x, scale.y, scale.z)
+  }
+
+  const begin = (kind, extra, event) => {
+    const selected = useScene.getState().selectedObjects()
+    if (!selected.length) return
+    if (controls) controls.enabled = false // stop OrbitControls stealing the gesture
+    drag.current = {
+      kind,
+      ...extra,
+      items: selected.map((o) => ({
+        id: o.id,
+        position: new THREE.Vector3(...o.position),
+        quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(...o.rotation)),
+        scale: new THREE.Vector3(...o.scale),
+        before: { position: [...o.position], rotation: [...o.rotation], scale: [...o.scale] },
+      })),
+    }
+    lastReadout.current = 0
+    beginDrag()
+    event?.stopPropagation?.()
+  }
+
+  /* -------------------------------------------------------- drag starts -- */
+
+  const startBodyMove = useCallback(
+    (nativeEvent) => {
+      // Read the centre straight from the store: the click may have *just*
+      // changed the selection, so the drawn frame is a render behind.
+      const selected = useScene.getState().selectedObjects()
+      if (!selected.length) return
+      const center = new THREE.Vector3()
+      for (const o of selected) center.add(vec.set(...o.position))
+      center.divideScalar(selected.length)
+
+      const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(UNIT_Y, center)
+      const grab = new THREE.Vector3()
+      if (!rayAt(nativeEvent).intersectPlane(plane, grab)) return
+      begin('move-xz', { plane, grab }, null)
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rayAt, controls]
+  )
+
+  useEffect(() => {
+    dragBus.startBodyMove = startBodyMove
+    return () => {
+      dragBus.startBodyMove = null
+    }
+  }, [startBodyMove])
+
+  const startLift = (event) => {
+    const f = frame.current
+    // A vertical plane facing the camera, so up/down tracks the pointer.
+    camera.getWorldDirection(vec)
+    vec.y = 0
+    if (vec.lengthSq() < 1e-6) vec.set(0, 0, 1)
+    vec.normalize()
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(vec, f.center)
+    const grab = new THREE.Vector3()
+    if (!event.ray.intersectPlane(plane, grab)) return
+    begin('move-y', { plane, grab }, event)
+  }
+
+  const startScale = (def, event) => {
+    const f = frame.current
+    const local = (signs) =>
+      new THREE.Vector3(signs[0] * f.half.x, signs[1] * f.half.y, signs[2] * f.half.z)
+
+    const anchor = local(def.anchor).applyQuaternion(f.quat).add(f.center)
+    const handleWorld = local(def.handle).applyQuaternion(f.quat).add(f.center)
+
+    const dir = handleWorld.clone().sub(anchor)
+    const length = dir.length()
+    if (length < 1e-5) return
+    dir.divideScalar(length)
+
+    const grabT = distanceAlongLine(event.ray, anchor, dir)
+    if (grabT === null) return
+
+    begin('scale', { anchor, dir, length, grabT, mask: def.mask, quat: f.quat.clone() }, event)
+  }
+
+  const startTurn = (def, event) => {
+    const f = frame.current
+    const axis = new THREE.Vector3(...def.axis).applyQuaternion(f.quat).normalize()
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(axis, f.center)
+    const hit = new THREE.Vector3()
+    if (!event.ray.intersectPlane(plane, hit)) return
+
+    // Stand the dial up in the plane of rotation and leave it there. It is
+    // deliberately world-fixed, not parented to the box: the lever has to be
+    // seen travelling around it, and a dial that turned with the block would
+    // sit still relative to the lever and show nothing at all.
+    const dial = handles.current.dial
+    const k = camera.position.distanceTo(f.center) * HANDLE_SCREEN
+    const radius = (def.along === 'z' ? f.half.z : f.half.x) + k * 4
+    if (dial) {
+      dial.quaternion.setFromUnitVectors(UNIT_Z, axis)
+      for (const child of dial.children) child.material.color.set(def.color)
+    }
+
+    const u = perpendicularTo(axis)
+    const v = new THREE.Vector3().crossVectors(axis, u)
+    begin(
+      'rotate',
+      {
+        axis,
+        plane,
+        u,
+        v,
+        center: f.center.clone(),
+        startAngle: angleInPlane(hit, f.center, u, v),
+        dialRadius: radius,
+      },
+      event
+    )
+  }
+
+  /* ---------------------------------------------------------- drag move -- */
+
+  useEffect(() => {
+    const onMove = (event) => {
+      const d = drag.current
+      if (!d) return
+      const ray = rayAt(event)
+      const snap = snapRef.current
+
+      if (d.kind === 'move-xz' || d.kind === 'move-y') {
+        if (!ray.intersectPlane(d.plane, vec)) return
+        const delta = vec2.copy(vec).sub(d.grab)
+        if (d.kind === 'move-xz') delta.y = 0
+        else delta.x = delta.z = 0
+        if (snap) {
+          delta.set(
+            snapTo(delta.x, SNAP.move),
+            snapTo(delta.y, SNAP.move),
+            snapTo(delta.z, SNAP.move)
+          )
+        }
+        for (const item of d.items) paint(item.id, vec.copy(item.position).add(delta), null, null)
+      } else if (d.kind === 'scale') {
+        const t = distanceAlongLine(ray, d.anchor, d.dir)
+        if (t === null) return
+        const ratio = Math.max(0.02, t / d.length)
+        if (!Number.isFinite(ratio)) return
+
+        for (const item of d.items) {
+          const scale = new THREE.Vector3(
+            THREE.MathUtils.clamp(item.scale.x * (d.mask[0] ? ratio : 1), MIN_SCALE, MAX_SCALE),
+            THREE.MathUtils.clamp(item.scale.y * (d.mask[1] ? ratio : 1), MIN_SCALE, MAX_SCALE),
+            THREE.MathUtils.clamp(item.scale.z * (d.mask[2] ? ratio : 1), MIN_SCALE, MAX_SCALE)
+          )
+          if (snap && d.items.length === 1) {
+            scale.set(
+              Math.max(SNAP.scale, snapTo(scale.x, SNAP.scale)),
+              Math.max(SNAP.scale, snapTo(scale.y, SNAP.scale)),
+              Math.max(SNAP.scale, snapTo(scale.z, SNAP.scale))
+            )
+          }
+          // Re-derive the ratio from the clamped/snapped scale so the anchor
+          // corner stays exactly where it was.
+          const applied = vec.set(
+            item.scale.x ? scale.x / item.scale.x : 1,
+            item.scale.y ? scale.y / item.scale.y : 1,
+            item.scale.z ? scale.z / item.scale.z : 1
+          )
+          const offset = new THREE.Vector3()
+            .copy(item.position)
+            .sub(d.anchor)
+            .applyQuaternion(quat.copy(d.quat).invert())
+            .multiply(applied)
+            .applyQuaternion(d.quat)
+          paint(item.id, offset.add(d.anchor), null, scale)
+        }
+      } else if (d.kind === 'rotate') {
+        if (!ray.intersectPlane(d.plane, vec)) return
+        let delta = angleInPlane(vec, d.center, d.u, d.v) - d.startAngle
+        if (snap) delta = snapTo(delta, SNAP.rotate)
+        const dq = quat.setFromAxisAngle(d.axis, delta)
+        for (const item of d.items) {
+          const position = vec2.copy(item.position).sub(d.center).applyQuaternion(dq).add(d.center)
+          euler.setFromQuaternion(new THREE.Quaternion().copy(dq).multiply(item.quaternion))
+          paint(item.id, position, euler, null)
+        }
+      }
+
+      const now = performance.now()
+      if (now - lastReadout.current > READOUT_MS) {
+        lastReadout.current = now
+        const mesh = meshes.get(d.items[0].id)
+        if (mesh) {
+          setLive({
+            position: mesh.position.toArray(),
+            rotation: [mesh.rotation.x, mesh.rotation.y, mesh.rotation.z],
+            scale: mesh.scale.toArray(),
+          })
+        }
+      }
+    }
+
+    const onUp = () => {
+      const d = drag.current
+      if (!d) return
+      drag.current = null
+      if (controls) controls.enabled = true
+      endDrag()
+
+      const patches = []
+      const before = {}
+      for (const item of d.items) {
+        const mesh = meshes.get(item.id)
+        if (!mesh) continue
+        before[item.id] = item.before
+        patches.push({
+          id: item.id,
+          position: mesh.position.toArray(),
+          rotation: [mesh.rotation.x, mesh.rotation.y, mesh.rotation.z],
+          scale: mesh.scale.toArray(),
+        })
+      }
+      if (patches.length) {
+        stageTransform(patches)
+        commitTransform(before, d.kind === 'rotate' ? 'turn' : d.kind === 'scale' ? 'resize' : 'move')
+      }
+    }
+
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+    }
+  }, [rayAt, controls, stageTransform, commitTransform])
+
+  /* --------------------------------------------------------- per frame -- */
+
+  // Recompute the box from the live meshes every frame so it tracks a drag,
+  // and keep the handles a constant size on screen.
+  useFrame(() => {
+    if (!boxGroup.current || !selectedIds.length) return
+    const f = frameFromMeshes(selectedIds, meshes, frame.current)
+    if (!f) return
+
+    boxGroup.current.position.copy(f.center)
+    boxGroup.current.quaternion.copy(f.quat)
+    if (flatGroup.current) flatGroup.current.position.copy(f.center)
+
+    const k = camera.position.distanceTo(f.center) * HANDLE_SCREEN
+
+    // How far the box actually reaches above its centre in world terms — the
+    // y half-extent of its world-aligned bounds. The bounding-sphere radius
+    // would also clear it, but leaves the lift handle floating miles over
+    // anything wide and flat.
+    mat.makeRotationFromQuaternion(f.quat)
+    const me = mat.elements
+    const topY =
+      Math.abs(me[1]) * f.half.x + Math.abs(me[5]) * f.half.y + Math.abs(me[9]) * f.half.z
+
+    const shell = handles.current.shell
+    if (shell) shell.scale.set(f.half.x * 2, f.half.y * 2, f.half.z * 2)
+
+    // The turning dial, only while a lever is actually being swung.
+    const dial = handles.current.dial
+    if (dial) {
+      const d = drag.current
+      const turning = d?.kind === 'rotate'
+      dial.visible = turning
+      if (turning) dial.scale.setScalar(d.dialRadius)
+    }
+
+    for (const [key, node] of Object.entries(handles.current)) {
+      if (!node || key === 'shell') continue
+      const { sign, lift, turn } = node.userData
+      if (sign) {
+        node.position.set(sign[0] * f.half.x, sign[1] * f.half.y, sign[2] * f.half.z)
+        node.scale.setScalar(k)
+      } else if (lift) {
+        node.position.set(0, topY + k * 2.2, 0)
+        node.scale.setScalar(k)
+      } else if (turn) {
+        // Stick starts at the box surface; ball sits a little beyond it.
+        const start = node.userData.along === 'z' ? f.half.z : f.half.x
+        const end = start + k * 4
+        const [stick, ball, target] = node.children
+        stick.scale.set(k * 0.085, end - start, k * 0.085)
+        stick.position.y = (start + end) / 2
+        ball.scale.setScalar(k * 0.85)
+        ball.position.y = end
+        target.scale.setScalar(k * 2.4)
+        target.position.y = end
+      }
+    }
+  })
+
+  if (!selectedIds.length) return null
+
+  const bind = (key, extra) => (node) => {
+    if (node) {
+      Object.assign(node.userData, extra)
+      handles.current[key] = node
+    } else delete handles.current[key]
+  }
+
+  return (
+    <>
+      {/* turns with the block */}
+      <group ref={boxGroup}>
+        <lineSegments ref={bind('shell', {})} raycast={() => null}>
+          <edgesGeometry args={[new THREE.BoxGeometry(1, 1, 1)]} />
+          <lineBasicMaterial color="#7C4DFF" transparent opacity={0.62} depthTest={false} />
+        </lineSegments>
+
+        {scaleHandles.map((def) => (
+          <mesh
+            key={def.key}
+            ref={bind(def.key, { sign: def.handle })}
+            renderOrder={3}
+            onPointerDown={(e) => startScale(def, e)}
+          >
+            <boxGeometry args={[1, 1, 1]} />
+            <meshBasicMaterial
+              color="#EDEFF4"
+              transparent
+              opacity={0.72}
+              depthTest={false}
+              toneMapped={false}
+            />
+          </mesh>
+        ))}
+
+        {/* turn levers: swing the ball, the block turns about that axis */}
+        {TURN_HANDLES.map((def) => (
+          <group
+            key={def.key}
+            ref={bind(def.key, { turn: def.key, along: def.along })}
+            rotation={def.rotation}
+            onPointerDown={(e) => startTurn(def, e)}
+          >
+            <mesh renderOrder={2}>
+              <cylinderGeometry args={[1, 1, 1, 6]} />
+              <meshBasicMaterial
+                color={def.color}
+                transparent
+                opacity={0.55}
+                depthTest={false}
+                toneMapped={false}
+              />
+            </mesh>
+            <mesh renderOrder={4}>
+              <sphereGeometry args={[1, 18, 14]} />
+              <meshBasicMaterial
+                color={def.color}
+                transparent
+                opacity={0.85}
+                depthTest={false}
+                toneMapped={false}
+              />
+            </mesh>
+            {/* generous invisible target, so it's grabbable on a tablet */}
+            <mesh>
+              <sphereGeometry args={[1, 8, 6]} />
+              <meshBasicMaterial visible={false} />
+            </mesh>
+          </group>
+        ))}
+      </group>
+
+      {/* world-aligned: lifting is always along world up, and the turning
+          dial has to hold still while the lever swings around it */}
+      <group ref={flatGroup}>
+        <group ref={bind('dial', {})} visible={false}>
+          <lineSegments geometry={dialGeometry} renderOrder={2} raycast={() => null}>
+            <lineBasicMaterial transparent opacity={0.9} depthTest={false} toneMapped={false} />
+          </lineSegments>
+        </group>
+
+        <mesh ref={bind('lift', { lift: true })} renderOrder={3} onPointerDown={startLift}>
+          <coneGeometry args={[0.72, 1.5, 16]} />
+          <meshBasicMaterial
+            color="#7C4DFF"
+            transparent
+            opacity={0.75}
+            depthTest={false}
+            toneMapped={false}
+          />
+        </mesh>
+
+      </group>
+    </>
+  )
+}

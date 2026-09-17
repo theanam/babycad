@@ -1,0 +1,43 @@
+/* Design tokens — from the Blockyard UI design doc, section 06 "Tokens". */
+:root {
+  /* chrome */
+  --shell: #0e1014;
+  --panel: #12151c;
+  --panel-raised: #161a22;
+  --control: #1b1f29;
+  --control-hi: #1f2430;
+  --accent: #7c4dff;
+  --accent-soft: #221b3c;
+  --accent-edge: #3c2a73;
+  --accent-ink: #c8b6ff;
+  --ink: #e7eaf0;
+  --ink-dim: #c3cad9;
+  --muted: #8a93a5;
+  --muted-deep: #59627a;
+  --line: #222735;
+  --line-soft: #262b36;
+  --line-raised: #2c3242;
+  --danger-bg: #2a1417;
+  --danger-ink: #ff7a6b;
+
+  /* axis colors are fixed: X red, Y green, Z blue */
+  --axis-x: #ff5a47;
+  --axis-y: #35c46b;
+  --axis-z: #2e7df6;
+
+  /* radii: 10 control / 16 panel / 22 modal */
+  --r-control: 10px;
+  --r-control-lg: 12px;
+  --r-panel: 16px;
+  --r-modal: 22px;
+
+  /* targets: 44px min, primary tools 56px */
+  --tap: 44px;
+  --tap-lg: 56px;
+
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --sans: 'Nunito', system-ui, -apple-system, sans-serif;
+
+  /* motion: 120ms fades, no bounce */
+  --fade: 120ms ease;
+}
