@@ -69,7 +69,10 @@ export const FOOTPRINT = 20
 // numbers rather than filling in missing ones: every length in an older build
 // is multiplied by 20, so it comes back the same shape in the same place on a
 // plate that grew by the same factor.
-export const SCENE_VERSION = 4
+// v5 adds `hole`: a block that cuts the solids it is combined with instead of
+// being one. Purely additive — a v4 build has no holes in it, so it loads
+// looking exactly as it did.
+export const SCENE_VERSION = 5
 export const MAX_HISTORY = 200
 
 // Past this many blocks we drop shadow quality rather than let the frame rate go.

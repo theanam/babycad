@@ -31,6 +31,7 @@ export function makeObject(type, position = [0, 0, 0], color, params) {
     rotation: [0, 0, 0],
     scale: [1, 1, 1],
     color: color ?? SHAPE_COLOR[type] ?? '#FFC93D',
+    hole: false, // a hole cuts the solids it is combined with — see shapes/csg
     parentGroupId: null,
   }
 }
@@ -522,6 +523,18 @@ export const useScene = create((set, get) => ({
     if (!patches.length) return false
     st.apply(cmd.transformObjects(patches, 'align'))
     return true
+  },
+
+  /**
+   * Turn the selection into holes, or back into solids. A hole only cuts once
+   * it is combined with something, so this reports whether any of what it just
+   * changed is still sitting on its own, for the rail to say so.
+   */
+  setHole(hole) {
+    const st = get()
+    const sel = st.selectedObjects().filter((o) => Boolean(o.hole) !== hole)
+    if (!sel.length) return
+    st.apply(cmd.markHoles(sel.map((o) => ({ id: o.id, before: Boolean(o.hole), after: hole }))))
   },
 
   setColor(color) {

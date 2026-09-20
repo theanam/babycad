@@ -593,6 +593,11 @@ button:disabled { cursor: default; }
 }
 .param-seg-btn.on { background: var(--accent-soft); color: var(--accent-ink); }
 
+/* The same control at row level rather than nested under a parameter, so it
+   gets the full tap target and reads as a property of the block. */
+.prop-seg { margin-top: 0; gap: 6px; }
+.prop-seg .param-seg-btn { height: var(--tap); font-size: 14px; }
+
 .param-toggle {
   height: 32px; border-radius: 8px; background: var(--control);
   font-size: 12px; font-weight: 800; color: var(--muted);

@@ -178,6 +178,9 @@ export function migrate(scene) {
       rotation: triple(o.rotation, [0, 0, 0]),
       scale: triple(o.scale, [1, 1, 1]),
       color: typeof o.color === 'string' ? o.color : '#FFC93D',
+      // Anything older than v5 predates holes, so `hole` is simply absent and
+      // every block comes back solid — which is what it was.
+      hole: o.hole === true,
       parentGroupId: o.parentGroupId ?? null,
     }))
 

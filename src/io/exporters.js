@@ -9,7 +9,7 @@
 import * as THREE from 'three'
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js'
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js'
-import { acquireGeometry, releaseGeometry } from '../shapes/geometryCache'
+import { acquireShape, holesByGroup, holesFor, releaseShape } from '../shapes/csg'
 
 /**
  * Build the export scene, plus the function that hands its geometries back.
@@ -29,13 +29,20 @@ function buildExportScene(objects, groups) {
     root.add(node)
   }
 
+  const byGroup = holesByGroup(objects)
+
   for (const o of objects) {
+    // A hole is a cutting tool, not a part. It shapes what it is combined with
+    // and then has no business in the file — an exported hole would print as a
+    // solid lump of exactly the thing it was there to remove.
+    if (o.hole) continue
+
     const material = new THREE.MeshStandardMaterial({
       color: new THREE.Color(o.color),
       roughness: 0.55,
       metalness: 0,
     })
-    const geometry = acquireGeometry(o.type, o.params)
+    const geometry = acquireShape(o, holesFor(o, byGroup))
     borrowed.push(geometry)
     const mesh = new THREE.Mesh(geometry, material)
     mesh.name = o.type
@@ -45,7 +52,7 @@ function buildExportScene(objects, groups) {
     const parent = o.parentGroupId ? groupNodes.get(o.parentGroupId) : null
     ;(parent ?? root).add(mesh)
   }
-  return { root, done: () => borrowed.forEach(releaseGeometry) }
+  return { root, done: () => borrowed.forEach(releaseShape) }
 }
 
 function download(blob, filename) {

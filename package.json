@@ -11,7 +11,8 @@
     "check:resize": "node tools/check-resize.mjs",
     "check:examples": "node tools/check-examples.mjs",
     "check:align": "node tools/check-align.mjs",
-    "check": "npm run check:shapes && npm run check:resize && npm run check:examples && npm run check:align"
+    "check:holes": "node tools/check-holes.mjs",
+    "check": "npm run check:shapes && npm run check:resize && npm run check:examples && npm run check:align && npm run check:holes"
   },
   "dependencies": {
     "@react-three/drei": "^9.122.0",
@@ -19,6 +20,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "three": "^0.170.0",
+    "three-bvh-csg": "^0.0.17",
     "zustand": "^5.0.2"
   },
   "devDependencies": {

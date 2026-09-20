@@ -93,6 +93,17 @@ export function reshapeObjects(patches, label = 'reshape') {
   }
 }
 
+/** Solid <-> hole. `patches` is [{ id, before, after }] of booleans. */
+export function markHoles(patches) {
+  const after = Object.fromEntries(patches.map((p) => [p.id, { hole: p.after }]))
+  const before = Object.fromEntries(patches.map((p) => [p.id, { hole: p.before }]))
+  return {
+    label: patches[0]?.after ? 'make a hole' : 'make it solid',
+    forward: (s) => ({ ...s, objects: patchObjects(s.objects, after) }),
+    backward: (s) => ({ ...s, objects: patchObjects(s.objects, before) }),
+  }
+}
+
 /** Recolor. `patches` is [{ id, before, after }] of hex strings. */
 export function recolorObjects(patches) {
   const after = Object.fromEntries(patches.map((p) => [p.id, { color: p.after }]))

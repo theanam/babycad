@@ -297,6 +297,7 @@ export default function PropertiesPanel() {
   const selectedIds = useScene((s) => s.selectedIds)
   const transformSelection = useScene((s) => s.transformSelection)
   const setColor = useScene((s) => s.setColor)
+  const setHole = useScene((s) => s.setHole)
   const duplicate = useScene((s) => s.duplicate)
   const deleteSelection = useScene((s) => s.deleteSelection)
   const combine = useScene((s) => s.combine)
@@ -333,6 +334,11 @@ export default function PropertiesPanel() {
   const scale = shownOf('scale')
 
   const color = allSame((o) => o.color) ? primary.color : null
+  // A mixed selection reads as neither, and picking either makes it all one.
+  const isHole = allSame((o) => Boolean(o.hole)) ? Boolean(primary.hole) : null
+  // A hole that isn't combined with anything cuts nothing — worth saying,
+  // because the block goes see-through either way and looks like it's working.
+  const idleHole = isHole !== false && sel.some((o) => o.hole && !o.parentGroupId)
 
   const centroid = [0, 1, 2].map(
     (i) => sel.reduce((sum, o) => sum + o.position[i], 0) / sel.length
@@ -434,6 +440,34 @@ export default function PropertiesPanel() {
         )}
 
         <div className="prop-row">
+          <div className="prop-label">SOLID OR HOLE</div>
+          <div className="param-seg prop-seg" role="group" aria-label="Solid or hole">
+            <button
+              className={`param-seg-btn${isHole === false ? ' on' : ''}`}
+              onClick={() => setHole(false)}
+              aria-pressed={isHole === false}
+              title="A normal block, made of something"
+            >
+              Solid
+            </button>
+            <button
+              className={`param-seg-btn${isHole === true ? ' on' : ''}`}
+              onClick={() => setHole(true)}
+              aria-pressed={isHole === true}
+              title="Cuts its shape out of whatever it's combined with"
+            >
+              Hole
+            </button>
+          </div>
+          {idleHole && (
+            <div className="prop-hint">
+              A hole only cuts what it&apos;s <strong>combined</strong> with. Pick it and the block
+              it should go through, then hit Combine.
+            </div>
+          )}
+        </div>
+
+        <div className="prop-row">
           <div className="prop-label">COLOR</div>
           <div className="color-grid">
             {PALETTE.map((c) => (
@@ -448,7 +482,14 @@ export default function PropertiesPanel() {
               />
             ))}
           </div>
-          {!color && <div className="prop-hint">These blocks are different colors right now.</div>}
+          {isHole === true ? (
+            <div className="prop-hint">
+              Holes are drawn grey and see-through — the colour comes back if you make it solid
+              again.
+            </div>
+          ) : (
+            !color && <div className="prop-hint">These blocks are different colors right now.</div>
+          )}
         </div>
 
         {oneShape ? (
