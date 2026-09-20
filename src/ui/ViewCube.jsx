@@ -2,21 +2,16 @@ import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { useScene } from '../scene/sceneStore'
 import { viewport } from '../scene/viewportApi'
+import { AXES } from '../scene/axes'
 import { FitIcon, IsoIcon, ResetIcon } from './icons'
 
 /* Widget geometry, in the SVG's own units. */
 const VIEW = 150
-const MID = { x: 75, y: 70 }
-const S = 20 // half-edge of the cube
+const MID = { x: 75, y: 72 }
+const S = 23 // half-edge of the cube
 
-/**
- * Where the arrows spring from: off the box's left-bottom-front corner, and
- * clear of it. Sitting exactly *on* the corner put the X and Y arms along two
- * of the cube's own edges, where they read as colored-in edges rather than as
- * axes. Pushed out along the corner's diagonal they stay obviously attached to
- * that corner while keeping their own space.
- */
-const ORIGIN = [-1.4, -1.4, 1.25]
+/** The corner the arrows spring from: left, bottom, front. */
+const ORIGIN = [-1, -1, 1]
 
 /**
  * The six faces. `n` is the outward normal, `u` and `v` the in-plane axes the
@@ -32,22 +27,26 @@ const FACES = [
 ]
 
 /**
- * One arm length for all three. They used to differ — X and Y spanned the box
- * while Z only poked out of its front face — which drew a triad with a stubby
- * blue arm less than half the length of the other two, reading as a broken
- * axis rather than a foreshortened one. Equal arms let the projection do the
- * foreshortening, which is the part that actually tells you where Z points.
+ * One arm length for all three, and it spans the box: from the front-bottom-
+ * left corner each arm runs the length of one of the three edges meeting
+ * there, with the head poking out past the far corner. The triad hugs the box
+ * — the arms *are* its edges — which is what ties the two together as one
+ * object.
+ *
+ * Equal arms matter. They used to differ (X and Y spanned the box while the
+ * third only poked out of the front face), which drew one arm less than half
+ * the length of the other two: that reads as a broken axis rather than a
+ * foreshortened one. Because all three now lie along edges of the same cube
+ * their tips sit equidistant from its centre, so the projection alone decides
+ * how long each looks — which is the part that says where an axis points.
+ *
+ * Which arm is which comes from `scene/axes`: this is a CAD program, so Z is
+ * the one standing up, not three.js's y.
  */
-const ARM = 1.2
+const ARM = 2.35
 
 // Keeps an axis letter this far inside the viewBox.
 const EDGE = 9
-
-const AXES = [
-  { key: 'x', label: 'X', vec: [1, 0, 0], color: '#FF5A47' },
-  { key: 'y', label: 'Y', vec: [0, 1, 0], color: '#35C46B' },
-  { key: 'z', label: 'Z', vec: [0, 0, 1], color: '#2E7DF6' },
-]
 
 // Past this, a press is a turn of the view rather than a tap on a face.
 const DRAG_SLOP = 4
@@ -67,12 +66,17 @@ const TURN_SPAN = 240
  * cube and axes read as one object.
  *
  * A cube is convex, so at most three faces ever point at you and they never
- * overlap: hiding the back faces is all the sorting this needs. The arrows are
- * drawn last so they stay legible whichever way they point.
+ * overlap: hiding the back faces is all the sorting this needs. The arrows
+ * hug the box — each one runs along one of the three edges meeting at its
+ * front-bottom-left corner — so they do need sorting, and get it by moving
+ * between a layer under the faces and one over them.
  */
 export default function ViewCube() {
   const selectedIds = useScene((s) => s.selectedIds)
   const parts = useRef({})
+  // Painting layers for the arms: one under the box's faces, one over them.
+  const back = useRef(null)
+  const front = useRef(null)
   const drag = useRef(null)
   const turned = useRef(false)
 
@@ -148,7 +152,7 @@ export default function ViewCube() {
       const oy = sy(from.y)
 
       for (const axis of AXES) {
-        const part = parts.current[axis.key]
+        const part = parts.current[axis.label]
         if (!part) continue
         to.set(...ORIGIN).addScaledVector(v.set(...axis.vec), ARM).applyQuaternion(q)
         const tx = sx(to.x)
@@ -181,11 +185,28 @@ export default function ViewCube() {
         part.label.setAttribute('x', pin(tx + dx * 8).toFixed(1))
         part.label.setAttribute('y', pin(ty + dy * 8).toFixed(1))
 
-        // Arrows pointing away from the viewer fade back.
-        const depth = (0.45 + 0.55 * (to.z * 0.5 + 0.5)).toFixed(2)
-        part.line.setAttribute('opacity', depth)
-        part.head.setAttribute('opacity', depth)
-        part.label.setAttribute('opacity', depth)
+        /* An arm that runs along a *far* edge of the box belongs behind it.
+           The three arms lie on the box's own edges, so at any angle one or
+           two of them are on the far side: painted over the faces they read
+           as stabbing through the box, and painted under them the faces —
+           which are part-transparent — dim them the way a box in the way
+           should. Which layer an arm sits in is decided here, per frame, by
+           whether its tip went further from the camera than its root. */
+        const behind = to.z < from.z
+        const layer = (behind ? back : front).current
+        if (layer && part.arm.parentNode !== layer) layer.appendChild(part.arm)
+
+        /* A near arm fades a little with depth. A far one doesn't fade at
+           all — the faces over it already do that, and doubling the two up
+           left it invisible — so it's drawn at full strength and a touch
+           thicker, and what reaches the eye is a dim line seen through the
+           box, which is exactly what it is. */
+        const depth = behind ? 1 : 0.7 + 0.3 * (to.z * 0.5 + 0.5)
+        part.line.setAttribute('opacity', depth.toFixed(2))
+        part.line.setAttribute('stroke-width', behind ? '2.6' : '2')
+        part.head.setAttribute('opacity', depth.toFixed(2))
+        // The letter is never occluded, so it fades on depth alone.
+        part.label.setAttribute('opacity', (0.72 + 0.28 * (to.z * 0.5 + 0.5)).toFixed(2))
       }
     }
 
@@ -247,6 +268,9 @@ export default function ViewCube() {
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
+        {/* Arms on the far side of the box are moved in here, under the faces. */}
+        <g ref={back} />
+
         {/* cube */}
         {FACES.map((face) => (
           <g key={face.key}>
@@ -276,27 +300,37 @@ export default function ViewCube() {
           </g>
         ))}
 
-        {/* axis arrows, drawn over the box so they stay readable */}
+        {/* The arms start here, over the box; the tick moves any that point
+            away from the camera into the layer above. */}
+        <g ref={front}>
+          {AXES.map((axis) => (
+            <g key={axis.label} ref={bind(axis.label, 'arm')} className="axis-arrow">
+              <line
+                ref={bind(axis.label, 'line')}
+                stroke={axis.color}
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+              <polygon ref={bind(axis.label, 'head')} points="" fill={axis.color} />
+            </g>
+          ))}
+        </g>
+
+        {/* The letters stay on top whichever side their arm is on: an X you
+            can't find is worse than an arm you can only half see. */}
         {AXES.map((axis) => (
-          <g key={axis.key} className="axis-arrow">
-            <line
-              ref={bind(axis.key, 'line')}
-              stroke={axis.color}
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-            <polygon ref={bind(axis.key, 'head')} points="" fill={axis.color} />
-            <text
-              ref={bind(axis.key, 'label')}
-              fill={axis.color}
-              fontSize="10"
-              fontFamily="'JetBrains Mono', monospace"
-              textAnchor="middle"
-              dominantBaseline="middle"
-            >
-              {axis.label}
-            </text>
-          </g>
+          <text
+            key={axis.label}
+            ref={bind(axis.label, 'label')}
+            fill={axis.color}
+            fontSize="10"
+            fontWeight="700"
+            fontFamily="'JetBrains Mono', monospace"
+            textAnchor="middle"
+            dominantBaseline="middle"
+          >
+            {axis.label}
+          </text>
         ))}
       </svg>
 

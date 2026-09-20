@@ -67,6 +67,7 @@ src/
       spring.js       coil and torus knot
   scene/
     variables.js      named values, bindings, and re-resolving them
+    axes.js           what the axes are called: Z-up names over a y-up scene
     Viewport.jsx      R3F canvas, lights, grid, shadows
     SceneObject.jsx   one shape; holds a reference on its cached geometry
     BoxGizmo.jsx      the bounding box and every handle on it
@@ -233,11 +234,25 @@ from also firing that snap. The orbit maths is shared with `CameraRig` via
 `orbitCamera` — the cube pivots on the camera's target and spreads a full turn
 over a much shorter pixel span, so a small drag on a small cube goes somewhere.
 
-**The axis arrows spring from the box's front-bottom-left corner** and share
-its rotation, so box and axes read as one object. Their arm lengths differ on
-purpose: X and Y start at the far side and run along the box's edges, so they
-have to span it, while Z starts on the front face already and only pokes out
-towards the viewer.
+**The axis arrows hug the box.** All three spring from its front-bottom-left
+corner and each runs the length of one of the three edges meeting there, head
+poking out past the far corner, sharing the box's rotation so the two read as
+one object. Equal arms, so the projection alone decides how long each looks —
+which is what says where an axis points. Because they lie on the box's edges,
+one or two are always on its far side, and those are painted *under* the faces
+rather than over them: the faces are part-transparent, so a far arm reads as a
+line seen through the box instead of one stabbing through it. The letters stay
+on top either way.
+
+**Z is up, not Y.** The scene graph is three.js-native y-up — floor on XZ, a
+block's height is its `y` — but this is a CAD program, and CAD is Z-up. Every
+axis the user meets is named the CAD way: the triad, the numbers in the
+properties rail, the colors of the gizmo's turn levers. `scene/axes.js` holds
+that mapping and is the only place it lives. Displayed Y is internal *−z*, and
+the sign matters: CAD's +Y runs away from the viewer where three.js's +z runs
+towards them, and the flip is what keeps the displayed frame right-handed. The
+scene, the saved file and both exporters keep their internal coordinates — this
+renames axes, it does not move anything.
 
 **Camera moves glide, and any interaction cancels them.** `viewport.flyTo`
 eases position and target together over 260ms; `CameraRig` cancels it on

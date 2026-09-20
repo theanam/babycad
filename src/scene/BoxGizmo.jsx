@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useScene } from './sceneStore'
+import { axisColor } from './axes'
 import { meshes } from './meshRegistry'
 import { dragBus } from './dragBus'
 import { beginDrag, endDrag, setLive } from './liveStore'
@@ -40,14 +41,18 @@ const HEIGHT_HANDLE = { key: 'top', handle: [0, 1, 0], anchor: [0, -1, 0], mask:
  * axis. Swing the ball and the block turns about that axis.
  *
  * Each stick points along a direction perpendicular to the axis it turns, and
- * all three point different ways so they never overlap: the Y lever reaches
- * along +X, the X lever along +Z, the Z lever along -X. `along` is which
- * half-extent the stick has to clear before it starts.
+ * all three point different ways so they never overlap: the upright lever
+ * reaches along +X, the across lever along +Z, the depth lever along -X.
+ * `along` is which half-extent the stick has to clear before it starts.
+ *
+ * The colors come from `scene/axes` by internal slot, so a lever is the color
+ * of the letter the properties rail and the view cube put on that same axis —
+ * the upright one is Z, and blue, not three.js's green y.
  */
 const TURN_HANDLES = [
-  { key: 'turn-y', color: '#35C46B', axis: [0, 1, 0], rotation: [0, 0, -Math.PI / 2], along: 'x' },
-  { key: 'turn-x', color: '#FF5A47', axis: [1, 0, 0], rotation: [Math.PI / 2, 0, 0], along: 'z' },
-  { key: 'turn-z', color: '#2E7DF6', axis: [0, 0, 1], rotation: [0, 0, Math.PI / 2], along: 'x' },
+  { key: 'turn-up', color: axisColor(1), axis: [0, 1, 0], rotation: [0, 0, -Math.PI / 2], along: 'x' },
+  { key: 'turn-across', color: axisColor(0), axis: [1, 0, 0], rotation: [Math.PI / 2, 0, 0], along: 'z' },
+  { key: 'turn-depth', color: axisColor(2), axis: [0, 0, 1], rotation: [0, 0, Math.PI / 2], along: 'x' },
 ]
 
 const MIN_SCALE = 0.1

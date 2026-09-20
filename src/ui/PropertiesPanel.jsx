@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useScene } from '../scene/sceneStore'
+import { AXES } from '../scene/axes'
 import { useLive } from '../scene/liveStore'
 import { COLOR_NAME, PALETTE, SNAP } from '../constants'
 import { getShapeDef, SHAPE_LABEL } from '../shapes'
@@ -374,8 +375,6 @@ export default function PropertiesPanel() {
       'resize'
     )
 
-  const axes = ['X', 'Y', 'Z']
-
   return (
     <aside className="props" aria-label="Block properties">
       <div className="props-head">
@@ -457,44 +456,53 @@ export default function PropertiesPanel() {
           </div>
         )}
 
+        {/* Labelled the CAD way — Z is the one that goes up. `slot` is where
+            that axis lives in the scene's own y-up triples, and `sign` flips
+            the one that points the other way; see scene/axes. */}
         <Row title="POSITION">
-          {axes.map((a, i) => (
+          {AXES.map((a) => (
             <NumField
-              key={a}
-              label={a}
+              key={a.label}
+              label={a.label}
               step={SNAP.move}
-              hint={`Move ${multi ? 'the group' : 'it'} along ${a} — arrow keys step by ${SNAP.move}`}
-              value={multi ? centroid[i] : position[i]}
-              onCommit={(v) => setPosition(i, v)}
+              hint={`Move ${multi ? 'the group' : 'it'} along ${a.label} — arrow keys step by ${SNAP.move}`}
+              value={(multi ? centroid[a.slot] : position[a.slot]) * a.sign}
+              onCommit={(v) => setPosition(a.slot, v * a.sign)}
             />
           ))}
         </Row>
 
         <Row title="TURN">
-          {axes.map((a, i) => (
+          {AXES.map((a) => (
             <NumField
-              key={a}
-              label={a}
+              key={a.label}
+              label={a.label}
               step={15}
               suffix="°"
-              hint={multi ? 'Pick a single block to type a turn in' : `Turn it around ${a} — arrow keys step by 15°`}
-              value={multi && !allSame((o) => o.rotation[i]) ? null : rotation[i] * DEG}
+              hint={multi ? 'Pick a single block to type a turn in' : `Turn it around ${a.label} — arrow keys step by 15°`}
+              value={
+                multi && !allSame((o) => o.rotation[a.slot])
+                  ? null
+                  : rotation[a.slot] * DEG * a.sign
+              }
               disabled={multi}
-              onCommit={(v) => setRotation(i, v)}
+              onCommit={(v) => setRotation(a.slot, v * a.sign)}
             />
           ))}
         </Row>
 
+        {/* Size is a length, never negative, so it takes the slot but not the
+            sign: a block 2 deep is 2 deep whichever way the axis runs. */}
         <Row title="SIZE">
-          {axes.map((a, i) => (
+          {AXES.map((a) => (
             <NumField
-              key={a}
-              label={a}
+              key={a.label}
+              label={a.label}
               step={SNAP.scale}
-              hint={multi ? 'Pick a single block to type a size in' : `Size along ${a} — arrow keys step by ${SNAP.scale}`}
-              value={multi && !allSame((o) => o.scale[i]) ? null : scale[i]}
+              hint={multi ? 'Pick a single block to type a size in' : `Size along ${a.label} — arrow keys step by ${SNAP.scale}`}
+              value={multi && !allSame((o) => o.scale[a.slot]) ? null : scale[a.slot]}
               disabled={multi}
-              onCommit={(v) => setScale(i, v)}
+              onCommit={(v) => setScale(a.slot, v)}
             />
           ))}
         </Row>
