@@ -7,7 +7,11 @@
     "dev": "vite --port 5180 --strictPort",
     "build": "vite build",
     "preview": "vite preview --port 5180 --strictPort",
-    "check:shapes": "node tools/check-shapes.mjs"
+    "check:shapes": "node tools/check-shapes.mjs",
+    "check:resize": "node tools/check-resize.mjs",
+    "check:examples": "node tools/check-examples.mjs",
+    "check:align": "node tools/check-align.mjs",
+    "check": "npm run check:shapes && npm run check:resize && npm run check:examples && npm run check:align"
   },
   "dependencies": {
     "@react-three/drei": "^9.122.0",

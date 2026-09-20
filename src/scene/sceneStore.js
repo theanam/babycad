@@ -2,7 +2,10 @@ import { create } from 'zustand'
 import * as cmd from '../history/undoRedo'
 import { FOOTPRINT, MAX_HISTORY, SCENE_VERSION } from '../constants'
 import { defaultParams, normalizeParams, SHAPE_COLOR } from '../shapes'
+import { resizeToParams } from '../shapes/resize'
 import { restingHeight } from '../shapes/geometryCache'
+import { alignOffsets } from './align'
+import { meshes } from './meshRegistry'
 import {
   resolveParams,
   resolvePatches,
@@ -55,6 +58,7 @@ export const useScene = create((set, get) => ({
   pickMany: false, // touch-friendly multi-select, mirrors shift-click
   snapEnabled: true, // grid snapping, on by default
   freeMove: false, // Alt held: temporarily ignore the snap grid
+  aligning: false, // the align targets are showing instead of the box handles
   past: [],
   future: [],
   projectName: '',
@@ -126,6 +130,7 @@ export const useScene = create((set, get) => ({
 
   select(id, additive = false) {
     const st = get()
+    if (st.aligning) set({ aligning: false })
     if (!id) return set({ selectedIds: [] })
     const wantAdditive = additive || st.pickMany
     let base = wantAdditive ? st.selectedIds : []
@@ -139,11 +144,21 @@ export const useScene = create((set, get) => ({
   },
 
   setSelection(ids) {
-    set({ selectedIds: expandSelection(ids, get().objects) })
+    set({ selectedIds: expandSelection(ids, get().objects), aligning: false })
   },
 
   clearSelection() {
-    set({ selectedIds: [] })
+    set({ selectedIds: [], aligning: false })
+  },
+
+  /**
+   * Show the align targets instead of the box handles. They are a mode rather
+   * than more handles on the box because the box has no free side left: the
+   * turn levers already reach out along +X, −X and +Z, which is exactly where
+   * an align target wants to sit to be visible.
+   */
+  toggleAlign() {
+    set((st) => ({ aligning: !st.aligning && st.selectedIds.length > 1 }))
   },
 
   togglePickMany() {
@@ -393,36 +408,119 @@ export const useScene = create((set, get) => ({
     })
   },
 
-  /** Close out a drag: diff against the snapshot taken when it started. */
+  /**
+   * Close out a drag: diff against the snapshot taken when it started.
+   *
+   * A resize is the interesting one. The drag painted a `scale` multiplier
+   * onto the mesh because that is cheap to redo every frame — but a multiplier
+   * sitting on top of the shape's millimetres would leave a cube that is
+   * plainly 40 mm wide still reporting a Width of 20. So on release the
+   * multiplier is folded back into the shape's own numbers wherever the shape
+   * can express it (see shapes/resize) and `scale` goes back where it was.
+   * Nothing moves on screen: the geometry comes out the size the multiplier
+   * was showing, and the block and the rail finally agree.
+   *
+   * Returns the parameters it had to refuse, so the caller can say why.
+   */
   commitTransform(before, label = 'move') {
     const st = get()
     const patches = []
+    const reverts = {}
+    const blocked = new Set()
+    let baked = false
+
     for (const o of st.objects) {
       const b = before[o.id]
       if (!b) continue
-      const moved =
-        !same(b.position, o.position) || !same(b.rotation, o.rotation) || !same(b.scale, o.scale)
-      if (!moved) continue
-      patches.push({
-        id: o.id,
-        before: { position: b.position, rotation: b.rotation, scale: b.scale },
-        after: { position: o.position, rotation: o.rotation, scale: o.scale },
-      })
+      const was = { position: b.position, rotation: b.rotation, scale: b.scale }
+      const now = { position: o.position, rotation: o.rotation, scale: o.scale }
+      if (same(was.position, now.position) && same(was.rotation, now.rotation) && same(was.scale, now.scale)) {
+        continue
+      }
+
+      const fold = bakeResize(o, was, now)
+      if (fold.blocked) {
+        // The drag is already staged on screen, so refusing it means putting
+        // the block back rather than simply declining to record anything.
+        blocked.add(fold.blocked)
+        reverts[o.id] = was
+        continue
+      }
+      if (fold.undoParams) {
+        was.params = fold.undoParams
+        baked = true
+      }
+      patches.push({ id: o.id, before: was, after: fold.after })
     }
-    if (patches.length) st.record(cmd.transformObjects(patches, label))
+
+    if (Object.keys(reverts).length) {
+      set((s) => ({
+        objects: s.objects.map((o) => (reverts[o.id] ? { ...o, ...reverts[o.id] } : o)),
+      }))
+    }
+    if (patches.length) {
+      const command = cmd.transformObjects(patches, label)
+      // A baked resize rewrites what is already staged, so its command has to
+      // be *run*; a plain move is only recorded, since the move already
+      // happened on the way in.
+      if (baked) st.apply(command)
+      else st.record(command)
+    }
+    return [...blocked]
   },
 
-  /** Discrete transform from the panel steppers. */
+  /**
+   * Discrete transform from the panel steppers. Resizes are folded into the
+   * shape's numbers here too, so typing a size in the rail and dragging a
+   * corner in the yard land in exactly the same place.
+   */
   transformSelection(fn, label) {
     const st = get()
     const sel = st.selectedObjects()
-    if (!sel.length) return
-    const patches = sel.map((o) => ({
-      id: o.id,
-      before: { position: o.position, rotation: o.rotation, scale: o.scale },
-      after: fn(o),
-    }))
-    st.apply(cmd.transformObjects(patches, label))
+    if (!sel.length) return []
+    const patches = []
+    const blocked = new Set()
+    for (const o of sel) {
+      const was = { position: o.position, rotation: o.rotation, scale: o.scale }
+      const fold = bakeResize(o, was, fn(o))
+      if (fold.blocked) {
+        blocked.add(fold.blocked)
+        continue
+      }
+      if (fold.undoParams) was.params = fold.undoParams
+      patches.push({ id: o.id, before: was, after: fold.after })
+    }
+    if (patches.length) st.apply(cmd.transformObjects(patches, label))
+    return [...blocked]
+  },
+
+  /**
+   * Bring the selection into line on one axis — see scene/align. Each group
+   * travels as a unit, so an aligned selection keeps whatever was combined
+   * inside it.
+   */
+  alignSelection(slot, mode) {
+    const st = get()
+    const sel = st.selectedObjects()
+    if (sel.length < 2) return false
+    const offsets = alignOffsets(sel, meshes, slot, mode)
+    if (!offsets.size) return false
+
+    const patches = []
+    for (const o of sel) {
+      const delta = offsets.get(o.id)
+      if (delta === undefined) continue
+      const position = [...o.position]
+      position[slot] += delta
+      patches.push({
+        id: o.id,
+        before: { position: o.position, rotation: o.rotation, scale: o.scale },
+        after: { position, rotation: o.rotation, scale: o.scale },
+      })
+    }
+    if (!patches.length) return false
+    st.apply(cmd.transformObjects(patches, 'align'))
+    return true
   },
 
   setColor(color) {
@@ -522,6 +620,31 @@ export const useScene = create((set, get) => ({
     }
   },
 }))
+
+/**
+ * Fold a change in `scale` into the shape's own parameters, so a block never
+ * holds two different answers to how big it is.
+ *
+ * Returns the transform to store — with `params` written and `scale` put back
+ * when the shape could express the resize, and untouched when it couldn't —
+ * alongside the parameters undo has to restore, and the label of any parameter
+ * that had to be refused because it follows a variable.
+ */
+function bakeResize(object, was, now) {
+  if (same(was.scale, now.scale)) return { after: now }
+
+  const ratio = [0, 1, 2].map((i) => (was.scale[i] ? now.scale[i] / was.scale[i] : 1))
+  const resize = resizeToParams(object, ratio)
+  if (resize?.blocked) return { blocked: resize.blocked }
+  if (!resize?.params) return { after: now } // not expressible; the multiplier stands
+
+  return {
+    after: { ...now, params: resize.params, scale: was.scale },
+    // Only `scale` moved on the way in, so the object is still holding the
+    // parameters this resize replaces — those are what undo puts back.
+    undoParams: object.params,
+  }
+}
 
 const variableMap = (variables) => new Map(variables.map((v) => [v.id, v]))
 

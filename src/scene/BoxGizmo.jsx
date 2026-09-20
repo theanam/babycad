@@ -7,6 +7,7 @@ import { meshes } from './meshRegistry'
 import { dragBus } from './dragBus'
 import { beginDrag, endDrag, setLive } from './liveStore'
 import { SNAP } from '../constants'
+import { toast } from '../ui/Toast'
 import {
   angleInPlane,
   distanceAlongLine,
@@ -381,7 +382,16 @@ export default function BoxGizmo() {
       }
       if (patches.length) {
         stageTransform(patches)
-        commitTransform(before, d.kind === 'rotate' ? 'turn' : d.kind === 'scale' ? 'resize' : 'move')
+        const blocked = commitTransform(
+          before,
+          d.kind === 'rotate' ? 'turn' : d.kind === 'scale' ? 'resize' : 'move'
+        )
+        // A resize is written into the shape's own numbers, and a number that
+        // follows a variable isn't the block's to change — say so, rather than
+        // let the drag quietly spring back.
+        if (blocked?.length) {
+          toast(`${blocked.join(' and ')} follows a variable — change it in Variables`, 'warn')
+        }
       }
     }
 

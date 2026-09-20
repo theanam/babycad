@@ -11,18 +11,30 @@ import ProjectsModal from './ui/ProjectsModal'
 import ExportMenu from './ui/ExportMenu'
 import VariablesPanel from './ui/VariablesPanel'
 import ConfirmDialog from './ui/ConfirmDialog'
+import WelcomeScreen from './ui/WelcomeScreen'
+import HelpModal from './ui/HelpModal'
 import Toasts, { toast } from './ui/Toast'
-import { isStorageAvailable, readAutosave, writeAutosave } from './io/persistence'
+import { buildExample, getExample } from './examples'
+import {
+  hasBeenWelcomed,
+  isStorageAvailable,
+  markWelcomed,
+  readAutosave,
+  writeAutosave,
+} from './io/persistence'
 
 export default function App() {
   const objects = useScene((s) => s.objects)
   const undo = useScene((s) => s.undo)
   const redo = useScene((s) => s.redo)
 
-  const [sheet, setSheet] = useState(null) // 'projects' | 'export' | 'new' | null
+  const [sheet, setSheet] = useState(null) // 'projects' | 'export' | 'new' | 'help' | null
   // Variables aren't a sheet: they take over the right rail, so the build they
   // are reshaping stays in full view while a value is dragged.
   const [showVariables, setShowVariables] = useState(false)
+  // Decided once, before the first paint, so the welcome screen can't flash up
+  // over a build that the autosave is about to restore.
+  const [welcoming, setWelcoming] = useState(() => !hasBeenWelcomed() && !readAutosave()?.objects?.length)
 
   /* ----------------------------------------------------------- startup -- */
 
@@ -80,8 +92,18 @@ export default function App() {
           e.preventDefault()
           store.deleteSelection()
         }
+      } else if (e.key.toLowerCase() === 'l' && !meta) {
+        // Tinkercad's shortcut for the same thing, and it does nothing at all
+        // unless there is more than one block to line up.
+        if (store.selectedIds.length > 1) {
+          e.preventDefault()
+          store.toggleAlign()
+        }
       } else if (e.key === 'Escape') {
-        store.clearSelection()
+        // Escape backs out of aligning first, and only clears the selection
+        // once there is no mode left to leave.
+        if (store.aligning) store.toggleAlign()
+        else store.clearSelection()
       }
     }
 
@@ -112,6 +134,34 @@ export default function App() {
 
   const onNew = () => (objects.length ? setSheet('new') : toast('Already a fresh yard'))
 
+  /* ----------------------------------------------------------- welcome -- */
+
+  const dismissWelcome = useCallback(() => {
+    markWelcomed()
+    setWelcoming(false)
+  }, [])
+
+  const startBlank = useCallback(() => {
+    dismissWelcome()
+    setSheet(null)
+  }, [dismissWelcome])
+
+  const startExample = useCallback(
+    (id) => {
+      const example = getExample(id)
+      if (!example) return
+      const scene = buildExample(example)
+      if (!scene) return toast("That example didn't open — start with a blank plate", 'warn')
+      useScene.getState().loadScene(scene, `open ${example.name}`)
+      useScene.getState().setProjectName(example.name)
+      dismissWelcome()
+      // Frame it once the meshes exist; loadScene has only just written them.
+      requestAnimationFrame(() => viewport.fit())
+      toast(`Opened the ${example.name.toLowerCase()} — it's yours to take apart`)
+    },
+    [dismissWelcome]
+  )
+
   return (
     <div className="app">
       <TopBar
@@ -120,6 +170,7 @@ export default function App() {
         onLoad={() => setSheet('projects')}
         onExport={() => setSheet('export')}
         onVariables={() => setShowVariables((on) => !on)}
+        onHelp={() => setSheet('help')}
         variablesOpen={showVariables}
       />
 
@@ -145,6 +196,15 @@ export default function App() {
         />
       )}
       {sheet === 'export' && <ExportMenu onClose={() => setSheet(null)} />}
+      {sheet === 'help' && (
+        <HelpModal
+          onClose={() => setSheet(null)}
+          onShowWelcome={() => {
+            setSheet(null)
+            setWelcoming(true)
+          }}
+        />
+      )}
       {sheet === 'new' && (
         <ConfirmDialog
           title="Start a new build?"
@@ -153,6 +213,17 @@ export default function App() {
           confirmHint="Empty the yard and start over — this can't be undone"
           onConfirm={confirmNew}
           onCancel={() => setSheet(null)}
+        />
+      )}
+
+      {welcoming && (
+        <WelcomeScreen
+          onBlank={startBlank}
+          onExample={startExample}
+          onHelp={() => {
+            dismissWelcome()
+            setSheet('help')
+          }}
         />
       )}
 

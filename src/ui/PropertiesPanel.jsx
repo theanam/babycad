@@ -6,6 +6,7 @@ import { COLOR_NAME, PALETTE, SNAP } from '../constants'
 import { getShapeDef, SHAPE_LABEL } from '../shapes'
 import { ColorDot, CombineIcon, CopyIcon, ResetIcon, SplitIcon, TrashIcon } from './icons'
 import ParamMenu from './ParamMenu'
+import { toast } from './Toast'
 
 const DEG = 180 / Math.PI
 const round = (n, places = 2) => {
@@ -365,8 +366,10 @@ export default function PropertiesPanel() {
       'turn'
     )
 
-  const setScale = (i, v) =>
-    transformSelection(
+  // Typing a size goes the same way a corner drag does: into the shape's own
+  // millimetres wherever the shape can hold it, so the two never disagree.
+  const setScale = (i, v) => {
+    const blocked = transformSelection(
       (o) => ({
         position: o.position,
         rotation: o.rotation,
@@ -374,6 +377,10 @@ export default function PropertiesPanel() {
       }),
       'resize'
     )
+    if (blocked?.length) {
+      toast(`${blocked.join(' and ')} follows a variable — change it in Variables`, 'warn')
+    }
+  }
 
   return (
     <aside className="props" aria-label="Block properties">
@@ -491,17 +498,25 @@ export default function PropertiesPanel() {
           ))}
         </Row>
 
-        {/* Size is a multiplier, not a length — 2 means twice the shape's own
-            millimetres — so it carries no mm, and being a magnitude it takes
-            the slot but not the sign: a block 2 deep is 2 deep whichever way
-            the axis runs. */}
-        <Row title="SIZE (×)">
+        {/* What's left over after a resize has been written into the shape's
+            own millimetres above — see shapes/resize. Most resizes leave
+            nothing here and these read 1.00; a ball squashed on one axis has
+            no radius that describes it, and that is what this row is for.
+            Being a magnitude it takes the axis's slot but not its sign: a
+            block stretched 2 deep is 2 deep whichever way the axis runs. */}
+        <Row title="STRETCH (×)">
           {AXES.map((a) => (
             <NumField
               key={a.label}
               label={a.label}
               step={SNAP.scale}
-              hint={multi ? 'Pick a single block to type a size in' : `Size along ${a.label} — arrow keys step by ${SNAP.scale}`}
+              hint={
+                multi
+                  ? 'Pick a single block to type a stretch in'
+                  : `Stretch along ${a.label} — the millimetres are up in ${
+                      oneShape ? getShapeDef(primary.type).label.toUpperCase() : 'the shape'
+                    }`
+              }
               value={multi && !allSame((o) => o.scale[a.slot]) ? null : scale[a.slot]}
               disabled={multi}
               onCommit={(v) => setScale(a.slot, v)}
@@ -511,7 +526,7 @@ export default function PropertiesPanel() {
 
         {multi && (
           <p className="props-note">
-            Turn and size are per block — pick a single block to type those in, or use the box
+            Turn and stretch are per block — pick a single block to type those in, or use the box
             handles to resize the whole group.
           </p>
         )}

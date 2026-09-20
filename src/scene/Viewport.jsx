@@ -4,6 +4,7 @@ import { Canvas, useThree } from '@react-three/fiber'
 import { ContactShadows, Grid, OrbitControls } from '@react-three/drei'
 import SceneObject from './SceneObject'
 import BoxGizmo from './BoxGizmo'
+import AlignGizmo from './AlignGizmo'
 import CameraRig from './CameraRig'
 import { useScene } from './sceneStore'
 import { HOME_CAMERA, viewport } from './viewportApi'
@@ -145,6 +146,16 @@ function Lighting() {
   )
 }
 
+/**
+ * The box handles, or the align targets — never both. See scene/AlignGizmo for
+ * why they take turns rather than share the box.
+ */
+function Handles() {
+  const aligning = useScene((s) => s.aligning)
+  const multi = useScene((s) => s.selectedIds.length > 1)
+  return aligning && multi ? <AlignGizmo /> : <BoxGizmo />
+}
+
 export default function Viewport() {
   const clearSelection = useScene((s) => s.clearSelection)
 
@@ -170,7 +181,7 @@ export default function Viewport() {
       <GroundShadow />
 
       <Blocks />
-      <BoxGizmo />
+      <Handles />
       <CameraRig />
 
       <OrbitControls

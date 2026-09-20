@@ -8,6 +8,7 @@ import { resolvePatches, sanitizeVariables } from '../scene/variables'
 
 const PROJECTS_KEY = 'babycad.projects.v1'
 const AUTOSAVE_KEY = 'babycad.autosave.v1'
+const WELCOMED_KEY = 'babycad.welcomed.v1'
 
 // The project was called Blockyard before it was called BabyCAD, and a browser
 // that used it still holds its builds under the old keys. Carry them over once,
@@ -103,6 +104,29 @@ export function writeAutosave(scene) {
 export function readAutosave() {
   const scene = readJSON(AUTOSAVE_KEY, null)
   return scene ? migrate(scene) : null
+}
+
+/* ------------------------------------------------------------- welcome -- */
+
+/**
+ * Whether the welcome screen has had its turn. It shows once, on a browser
+ * that has never opened BabyCAD before, and never again — coming back to a
+ * build only to be asked what you would like to start is worse than no
+ * welcome at all. Help has a link for anyone who wants to see it again.
+ *
+ * Storage being blocked reads as "already welcomed": somewhere the flag can't
+ * be written is somewhere it would show on every single load.
+ */
+export function hasBeenWelcomed() {
+  try {
+    return localStorage.getItem(WELCOMED_KEY) !== null
+  } catch {
+    return true
+  }
+}
+
+export function markWelcomed() {
+  writeJSON(WELCOMED_KEY, new Date().toISOString())
 }
 
 export function clearAutosave() {

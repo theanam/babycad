@@ -158,6 +158,72 @@ export const LinkIcon = (p) => (
     <path d="M14 11a4 4 0 0 0-6-.5l-2 2A4 4 0 0 0 11.7 18l1.1-1.1" />
   </Svg>
 )
+/** A question in a circle: the help sheet. */
+export const HelpIcon = (p) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M9.4 9.2a2.7 2.7 0 0 1 5.2.9c0 1.8-2.6 2.2-2.6 4" />
+    <path d="M12 17.4v.01" />
+  </Svg>
+)
+/** An envelope: send a word to whoever made this. */
+export const MailIcon = (p) => (
+  <Svg {...p}>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="m3.5 7 8.5 6 8.5-6" />
+  </Svg>
+)
+/** A bug, for the issue tracker. */
+export const BugIcon = (p) => (
+  <Svg {...p}>
+    <rect x="8" y="7" width="8" height="12" rx="4" />
+    <path d="M9 6.5A3 3 0 0 1 15 6.5" />
+    <path d="M3 10h5M16 10h5M3 18h5M16 18h5M4 14h4M16 14h4" />
+  </Svg>
+)
+/** Three bars brought to a common edge: line the selection up. */
+export const AlignIcon = (p) => (
+  <Svg {...p}>
+    <path d="M4 3v18" />
+    <rect x="8" y="5" width="12" height="4.5" rx="1.2" />
+    <rect x="8" y="14.5" width="7" height="4.5" rx="1.2" />
+  </Svg>
+)
+/** The empty plate: start with nothing on it. */
+export const BlankIcon = (p) => (
+  <Svg {...p}>
+    <rect x="3.5" y="3.5" width="17" height="17" rx="3" strokeDasharray="3 3" />
+    <path d="M12 9v6M9 12h6" />
+  </Svg>
+)
+/** Goes with a link that leaves the app. */
+export const ExternalIcon = (p) => (
+  <Svg width={2.4} {...p}>
+    <path d="M14 4h6v6" />
+    <path d="M20 4 10.5 13.5" />
+    <path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+  </Svg>
+)
+
+/**
+ * The GitHub mark. Filled rather than stroked — the octocat only reads as
+ * itself as a solid, and outlining it at 18 pixels makes a blob.
+ */
+export const GithubIcon = ({ size = 20, fill = 'currentColor', ...rest }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 16 16"
+    fill={fill}
+    aria-hidden="true"
+    focusable="false"
+    style={{ flex: 'none' }}
+    {...rest}
+  >
+    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
+  </svg>
+)
+
 /** Braces: the variables themselves. */
 export const VariableIcon = (p) => (
   <Svg width={2.2} {...p}>

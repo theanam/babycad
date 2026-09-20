@@ -921,3 +921,182 @@ button:disabled { cursor: default; }
 @media (max-height: 760px) {
   .viewcube-art { width: 110px; height: 110px; }
 }
+
+/* -------------------------------------------------------------- welcome -- */
+
+/* Sits over everything, including a sheet, since it is the first thing a new
+   visitor meets and there is nothing behind it worth reaching. */
+.welcome {
+  position: fixed; inset: 0;
+  z-index: 50;
+  overflow-y: auto;
+  background:
+    radial-gradient(120% 90% at 50% -10%, #1b1733 0%, #0e1014 62%),
+    var(--shell);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 48px 24px;
+  animation: fade var(--fade);
+}
+
+.welcome-sheet { width: 880px; max-width: 100%; margin: auto; }
+
+.welcome-head { text-align: center; margin-bottom: 30px; }
+.welcome-mark { width: 44px; height: 44px; margin: 0 auto 16px; }
+.welcome-head h1 {
+  margin: 0 0 12px;
+  font-size: 44px; font-weight: 900; letter-spacing: -0.025em;
+}
+.welcome-head p {
+  margin: 0 auto;
+  max-width: 560px;
+  font-size: 16px; font-weight: 700; color: var(--muted);
+  line-height: 1.6; text-wrap: pretty;
+}
+
+/* The primary way in: one wide card, so it reads before the examples do. */
+.welcome-blank {
+  width: 100%;
+  display: flex; align-items: center; gap: 16px;
+  padding: 18px 20px;
+  border-radius: var(--r-panel);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-edge);
+  text-align: left;
+  transition: background var(--fade), border-color var(--fade);
+}
+.welcome-blank:hover { border-color: var(--accent); }
+.welcome-blank:active { background: #2a2149; }
+.welcome-blank i {
+  width: var(--tap-lg); height: var(--tap-lg); flex: none;
+  border-radius: var(--r-control-lg);
+  background: #17122b;
+  display: flex; align-items: center; justify-content: center;
+}
+.welcome-blank b { display: block; font-size: 18px; font-weight: 800; color: var(--ink); }
+.welcome-blank em {
+  display: block; margin-top: 4px;
+  font-style: normal; font-size: 14px; font-weight: 700; color: var(--muted);
+}
+
+/* A rule with the word sitting in the gap. */
+.welcome-or {
+  display: flex; align-items: center; gap: 14px;
+  margin: 26px 0 16px;
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--muted-deep);
+}
+.welcome-or::before, .welcome-or::after {
+  content: ''; flex: 1; height: 1px; background: var(--line);
+}
+
+.welcome-examples { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+
+.welcome-example {
+  border-radius: var(--r-panel);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  text-align: left;
+  display: flex; flex-direction: column;
+  transition: border-color var(--fade), background var(--fade);
+}
+.welcome-example:hover { border-color: var(--line-raised); background: var(--panel-raised); }
+.welcome-example:active { border-color: var(--accent); }
+
+.example-art {
+  display: block; width: 100%; height: 132px;
+  background: radial-gradient(120% 100% at 50% 8%, #222836 0%, #12161d 72%);
+  border-bottom: 1px solid var(--line);
+}
+
+.welcome-example-meta { display: block; padding: 14px; }
+.welcome-example-meta b { display: block; font-size: 17px; font-weight: 800; }
+.welcome-example-meta em {
+  display: block; margin-top: 5px;
+  font-style: normal; font-size: 13.5px; font-weight: 700; color: var(--muted);
+  line-height: 1.5; text-wrap: pretty;
+}
+.welcome-example-meta i {
+  display: block; margin-top: 9px;
+  font-style: normal; font-family: var(--mono); font-size: 10.5px;
+  letter-spacing: 0.04em; color: var(--muted-deep);
+}
+
+.welcome-foot {
+  display: flex; gap: 12px; flex-wrap: wrap;
+  margin-top: 26px; padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+/* Anchors borrowing button styling need the link chrome taken back off. */
+a.foot-btn, a.icon-btn { text-decoration: none; }
+
+@media (max-width: 720px) {
+  .welcome { padding: 28px 16px; }
+  .welcome-head h1 { font-size: 34px; }
+  .welcome-examples { grid-template-columns: 1fr; }
+  .example-art { height: 116px; }
+}
+
+/* ----------------------------------------------------------------- help -- */
+
+.modal.help { width: 760px; }
+
+.help-body { display: flex; flex-direction: column; gap: 22px; }
+.help-body section { display: flex; flex-direction: column; gap: 10px; }
+.help-body h3 {
+  margin: 0;
+  font-size: 13px; font-weight: 900; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--accent-ink);
+}
+.help-body p {
+  margin: 0;
+  font-size: 15.5px; font-weight: 700; color: var(--muted);
+  line-height: 1.62; text-wrap: pretty;
+}
+.help-body strong { color: var(--ink-dim); font-weight: 800; }
+
+.help-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; }
+.help-list li {
+  font-size: 15.5px; font-weight: 700; color: var(--muted);
+  line-height: 1.55; text-wrap: pretty;
+}
+.help-list b { color: var(--ink-dim); font-weight: 800; }
+.help-list::marker, .help-list li::marker { color: var(--muted-deep); }
+
+/* Two columns so the keys line up in a strip down the left. */
+.help-keys { margin: 0; display: grid; gap: 8px; }
+.help-keys > div { display: grid; grid-template-columns: 200px 1fr; gap: 14px; align-items: baseline; }
+.help-keys dt {
+  font-family: var(--mono); font-size: 12px; color: var(--ink-dim);
+  background: var(--control); border: 1px solid var(--line-soft);
+  border-radius: 7px; padding: 5px 8px; text-align: center;
+}
+.help-keys dd { margin: 0; font-size: 15px; font-weight: 700; color: var(--muted); }
+
+.help-contact {
+  display: flex; flex-direction: column; gap: 10px;
+  margin-top: 24px; padding-top: 20px;
+  border-top: 1px solid var(--line-soft);
+}
+.help-link {
+  display: flex; align-items: center; gap: 14px;
+  min-height: 68px; padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--control);
+  text-decoration: none;
+  transition: background var(--fade);
+}
+.help-link:hover { background: var(--control-hi); }
+.help-link > span { flex: 1; min-width: 0; }
+.help-link b { display: block; font-size: 15.5px; font-weight: 800; color: var(--ink); }
+.help-link em {
+  display: block; margin-top: 3px;
+  font-style: normal; font-size: 13.5px; font-weight: 700; color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+  .help-keys > div { grid-template-columns: 1fr; gap: 4px; }
+  .help-keys dt { justify-self: start; }
+}

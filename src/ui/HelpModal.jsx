@@ -1,0 +1,210 @@
+import { useEffect } from 'react'
+import { PLATE, SNAP } from '../constants'
+import { FEEDBACK_EMAIL, FEEDBACK_MAILTO, ISSUES_URL, REPO_URL } from '../links'
+import { BugIcon, CloseIcon, ExternalIcon, GithubIcon, MailIcon } from './icons'
+
+const SHORTCUTS = [
+  ['Ctrl / ⌘ + Z', 'Undo'],
+  ['Shift + Ctrl / ⌘ + Z', 'Redo'],
+  ['Ctrl / ⌘ + D', 'Copy what’s selected'],
+  ['Delete or Backspace', 'Remove what’s selected'],
+  ['Esc', 'Deselect'],
+  ['Shift + click', 'Add a block to the selection'],
+  ['L', 'Line up everything you’ve picked'],
+  ['Hold Alt', 'Move without snapping to the grid'],
+  ['Arrow keys', 'Step the number field you’re in'],
+]
+
+/**
+ * How the thing works, in one sheet.
+ *
+ * Written to be read once by somebody who has never used a CAD program, in the
+ * order they will meet things: the plate, then shapes, then the handles, then
+ * the numbers. The parts that are genuinely surprising get their own line —
+ * that Z is up, that resizing writes into the shape's own millimetres, that
+ * everything lives in this browser and nowhere else.
+ */
+export default function HelpModal({ onClose, onShowWelcome }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose()
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div className="scrim" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal help" role="dialog" aria-label="How BabyCAD works">
+        <div className="modal-head">
+          <div className="modal-title">How this works</div>
+          <div className="modal-tag">EVERYTHING STAYS IN THIS BROWSER</div>
+          <button className="modal-close" onClick={onClose} title="Close" aria-label="Close">
+            <CloseIcon stroke="#8A93A5" />
+          </button>
+        </div>
+
+        <div className="help-body">
+          <section>
+            <h3>The plate</h3>
+            <p>
+              You build on a {PLATE} × {PLATE} mm plate. One grid square is {SNAP.move} mm — the
+              same step blocks snap to — and the heavier line every 20 mm marks out the footprint a
+              freshly dropped shape takes up. Every number in the app is millimetres, so an{' '}
+              <strong>.stl</strong> exported from here arrives in a slicer at the size it says it
+              is.
+            </p>
+            <p>
+              Axes are named the CAD way: <strong>X</strong> across, <strong>Y</strong> away from
+              you and <strong>Z</strong> straight up. The little cube at the bottom left turns the
+              view — drag it, or tap a face to look at the build straight on.
+            </p>
+          </section>
+
+          <section>
+            <h3>Putting blocks down</h3>
+            <p>
+              The rail down the left is the shapes. Tap one and it lands on the plate in front of
+              the camera. The top group is the plain solids you size — a cube, a ball, a ramp. The
+              bottom group are generators: a gear with real involute teeth, a screw with a metric
+              thread, a coil, a knot. Those you specify rather than size, and two gears with the
+              same tooth size genuinely mesh.
+            </p>
+          </section>
+
+          <section>
+            <h3>Moving it about</h3>
+            <p>
+              There are no tool modes — whichever handle on the box you grab is the operation.
+            </p>
+            <ul className="help-list">
+              <li>
+                <b>Drag the block itself</b> to slide it across the floor.
+              </li>
+              <li>
+                <b>The four corners at the bottom</b> resize it, growing it up and away from the
+                opposite corner so it never sinks through the plate.
+              </li>
+              <li>
+                <b>The handle on top</b> changes its height only.
+              </li>
+              <li>
+                <b>The ball on a stick</b> turns it. There is one per axis, each the colour of the
+                axis it swings about.
+              </li>
+            </ul>
+            <p>
+              Dragging snaps to {SNAP.move} mm and 15°. Hold <strong>Alt</strong> for as long as
+              you want that off, or turn snapping off altogether with the switch over the scene.
+            </p>
+          </section>
+
+          <section>
+            <h3>Lining things up</h3>
+            <p>
+              Pick more than one block — hold <strong>Shift</strong> while you click, or turn{' '}
+              <strong>Pick many</strong> on — and an <strong>Align</strong> switch appears over the
+              scene. Turn it on and nine dots surround the selection: three along the front edge,
+              three down the left, three going up the near corner.
+            </p>
+            <p>
+              Each row is one axis. Tap an outer dot to bring that set of faces together, or the
+              middle dot to centre everything on that axis. Hovering a dot draws a square where
+              the faces are about to meet. Anything you&apos;ve <strong>combined</strong> travels
+              as one piece, so it keeps its own arrangement.
+            </p>
+          </section>
+
+          <section>
+            <h3>One size, not two</h3>
+            <p>
+              Resizing a block in the yard writes straight into the shape&apos;s own numbers. Drag
+              a 20 mm cube twice as wide and its <strong>Width</strong> in the rail says 40 mm —
+              the block and its numbers can never disagree, because there is only one of them.
+            </p>
+            <p>
+              A few resizes have no number to land in: squash a ball along one axis and there is no
+              radius that describes the result. Those are the ones that show up under{' '}
+              <strong>Stretch</strong>, which is a plain multiplier and normally reads 1.00.
+            </p>
+          </section>
+
+          <section>
+            <h3>Variables</h3>
+            <p>
+              Any number can be promoted to a named variable and then reused by other shapes, so
+              one value drives the whole build. Open <strong>Variables</strong> in the top bar, or
+              use the link button beside a number to make one from what&apos;s already there. Drag
+              the variable and everything following it moves at once.
+            </p>
+            <p>
+              A number that follows a variable can&apos;t be changed by dragging the block — the
+              variable is where it lives now, and BabyCAD will say so rather than quietly let the
+              two drift apart.
+            </p>
+          </section>
+
+          <section>
+            <h3>Keeping it</h3>
+            <p>
+              Builds save into this browser&apos;s own storage — no account, no server, nothing
+              uploaded. That also means they are only on this device, and clearing your browser
+              data clears them. To take one with you, or move it to another machine, use{' '}
+              <strong>Export</strong>: <strong>.glb</strong> keeps the colours,{' '}
+              <strong>.stl</strong> is the one for a 3D printer, and <strong>.babycad</strong> is
+              the whole build, ready to open here again.
+            </p>
+          </section>
+
+          <section>
+            <h3>Keyboard</h3>
+            <dl className="help-keys">
+              {SHORTCUTS.map(([keys, what]) => (
+                <div key={keys}>
+                  <dt>{keys}</dt>
+                  <dd>{what}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        </div>
+
+        <div className="help-contact">
+          <a className="help-link" href={ISSUES_URL} target="_blank" rel="noreferrer noopener">
+            <BugIcon size={22} stroke="#FF7A6B" />
+            <span>
+              <b>Something broken?</b>
+              <em>Open an issue on the tracker — that&apos;s where bugs get fixed.</em>
+            </span>
+            <ExternalIcon size={16} stroke="#59627A" />
+          </a>
+
+          <a className="help-link" href={FEEDBACK_MAILTO}>
+            <MailIcon size={22} stroke="#C8B6FF" />
+            <span>
+              <b>Ideas, or just want to say something?</b>
+              <em>{FEEDBACK_EMAIL}</em>
+            </span>
+          </a>
+
+          <a className="help-link" href={REPO_URL} target="_blank" rel="noreferrer noopener">
+            <GithubIcon size={20} fill="#C3CAD9" />
+            <span>
+              <b>The source</b>
+              <em>github.com/theanam/babycad — all of it, including this sheet.</em>
+            </span>
+            <ExternalIcon size={16} stroke="#59627A" />
+          </a>
+        </div>
+
+        <div className="modal-foot">
+          <div className="note">
+            New to it? The <strong>welcome screen</strong> has a few example builds worth taking
+            apart.
+          </div>
+          <button className="foot-btn" onClick={onShowWelcome} title="Show the welcome screen">
+            Show me the examples
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
