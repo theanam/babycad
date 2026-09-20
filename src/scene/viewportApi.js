@@ -211,7 +211,7 @@ export const viewport = {
     if (!source) return null
     try {
       // Force a fresh frame so the drawing buffer definitely holds the scene.
-      this.gl.render(this.gl.__blockyardScene, this.camera)
+      this.gl.render(this.gl.__babycadScene, this.camera)
       const out = document.createElement('canvas')
       out.width = width
       out.height = height

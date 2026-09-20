@@ -21,7 +21,7 @@ root.render(
       <App />
     ) : (
       <div className="fallback">
-        <h1>Blockyard needs 3D graphics</h1>
+        <h1>BabyCAD needs 3D graphics</h1>
         <p>
           This browser can&apos;t draw 3D scenes. Try the latest Chrome, Safari, Edge or Firefox —
           and if you&apos;re on a school device, 3D may be switched off in its settings.

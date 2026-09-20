@@ -79,11 +79,11 @@ export default function ProjectsModal({ onClose, onRequestNew }) {
       const scene = migrate(JSON.parse(await file.text()))
       if (!scene?.objects?.length) throw new Error('empty')
       loadScene(scene)
-      setProjectName(file.name.replace(/\.(blockyard\.)?json$/i, ''))
+      setProjectName(file.name.replace(/\.(babycad\.|blockyard\.)?json$/i, ''))
       toast(`Opened ${file.name}`)
       onClose()
     } catch {
-      toast("That file isn't a Blockyard build", 'warn')
+      toast("That file isn't a BabyCAD build", 'warn')
     }
   }
 
@@ -172,12 +172,12 @@ export default function ProjectsModal({ onClose, onRequestNew }) {
         <div className="modal-foot">
           <div className="note">
             Builds live on this device. Use <strong>Export</strong> to take one with you as a .glb
-            file, or save it as a Blockyard file you can open again here.
+            file, or save it as a BabyCAD file you can open again here.
           </div>
           <button
             className="foot-btn"
             onClick={() => fileInput.current?.click()}
-            title="Open a Blockyard .json file from your device"
+            title="Open a BabyCAD .json file from your device"
           >
             <OpenIcon stroke="#8A93A5" />
             Open a file

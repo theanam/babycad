@@ -35,7 +35,7 @@ export default function App() {
       })
     }
     if (!isStorageAvailable()) {
-      toast("This browser won't let Blockyard save — your build will vanish on refresh", 'warn')
+      toast("This browser won't let BabyCAD save — your build will vanish on refresh", 'warn')
     }
   }, [])
 

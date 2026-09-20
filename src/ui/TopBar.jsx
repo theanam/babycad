@@ -14,7 +14,7 @@ export default function TopBar({ onNew, onSave, onLoad, onExport, onVariables })
         <div className="brand-mark" aria-hidden="true">
           <i /><i /><i />
         </div>
-        <div className="brand-name">Blockyard</div>
+        <div className="brand-name">BabyCAD</div>
       </div>
 
       <div className="rule-v" />

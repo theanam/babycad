@@ -16,7 +16,7 @@ function Rig() {
   useEffect(() => {
     viewport.camera = camera
     viewport.gl = gl
-    gl.__blockyardScene = scene
+    gl.__babycadScene = scene
   }, [camera, gl, scene])
   useEffect(() => {
     viewport.controls = controls ?? null

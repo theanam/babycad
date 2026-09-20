@@ -6,8 +6,29 @@ import { SCENE_VERSION } from '../constants'
 import { normalizeParams } from '../shapes'
 import { resolvePatches, sanitizeVariables } from '../scene/variables'
 
-const PROJECTS_KEY = 'blockyard.projects.v1'
-const AUTOSAVE_KEY = 'blockyard.autosave.v1'
+const PROJECTS_KEY = 'babycad.projects.v1'
+const AUTOSAVE_KEY = 'babycad.autosave.v1'
+
+// The project was called Blockyard before it was called BabyCAD, and a browser
+// that used it still holds its builds under the old keys. Carry them over once,
+// on first load, so the rename doesn't look like the builds were deleted. The
+// old keys are left in place: copying is cheap, and a half-finished migration
+// that has already removed them would lose the builds for good.
+;(function adoptLegacyKeys() {
+  try {
+    for (const [now, before] of [
+      [PROJECTS_KEY, 'blockyard.projects.v1'],
+      [AUTOSAVE_KEY, 'blockyard.autosave.v1'],
+    ]) {
+      const legacy = localStorage.getItem(before)
+      if (legacy !== null && localStorage.getItem(now) === null) {
+        localStorage.setItem(now, legacy)
+      }
+    }
+  } catch {
+    // Storage blocked. The app already warns about that; nothing to do here.
+  }
+})()
 
 function readJSON(key, fallback) {
   try {
@@ -30,7 +51,7 @@ function writeJSON(key, value) {
 
 export function isStorageAvailable() {
   try {
-    const probe = '__blockyard__'
+    const probe = '__babycad__'
     localStorage.setItem(probe, '1')
     localStorage.removeItem(probe)
     return true

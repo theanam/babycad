@@ -4,7 +4,7 @@ dist/
 *.local
 
 # Source spec — not part of the shipped project
-blockyard-engineering-spec.md
+babycad-engineering-spec.md
 
 # Local editor config
 .vscode/

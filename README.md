@@ -1,9 +1,9 @@
-# Blockyard
+# BabyCAD
 
 A 3D building sandbox for kids that runs entirely in the browser. No backend,
 no login, no accounts — nothing you build ever leaves your device.
 
-Built from `blockyard-engineering-spec.md` and the "Blockyard UI" design doc.
+Built from `babycad-engineering-spec.md` and the "BabyCAD UI" design doc.
 
 ## Running it
 
@@ -273,7 +273,7 @@ Matching the spec's v1 boundary:
   and cutting a matching internal one out of a block needs a real subtraction.
 - **The undo stack resets on refresh.** The *build* doesn't: it autosaves to
   localStorage and comes back. That's the split the spec asks for.
-- **Import is Blockyard JSON, not `.glb`.** The design's footer button reads
+- **Import is BabyCAD JSON, not `.glb`.** The design's footer button reads
   "Open a .glb", but reading an arbitrary GLB back would produce meshes that
   don't map onto the primitive data model. The button opens the scene JSON that
   Export writes, which is the round-trip the spec's data model describes.

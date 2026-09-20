@@ -18,7 +18,7 @@ import { acquireGeometry, releaseGeometry } from '../shapes/geometryCache'
  */
 function buildExportScene(objects, groups) {
   const root = new THREE.Group()
-  root.name = 'Blockyard'
+  root.name = 'BabyCAD'
   const borrowed = []
 
   const groupNodes = new Map()
@@ -61,8 +61,8 @@ function download(blob, filename) {
 }
 
 const safeName = (name) =>
-  (name || 'blockyard-build').trim().replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '') ||
-  'blockyard-build'
+  (name || 'babycad-build').trim().replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '') ||
+  'babycad-build'
 
 /** Primary export: binary glTF, which preserves colors and the scene graph. */
 export function exportGLB(objects, groups, name) {
@@ -95,5 +95,5 @@ export function exportSTL(objects, groups, name) {
 /** The scene JSON itself, so a build can move between browsers or devices. */
 export function exportJSON(scene, name) {
   const blob = new Blob([JSON.stringify(scene, null, 2)], { type: 'application/json' })
-  download(blob, `${safeName(name)}.blockyard.json`)
+  download(blob, `${safeName(name)}.babycad.json`)
 }

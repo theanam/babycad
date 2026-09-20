@@ -17,7 +17,7 @@ const OPTIONS = [
   },
   {
     id: 'json',
-    title: 'Blockyard file (.json)',
+    title: 'BabyCAD file (.json)',
     body: 'Save it anywhere, then open it again here — even on another device.',
   },
 ]
@@ -35,7 +35,7 @@ export default function ExportMenu({ onClose }) {
   }, [onClose])
 
   const run = async (id) => {
-    const name = projectName || 'blockyard-build'
+    const name = projectName || 'babycad-build'
     try {
       if (id === 'glb') await exportGLB(objects, groups, name)
       else if (id === 'stl') exportSTL(objects, groups, name)
