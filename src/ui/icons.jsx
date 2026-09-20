@@ -85,12 +85,6 @@ export const SizeIcon = (p) => (
     <path d="M20 4 10 14" />
   </Svg>
 )
-export const PickManyIcon = (p) => (
-  <Svg {...p}>
-    <rect x="3" y="3" width="10" height="10" rx="2" />
-    <rect x="11" y="11" width="10" height="10" rx="2" />
-  </Svg>
-)
 export const CombineIcon = (p) => (
   <Svg {...p}>
     <rect x="3" y="3" width="9" height="9" rx="2" />

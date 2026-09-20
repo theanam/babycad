@@ -55,7 +55,6 @@ const emptyScene = () => ({ objects: [], groups: [], variables: [] })
 export const useScene = create((set, get) => ({
   ...emptyScene(),
   selectedIds: [],
-  pickMany: false, // touch-friendly multi-select, mirrors shift-click
   snapEnabled: true, // grid snapping, on by default
   freeMove: false, // Alt held: temporarily ignore the snap grid
   aligning: false, // the align targets are showing instead of the box handles
@@ -132,9 +131,8 @@ export const useScene = create((set, get) => ({
     const st = get()
     if (st.aligning) set({ aligning: false })
     if (!id) return set({ selectedIds: [] })
-    const wantAdditive = additive || st.pickMany
-    let base = wantAdditive ? st.selectedIds : []
-    if (wantAdditive && st.selectedIds.includes(id)) {
+    let base = additive ? st.selectedIds : []
+    if (additive && st.selectedIds.includes(id)) {
       // Toggling off removes the whole group the block belongs to.
       const drop = new Set(expandSelection([id], st.objects))
       base = st.selectedIds.filter((x) => !drop.has(x))
@@ -151,6 +149,13 @@ export const useScene = create((set, get) => ({
     set({ selectedIds: [], aligning: false })
   },
 
+  selectAll() {
+    const st = get()
+    if (!st.objects.length) return false
+    set({ selectedIds: st.objects.map((o) => o.id), aligning: false })
+    return true
+  },
+
   /**
    * Show the align targets instead of the box handles. They are a mode rather
    * than more handles on the box because the box has no free side left: the
@@ -159,10 +164,6 @@ export const useScene = create((set, get) => ({
    */
   toggleAlign() {
     set((st) => ({ aligning: !st.aligning && st.selectedIds.length > 1 }))
-  },
-
-  togglePickMany() {
-    set((st) => ({ pickMany: !st.pickMany }))
   },
 
   setFreeMove(freeMove) {

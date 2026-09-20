@@ -1,16 +1,15 @@
 import { useScene } from '../scene/sceneStore'
 import { SNAP } from '../constants'
-import { AlignIcon, PickManyIcon, SnapIcon } from './icons'
+import { AlignIcon, SnapIcon } from './icons'
 
 /**
  * What changes how the gizmo behaves. There are no tool modes for *editing* —
  * the bounding box handles pick the operation — so all that floats over the
- * scene is multi-select, grid snapping, and, once there is more than one block
- * picked, the switch to the align targets.
+ * scene is grid snapping and, once there is more than one block picked, the
+ * switch to the align targets. Multi-select is shift-click (or Ctrl/Cmd-A for
+ * the lot) rather than a mode you have to turn on first.
  */
 export default function ViewTools() {
-  const pickMany = useScene((s) => s.pickMany)
-  const togglePickMany = useScene((s) => s.togglePickMany)
   const snapEnabled = useScene((s) => s.snapEnabled)
   const toggleSnap = useScene((s) => s.toggleSnap)
   const freeMove = useScene((s) => s.freeMove)
@@ -22,18 +21,6 @@ export default function ViewTools() {
 
   return (
     <div className="mode-switch" role="group" aria-label="Tools">
-      <button
-        className={`mode-btn wide${pickMany ? ' on' : ''}`}
-        onClick={togglePickMany}
-        aria-pressed={pickMany}
-        title="Tap several blocks in a row"
-      >
-        <PickManyIcon size={22} stroke={pickMany ? '#fff' : '#8A93A5'} />
-        Pick many
-      </button>
-
-      <div className="mode-sep" />
-
       <button
         className={`mode-btn wide${snapping ? ' on' : ''}`}
         onClick={toggleSnap}

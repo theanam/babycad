@@ -6,6 +6,7 @@ import { BugIcon, CloseIcon, ExternalIcon, GithubIcon, MailIcon } from './icons'
 const SHORTCUTS = [
   ['Ctrl / ⌘ + Z', 'Undo'],
   ['Shift + Ctrl / ⌘ + Z', 'Redo'],
+  ['Ctrl / ⌘ + A', 'Pick every block'],
   ['Ctrl / ⌘ + D', 'Copy what’s selected'],
   ['Delete or Backspace', 'Remove what’s selected'],
   ['Esc', 'Deselect'],
@@ -100,10 +101,10 @@ export default function HelpModal({ onClose, onShowWelcome }) {
           <section>
             <h3>Lining things up</h3>
             <p>
-              Pick more than one block — hold <strong>Shift</strong> while you click, or turn{' '}
-              <strong>Pick many</strong> on — and an <strong>Align</strong> switch appears over the
-              scene. Turn it on and nine dots surround the selection: three along the front edge,
-              three down the left, three going up the near corner.
+              Pick more than one block — hold <strong>Shift</strong> while you click, or press{' '}
+              <strong>Ctrl / ⌘ + A</strong> for the lot — and an <strong>Align</strong> switch
+              appears over the scene. Turn it on and nine dots surround the selection: three along
+              the front edge, three down the left, three going up the near corner.
             </p>
             <p>
               Each row is one axis. Tap an outer dot to bring that set of faces together, or the

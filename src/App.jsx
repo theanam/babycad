@@ -84,6 +84,12 @@ export default function App() {
       } else if (meta && e.key.toLowerCase() === 'y') {
         e.preventDefault()
         redo()
+      } else if (meta && e.key.toLowerCase() === 'a') {
+        // Select all. Worth pre-empting the browser's own select-all even when
+        // the yard is empty: highlighting the whole page is never what someone
+        // reaching for Ctrl-A in a CAD program wanted.
+        e.preventDefault()
+        store.selectAll()
       } else if (meta && e.key.toLowerCase() === 'd') {
         e.preventDefault()
         store.duplicate()
