@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useScene } from '../scene/sceneStore'
 import { useLive } from '../scene/liveStore'
-import { COLOR_NAME, PALETTE, SHAPE_LABEL, SNAP } from '../constants'
-import { ColorDot, CombineIcon, CopyIcon, SplitIcon, TrashIcon } from './icons'
+import { COLOR_NAME, PALETTE, SNAP } from '../constants'
+import { getShapeDef, SHAPE_LABEL } from '../shapes'
+import { ColorDot, CombineIcon, CopyIcon, ResetIcon, SplitIcon, TrashIcon } from './icons'
+import ParamMenu from './ParamMenu'
 
 const DEG = 180 / Math.PI
 const round = (n, places = 2) => {
@@ -26,8 +28,8 @@ function NumField({ label, value, step, onCommit, disabled, suffix, hint }) {
   }
 
   return (
-    <label className="numfield" title={hint}>
-      <span className="numfield-axis">{label}</span>
+    <label className={`numfield${label ? '' : ' bare'}`} title={hint}>
+      {label && <span className="numfield-axis">{label}</span>}
       <input
         type="text"
         inputMode="decimal"
@@ -57,6 +59,224 @@ function Row({ title, children }) {
     <div className="prop-row">
       <div className="prop-label">{title}</div>
       <div className="prop-fields">{children}</div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------ shape parameters -- */
+
+/**
+ * One parameter, rendered from its spec. Numbers get a field *and* a slider:
+ * the field is how you hit an exact tooth count, the slider is how you find
+ * out what a helix angle even does. Dragging the slider rebuilds the geometry
+ * live and lands a single undo entry when you let go.
+ */
+function ParamField({
+  spec,
+  value,
+  mixed,
+  variable,
+  variables,
+  onBegin,
+  onPreview,
+  onCommit,
+  onRelease,
+  onPromote,
+  onBind,
+  onUnbind,
+}) {
+  const menu = (
+    <ParamMenu
+      spec={spec}
+      variable={variable}
+      variables={variables}
+      onPromote={onPromote}
+      onBind={onBind}
+      onUnbind={onUnbind}
+    />
+  )
+
+  /* Bound: the variable owns the value, so the control is replaced by the
+     variable's name. Editing it here would either fight the variable or
+     silently break the link — unlinking is in the menu, deliberately. */
+  if (variable) {
+    return (
+      <div className="param linked">
+        <div className="param-top">
+          <span className="param-name">{spec.label}</span>
+          <div className="param-chip" title={`Follows the variable "${variable.name}"`}>
+            {variable.name}
+          </div>
+          {menu}
+        </div>
+        <div className="param-readout">
+          = {formatValue(spec, value)}
+          {spec.unit ?? ''}
+        </div>
+      </div>
+    )
+  }
+
+  if (spec.kind === 'choice') {
+    return (
+      <div className="param">
+        <div className="param-top">
+          <span className="param-name">{spec.label}</span>
+          {menu}
+        </div>
+        <div className="param-seg" role="group" aria-label={spec.label}>
+          {spec.options.map((o) => (
+            <button
+              key={String(o.value)}
+              className={`param-seg-btn${!mixed && o.value === value ? ' on' : ''}`}
+              aria-pressed={!mixed && o.value === value}
+              onClick={() => onCommit(o.value)}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (spec.kind === 'bool') {
+    return (
+      <div className="param">
+        <div className="param-top">
+          <span className="param-name">{spec.label}</span>
+          <button
+            className={`param-toggle${value ? ' on' : ''}`}
+            aria-pressed={!!value}
+            onClick={() => onCommit(!value)}
+          >
+            {value ? 'On' : 'Off'}
+          </button>
+          {menu}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="param">
+      <div className="param-top">
+        <span className="param-name">{spec.label}</span>
+        <NumField
+          value={mixed ? null : value}
+          step={spec.step}
+          suffix={spec.unit}
+          hint={`${spec.label} — ${spec.min} to ${spec.max}`}
+          onCommit={onCommit}
+        />
+        {menu}
+      </div>
+      <input
+        className="param-slider"
+        type="range"
+        min={spec.min}
+        max={spec.max}
+        step={spec.step}
+        value={value}
+        aria-label={spec.label}
+        onChange={(e) => onPreview(Number(e.target.value))}
+        onPointerDown={onBegin}
+        onPointerUp={onRelease}
+        onKeyUp={onRelease}
+        onBlur={onRelease}
+      />
+    </div>
+  )
+}
+
+const formatValue = (spec, value) => {
+  if (spec.kind === 'bool') return value ? 'on' : 'off'
+  if (spec.kind === 'choice') return spec.options.find((o) => o.value === value)?.label ?? value
+  return round(value, 3)
+}
+
+/**
+ * The parameters of whatever is selected, as long as it's all one shape.
+ * Mixed selections get a note instead — there is no sensible way to show a
+ * gear's teeth and a sphere's rings in the same list.
+ */
+function ShapeSection({ sel }) {
+  const stageParams = useScene((s) => s.stageParams)
+  const setParams = useScene((s) => s.setParams)
+  const commitParams = useScene((s) => s.commitParams)
+  const resetParams = useScene((s) => s.resetParams)
+  const variables = useScene((s) => s.variables)
+  const promoteToVariable = useScene((s) => s.promoteToVariable)
+  const bindParam = useScene((s) => s.bindParam)
+  const unbindParam = useScene((s) => s.unbindParam)
+  const snapshot = useRef(null)
+
+  const def = getShapeDef(sel[0].type)
+  const primary = sel[0]
+  const label = def.label.toLowerCase()
+  const ids = sel.map((o) => o.id)
+  const byId = new Map(variables.map((v) => [v.id, v]))
+
+  const fanOut = (key, value) => Object.fromEntries(sel.map((o) => [o.id, { [key]: value }]))
+
+  const begin = () => {
+    if (!snapshot.current) snapshot.current = Object.fromEntries(sel.map((o) => [o.id, o.params]))
+  }
+  const release = () => {
+    if (!snapshot.current) return
+    commitParams(snapshot.current, `shape ${label}`)
+    snapshot.current = null
+  }
+
+  return (
+    <div className="prop-row">
+      <div className="prop-label prop-label-row">
+        <span>{def.label.toUpperCase()}</span>
+        <button
+          className="prop-mini"
+          onClick={resetParams}
+          title={`Put this ${label} back to its starting numbers`}
+        >
+          <ResetIcon size={13} stroke="#8A93A5" />
+          Reset
+        </button>
+      </div>
+
+      {def.blurb && <div className="prop-hint prop-blurb">{def.blurb}</div>}
+
+      <div className="param-list">
+        {def.params.map((spec) => {
+          const mixed = sel.some((o) => o.params[spec.key] !== primary.params[spec.key])
+          // Only call it bound if the *whole* selection follows the same
+          // variable; a half-linked selection reads as unlinked, and picking a
+          // variable from the menu links all of it.
+          const boundTo = primary.bindings?.[spec.key]
+          const allBound = boundTo && sel.every((o) => o.bindings?.[spec.key] === boundTo)
+          return (
+            <ParamField
+              key={spec.key}
+              spec={spec}
+              value={primary.params[spec.key]}
+              mixed={mixed}
+              variable={allBound ? byId.get(boundTo) : null}
+              variables={variables}
+              onPromote={(name) => promoteToVariable(ids, spec.key, name)}
+              onBind={(id) => bindParam(ids, spec.key, id)}
+              onUnbind={() => unbindParam(ids, spec.key)}
+              onBegin={begin}
+              onPreview={(value) => {
+                begin()
+                stageParams(fanOut(spec.key, value))
+              }}
+              onRelease={release}
+              onCommit={(value) => {
+                snapshot.current = null
+                setParams(fanOut(spec.key, value), `shape ${label}`)
+              }}
+            />
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -102,6 +322,7 @@ export default function PropertiesPanel() {
   const primary = sel[0]
   const grouped = sel.some((o) => o.parentGroupId)
   const allSame = (pick) => sel.every((o) => pick(o) === pick(primary))
+  const oneShape = allSame((o) => o.type)
   // Mid-drag the store is stale by design; prefer what's actually on screen.
   const shownOf = (key) => (dragging && live ? live[key] : primary[key])
 
@@ -223,6 +444,18 @@ export default function PropertiesPanel() {
           </div>
           {!color && <div className="prop-hint">These blocks are different colors right now.</div>}
         </div>
+
+        {oneShape ? (
+          <ShapeSection sel={sel} />
+        ) : (
+          <div className="prop-row">
+            <div className="prop-label">SHAPE</div>
+            <div className="prop-hint">
+              These are different shapes, so there's no one set of numbers to show. Pick just one
+              to change what it's made of.
+            </div>
+          </div>
+        )}
 
         <Row title="POSITION">
           {axes.map((a, i) => (

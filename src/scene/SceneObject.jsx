@@ -1,6 +1,7 @@
-import { memo, useCallback } from 'react'
+import { memo, useCallback, useEffect, useMemo } from 'react'
 import { Outlines } from '@react-three/drei'
-import { getGeometry } from './geometry'
+import { keyOfParams } from '../shapes'
+import { acquireGeometry, releaseGeometry } from '../shapes/geometryCache'
 import { registerMesh } from './meshRegistry'
 import { dragBus } from './dragBus'
 
@@ -10,16 +11,21 @@ const OUTLINE_PX =
   4 * Math.min(typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1, 2)
 
 /**
- * One primitive. Geometry is shared per type; only the material is per-block,
- * which keeps a hundred-block scene cheap to render.
+ * One shape. Geometry is shared by everything with the same type *and* the
+ * same parameters, and reference counted — two default cubes still cost one
+ * geometry, while a gear nobody is using any more gets its buffers freed.
  */
 function SceneObject({ object, selected, onSelect, castShadow = true }) {
   const bind = useCallback((mesh) => registerMesh(object.id, mesh), [object.id])
 
+  const shapeKey = keyOfParams(object.type, object.params)
+  const geometry = useMemo(() => acquireGeometry(object.type, object.params), [shapeKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => releaseGeometry(geometry), [geometry])
+
   return (
     <mesh
       ref={bind}
-      geometry={getGeometry(object.type)}
+      geometry={geometry}
       position={object.position}
       rotation={object.rotation}
       scale={object.scale}

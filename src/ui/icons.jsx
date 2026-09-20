@@ -146,6 +146,20 @@ export const ChevronUpIcon = (p) => (
     <path d="m6 14 6-6 6 6" />
   </Svg>
 )
+/** A chain link: this value follows a variable. */
+export const LinkIcon = (p) => (
+  <Svg width={2.4} {...p}>
+    <path d="M10 13a4 4 0 0 0 6 .5l2-2a4 4 0 0 0-5.7-5.7l-1.1 1.1" />
+    <path d="M14 11a4 4 0 0 0-6-.5l-2 2A4 4 0 0 0 11.7 18l1.1-1.1" />
+  </Svg>
+)
+/** Braces: the variables themselves. */
+export const VariableIcon = (p) => (
+  <Svg width={2.2} {...p}>
+    <path d="M9 4c-2 0-2.5 1.2-2.5 3S6 10.5 4.5 10.5C6 10.5 6.5 12 6.5 14s.5 3 2.5 3" />
+    <path d="M15 4c2 0 2.5 1.2 2.5 3s.5 3.5 2 3.5c-1.5 0-2 1.5-2 3.5s-.5 3-2.5 3" />
+  </Svg>
+)
 
 /* ------------------------------------------------------------------------ */
 
@@ -159,9 +173,98 @@ const facets = {
   pyramid: ['#FFB84D', '#C4782A'],
 }
 
+/**
+ * The generators get flat SVG glyphs rather than the clip-path solids above:
+ * a gear or a coil reads as itself in outline, and faking three tone steps on
+ * one only makes it muddy at 34 pixels.
+ */
+const Glyph = ({ size, children }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" style={{ flex: 'none' }}>
+    {children}
+  </svg>
+)
+
+const gearPath = (teeth = 9, ro = 11, ri = 8.2, cx = 12, cy = 12) => {
+  const step = (Math.PI * 2) / teeth
+  const at = (r, a) => `${(cx + r * Math.cos(a)).toFixed(2)},${(cy + r * Math.sin(a)).toFixed(2)}`
+  let d = ''
+  for (let i = 0; i < teeth; i++) {
+    const a = i * step
+    d += `${i ? 'L' : 'M'}${at(ri, a - step * 0.22)}L${at(ro, a - step * 0.13)}`
+    d += `L${at(ro, a + step * 0.13)}L${at(ri, a + step * 0.22)}`
+  }
+  return d + 'Z'
+}
+
+const GLYPHS = {
+  wedge: (size) => (
+    <Glyph size={size}>
+      <path d="M3 19 L19 19 L19 5 Z" fill="#16C1C1" />
+      <path d="M19 19 L21 17 L21 3 L19 5 Z" fill="#0E8C8C" />
+      <path d="M3 19 L19 19 L21 17 L5 17 Z" fill="#0B6E6E" />
+    </Glyph>
+  ),
+  pipe: (size) => (
+    <Glyph size={size}>
+      <path d="M3 7 L3 17 A9 4 0 0 0 21 17 L21 7 Z" fill="#6A3FE0" />
+      <ellipse cx="12" cy="7" rx="9" ry="4" fill="#9B79FF" />
+      <ellipse cx="12" cy="7" rx="4" ry="1.8" fill="#3A2277" />
+    </Glyph>
+  ),
+  star: (size) => (
+    <Glyph size={size}>
+      <path
+        d="M12 2 L14.9 9.2 L22.5 9.7 L16.7 14.6 L18.5 22 L12 17.9 L5.5 22 L7.3 14.6 L1.5 9.7 L9.1 9.2 Z"
+        fill="#D6E24A"
+      />
+      <path d="M12 2 L12 17.9 L5.5 22 L7.3 14.6 L1.5 9.7 L9.1 9.2 Z" fill="#A8B52F" />
+    </Glyph>
+  ),
+  gear: (size) => (
+    <Glyph size={size}>
+      <path d={gearPath()} fill="#C08A5E" />
+      <circle cx="12" cy="12" r="6.4" fill="#A9744F" />
+      <circle cx="12" cy="12" r="2.6" fill="#1A1D24" />
+    </Glyph>
+  ),
+  thread: (size) => (
+    <Glyph size={size}>
+      <rect x="7" y="2" width="10" height="20" rx="1" fill="#C3CAD9" />
+      {[0, 1, 2, 3, 4].map((i) => (
+        <path key={i} d={`M7 ${4.2 + i * 4} L17 ${2.4 + i * 4} L17 ${4.6 + i * 4} L7 ${6.4 + i * 4} Z`} fill="#7E8798" />
+      ))}
+    </Glyph>
+  ),
+  spring: (size) => (
+    <Glyph size={size}>
+      {[0, 1, 2, 3].map((i) => (
+        <ellipse
+          key={i}
+          cx="12"
+          cy={5 + i * 4.6}
+          rx="8"
+          ry="2.6"
+          fill="none"
+          stroke={i % 2 ? '#6C7484' : '#98A1B2'}
+          strokeWidth="2.4"
+        />
+      ))}
+    </Glyph>
+  ),
+  knot: (size) => (
+    <Glyph size={size}>
+      <ellipse cx="12" cy="12" rx="9.5" ry="5" fill="none" stroke="#FF5FA2" strokeWidth="3" transform="rotate(-30 12 12)" />
+      <ellipse cx="12" cy="12" rx="9.5" ry="5" fill="none" stroke="#C23C77" strokeWidth="3" transform="rotate(30 12 12)" />
+      <ellipse cx="12" cy="12" rx="9.5" ry="5" fill="none" stroke="#FF8FBF" strokeWidth="3" transform="rotate(90 12 12)" />
+    </Glyph>
+  ),
+}
+
 export function ShapeIcon({ type, size = 34 }) {
   const box = { position: 'relative', width: size, height: size, flex: 'none' }
   const fill = { position: 'absolute', inset: 0 }
+
+  if (GLYPHS[type]) return GLYPHS[type](size)
 
   if (type === 'cube') {
     const [top, left, right] = facets.cube
@@ -262,8 +365,10 @@ export function ShapeIcon({ type, size = 34 }) {
 }
 
 /** Flat colored proxy used in the panel when the selection is recolored. */
+const ROUND_SHAPES = new Set(['sphere', 'torus', 'pipe', 'gear', 'spring', 'knot'])
+
 export function ColorDot({ color, type, size = 34 }) {
-  const round = type === 'sphere' || type === 'torus'
+  const round = ROUND_SHAPES.has(type)
   return (
     <div
       aria-hidden="true"

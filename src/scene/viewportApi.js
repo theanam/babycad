@@ -5,7 +5,7 @@
  */
 import * as THREE from 'three'
 import { PLATE_HALF, SNAP } from '../constants'
-import { restingHeight } from './geometry'
+import { restingHeight } from '../shapes/geometryCache'
 import { meshes } from './meshRegistry'
 import { boxOfMesh } from './gizmoMath'
 
@@ -174,7 +174,7 @@ export const viewport = {
    * ground plane, snapped to the grid. Falls back to the origin before the
    * canvas has mounted.
    */
-  placementPoint(type, objects = []) {
+  placementPoint(type, objects = [], params) {
     const t = this.controls?.target
     const snap = (n) => Math.round(n / SNAP.move) * SNAP.move
     const limit = PLATE_HALF - 1
@@ -202,7 +202,7 @@ export const viewport = {
         }
       }
     }
-    return [x, restingHeight(type), z]
+    return [x, restingHeight(type, params), z]
   },
 
   /** A small JPEG of the current scene, used as a saved-build thumbnail. */

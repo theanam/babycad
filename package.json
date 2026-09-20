@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --port 5180 --strictPort",
     "build": "vite build",
-    "preview": "vite preview --port 5180 --strictPort"
+    "preview": "vite preview --port 5180 --strictPort",
+    "check:shapes": "node tools/check-shapes.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^9.122.0",

@@ -33,18 +33,9 @@ export const COLOR_NAME = {
   '#3A414F': 'slate',
 }
 
-// Kid-facing names, per the design's tray flyout.
-export const SHAPES = [
-  { type: 'cube', label: 'Cube', color: '#FFC93D' },
-  { type: 'sphere', label: 'Ball', color: '#2E7DF6' },
-  { type: 'cone', label: 'Cone', color: '#FF5A47' },
-  { type: 'cylinder', label: 'Tube', color: '#35C46B' },
-  { type: 'pyramid', label: 'Pyramid', color: '#FF8A3D' },
-  { type: 'torus', label: 'Donut', color: '#FF5FA2' },
-]
-
-export const SHAPE_LABEL = Object.fromEntries(SHAPES.map((s) => [s.type, s.label]))
-export const SHAPE_COLOR = Object.fromEntries(SHAPES.map((s) => [s.type, s.color]))
+// Shapes — what they are, what they're called and what they're made of — live
+// in src/shapes, not here, because each one now carries its own parameters and
+// its own builder. This file is for values that aren't about any one shape.
 
 // Snapping defaults on; hold Alt while dragging for free movement.
 export const SNAP = {
@@ -58,7 +49,11 @@ export const SNAP = {
 export const PLATE = 20
 export const PLATE_HALF = PLATE / 2
 
-export const SCENE_VERSION = 1
+// v2 added per-shape parameters; v3 added named variables and the bindings
+// that point parameters at them. Both migrate forward without changing how a
+// build looks: a v1 shape's defaults are exactly the geometry v1 had, and a
+// scene with no variables is a scene with nothing bound.
+export const SCENE_VERSION = 3
 export const MAX_HISTORY = 200
 
 // Past this many blocks we drop shadow quality rather than let the frame rate go.

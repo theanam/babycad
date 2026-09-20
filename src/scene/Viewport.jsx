@@ -7,7 +7,6 @@ import BoxGizmo from './BoxGizmo'
 import CameraRig from './CameraRig'
 import { useScene } from './sceneStore'
 import { HOME_CAMERA, viewport } from './viewportApi'
-import { getGeometry } from './geometry'
 import { HEAVY_SCENE, PLATE, PLATE_HALF } from '../constants'
 import { gesture } from './gesture'
 

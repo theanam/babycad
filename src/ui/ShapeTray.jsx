@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
-import { SHAPES } from '../constants'
+import { defaultParams, GENERATORS, SOLIDS } from '../shapes'
 import { useScene } from '../scene/sceneStore'
 import { viewport } from '../scene/viewportApi'
 import { ChevronUpIcon, ResetIcon, ShapeIcon } from './icons'
 
 /**
- * Left rail of primitives. Tapping a shape drops one at the camera's look-at
- * point. The flyout shows the same six with their names, for kids who want the
- * words as well as the pictures.
+ * Left rail of shapes. Tapping one drops it at the camera's look-at point,
+ * with its default parameters; everything about it is editable afterwards in
+ * the properties panel.
  *
- * The header is a real button rather than the design's 24px caption, so the
- * flyout has a 44px target and never depends on hover.
+ * Two sections, because they are two different kinds of thing: the solids are
+ * shapes you size, the generators are mechanisms you specify. The rail scrolls
+ * rather than shrinking the buttons — the flyout is there for anyone who wants
+ * the names as well as the pictures.
  */
 export default function ShapeTray() {
   const [open, setOpen] = useState(false)
@@ -18,7 +20,8 @@ export default function ShapeTray() {
   const wrap = useRef(null)
 
   const place = (type) => {
-    addShape(type, viewport.placementPoint(type, useScene.getState().objects))
+    const params = defaultParams(type)
+    addShape(type, viewport.placementPoint(type, useScene.getState().objects, params), params)
   }
 
   // Light dismiss: a tap anywhere outside, or Escape, closes the flyout.
@@ -36,6 +39,18 @@ export default function ShapeTray() {
     }
   }, [open])
 
+  const trayButton = (s) => (
+    <button
+      key={s.type}
+      className="tray-btn"
+      onClick={() => place(s.type)}
+      title={s.blurb ? `Add a ${s.label.toLowerCase()} — ${s.blurb}` : `Add a ${s.label.toLowerCase()}`}
+      aria-label={`Add a ${s.label.toLowerCase()}`}
+    >
+      <ShapeIcon type={s.type} size={open ? 38 : 34} />
+    </button>
+  )
+
   return (
     <div ref={wrap}>
       <nav className={`tray${open ? ' tall' : ''}`} aria-label="Shapes">
@@ -50,17 +65,13 @@ export default function ShapeTray() {
           <ChevronUpIcon size={14} stroke="#59627A" style={{ transform: open ? 'rotate(-90deg)' : 'rotate(90deg)' }} />
         </button>
 
-        {SHAPES.map((s) => (
-          <button
-            key={s.type}
-            className="tray-btn"
-            onClick={() => place(s.type)}
-            title={`Add a ${s.label.toLowerCase()}`}
-            aria-label={`Add a ${s.label.toLowerCase()}`}
-          >
-            <ShapeIcon type={s.type} size={open ? 38 : 34} />
-          </button>
-        ))}
+        <div className="tray-scroll">
+          {SOLIDS.map(trayButton)}
+          <div className="tray-divider">
+            <span>MAKERS</span>
+          </div>
+          {GENERATORS.map(trayButton)}
+        </div>
 
         <button
           className="tray-home"
@@ -75,24 +86,31 @@ export default function ShapeTray() {
 
       {open && (
         <div className="flyout" role="menu" aria-label="Pick a shape">
-          <div className="flyout-label">TAP TO PLACE</div>
-          <div className="flyout-grid">
-            {SHAPES.map((s) => (
-              <button
-                key={s.type}
-                className="flyout-btn"
-                role="menuitem"
-                title={`Add a ${s.label.toLowerCase()}`}
-                onClick={() => {
-                  place(s.type)
-                  setOpen(false)
-                }}
-              >
-                <ShapeIcon type={s.type} size={34} />
-                {s.label}
-              </button>
-            ))}
-          </div>
+          {[
+            ['TAP TO PLACE', SOLIDS],
+            ['GENERATORS', GENERATORS],
+          ].map(([label, shapes]) => (
+            <div key={label} className="flyout-section">
+              <div className="flyout-label">{label}</div>
+              <div className="flyout-grid">
+                {shapes.map((s) => (
+                  <button
+                    key={s.type}
+                    className="flyout-btn"
+                    role="menuitem"
+                    title={s.blurb ?? `Add a ${s.label.toLowerCase()}`}
+                    onClick={() => {
+                      place(s.type)
+                      setOpen(false)
+                    }}
+                  >
+                    <ShapeIcon type={s.type} size={34} />
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

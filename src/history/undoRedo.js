@@ -2,10 +2,14 @@
  * Command-pattern history.
  *
  * A command is a pair of pure functions over the scene slice
- * `{ objects, groups }`. Each factory captures everything needed to run the
- * change and to run its exact inverse, so undo never has to guess.
+ * `{ objects, groups, variables }`. Each factory captures everything needed to
+ * run the change and to run its exact inverse, so undo never has to guess.
  *
  *   cmd = { label, forward(scene) -> scene, backward(scene) -> scene }
+ *
+ * Every command must return the *whole* slice. Spread `...s` unless you mean
+ * to replace a part of it — a command that returns only `{ objects, groups }`
+ * silently wipes the variables.
  *
  * The stack itself lives in the scene store (see sceneStore.js); this module
  * only knows how to build and invert commands.
@@ -26,10 +30,12 @@ export function addObjects(added, addedGroups = [], label) {
   return {
     label: label ?? (added.length > 1 ? `add ${added.length} blocks` : 'add block'),
     forward: (s) => ({
+      ...s,
       objects: [...s.objects, ...added],
       groups: [...s.groups, ...addedGroups],
     }),
     backward: (s) => ({
+      ...s,
       objects: withoutIds(s.objects, ids),
       groups: s.groups.filter((g) => !groupIds.includes(g.id)),
     }),
@@ -46,10 +52,12 @@ export function deleteObjects(removedObjects, removedGroups = []) {
   return {
     label: 'delete',
     forward: (s) => ({
+      ...s,
       objects: withoutIds(s.objects, objIds),
       groups: s.groups.filter((g) => !groupIds.includes(g.id)),
     }),
     backward: (s) => ({
+      ...s,
       objects: [...s.objects, ...removedObjects],
       groups: [...s.groups, ...removedGroups],
     }),
@@ -63,6 +71,21 @@ export function deleteObjects(removedObjects, removedGroups = []) {
 export function transformObjects(patches, label = 'move') {
   const after = Object.fromEntries(patches.map((p) => [p.id, p.after]))
   const before = Object.fromEntries(patches.map((p) => [p.id, p.before]))
+  return {
+    label,
+    forward: (s) => ({ ...s, objects: patchObjects(s.objects, after) }),
+    backward: (s) => ({ ...s, objects: patchObjects(s.objects, before) }),
+  }
+}
+
+/**
+ * Shape parameter edit. `patches` is [{ id, before, after }] of whole
+ * parameter objects — the full set, not a delta, so undo restores exactly the
+ * shape that was there even if the edit touched several fields at once.
+ */
+export function reshapeObjects(patches, label = 'reshape') {
+  const after = Object.fromEntries(patches.map((p) => [p.id, { params: p.after }]))
+  const before = Object.fromEntries(patches.map((p) => [p.id, { params: p.before }]))
   return {
     label,
     forward: (s) => ({ ...s, objects: patchObjects(s.objects, after) }),
@@ -94,11 +117,13 @@ export function combineObjects(group, prevParents) {
   return {
     label: 'combine',
     forward: (s) => ({
+      ...s,
       objects: patchObjects(s.objects, stamp),
       // A group fully absorbed into the new one stops existing.
       groups: [...s.groups.filter((g) => !absorbedIds.includes(g.id)), group],
     }),
     backward: (s) => ({
+      ...s,
       objects: patchObjects(s.objects, restore),
       groups: s.groups.filter((g) => g.id !== group.id),
     }),
@@ -119,10 +144,12 @@ export function ungroupObjects(groups) {
   return {
     label: 'split apart',
     forward: (s) => ({
+      ...s,
       objects: patchObjects(s.objects, clear),
       groups: s.groups.filter((g) => !groupIds.includes(g.id)),
     }),
     backward: (s) => ({
+      ...s,
       objects: patchObjects(s.objects, restore),
       groups: [...s.groups, ...groups],
     }),
@@ -133,7 +160,31 @@ export function ungroupObjects(groups) {
 export function replaceScene(before, after, label = 'load') {
   return {
     label,
-    forward: () => ({ objects: after.objects, groups: after.groups }),
-    backward: () => ({ objects: before.objects, groups: before.groups }),
+    forward: () => ({ ...after }),
+    backward: () => ({ ...before }),
+  }
+}
+
+/**
+ * Anything that touches the variable list. Changing a variable's value also
+ * rewrites the resolved `params` of every object bound to it, so the object
+ * patches travel with the variable list in one command — undoing a variable
+ * edit has to put the shapes back too, in a single step.
+ */
+export function editVariables(label, beforeVariables, afterVariables, patches = []) {
+  const after = Object.fromEntries(patches.map((p) => [p.id, p.after]))
+  const before = Object.fromEntries(patches.map((p) => [p.id, p.before]))
+  return {
+    label,
+    forward: (s) => ({
+      ...s,
+      variables: afterVariables,
+      objects: patchObjects(s.objects, after),
+    }),
+    backward: (s) => ({
+      ...s,
+      variables: beforeVariables,
+      objects: patchObjects(s.objects, before),
+    }),
   }
 }

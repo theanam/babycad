@@ -9,11 +9,17 @@
 import * as THREE from 'three'
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js'
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js'
-import { getGeometry } from '../scene/geometry'
+import { acquireGeometry, releaseGeometry } from '../shapes/geometryCache'
 
+/**
+ * Build the export scene, plus the function that hands its geometries back.
+ * Geometry is reference counted now, so an export has to let go of what it
+ * borrowed — otherwise every export pins another copy of every shape.
+ */
 function buildExportScene(objects, groups) {
   const root = new THREE.Group()
   root.name = 'Blockyard'
+  const borrowed = []
 
   const groupNodes = new Map()
   for (const g of groups ?? []) {
@@ -29,7 +35,9 @@ function buildExportScene(objects, groups) {
       roughness: 0.55,
       metalness: 0,
     })
-    const mesh = new THREE.Mesh(getGeometry(o.type), material)
+    const geometry = acquireGeometry(o.type, o.params)
+    borrowed.push(geometry)
+    const mesh = new THREE.Mesh(geometry, material)
     mesh.name = o.type
     mesh.position.fromArray(o.position)
     mesh.rotation.fromArray(o.rotation)
@@ -37,7 +45,7 @@ function buildExportScene(objects, groups) {
     const parent = o.parentGroupId ? groupNodes.get(o.parentGroupId) : null
     ;(parent ?? root).add(mesh)
   }
-  return root
+  return { root, done: () => borrowed.forEach(releaseGeometry) }
 }
 
 function download(blob, filename) {
@@ -58,7 +66,7 @@ const safeName = (name) =>
 
 /** Primary export: binary glTF, which preserves colors and the scene graph. */
 export function exportGLB(objects, groups, name) {
-  const root = buildExportScene(objects, groups)
+  const { root, done } = buildExportScene(objects, groups)
   return new Promise((resolve, reject) => {
     new GLTFExporter().parse(
       root,
@@ -69,15 +77,19 @@ export function exportGLB(objects, groups, name) {
       reject,
       { binary: true }
     )
-  })
+  }).finally(done)
 }
 
 /** Secondary export for 3D printing. STL carries geometry only, no color. */
 export function exportSTL(objects, groups, name) {
-  const root = buildExportScene(objects, groups)
-  root.updateMatrixWorld(true)
-  const stl = new STLExporter().parse(root, { binary: true })
-  download(new Blob([stl], { type: 'model/stl' }), `${safeName(name)}.stl`)
+  const { root, done } = buildExportScene(objects, groups)
+  try {
+    root.updateMatrixWorld(true)
+    const stl = new STLExporter().parse(root, { binary: true })
+    download(new Blob([stl], { type: 'model/stl' }), `${safeName(name)}.stl`)
+  } finally {
+    done()
+  }
 }
 
 /** The scene JSON itself, so a build can move between browsers or devices. */

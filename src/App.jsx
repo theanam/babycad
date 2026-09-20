@@ -9,6 +9,7 @@ import PropertiesPanel from './ui/PropertiesPanel'
 import ViewCube from './ui/ViewCube'
 import ProjectsModal from './ui/ProjectsModal'
 import ExportMenu from './ui/ExportMenu'
+import VariablesModal from './ui/VariablesModal'
 import ConfirmDialog from './ui/ConfirmDialog'
 import Toasts, { toast } from './ui/Toast'
 import { isStorageAvailable, readAutosave, writeAutosave } from './io/persistence'
@@ -18,7 +19,7 @@ export default function App() {
   const undo = useScene((s) => s.undo)
   const redo = useScene((s) => s.redo)
 
-  const [sheet, setSheet] = useState(null) // 'projects' | 'export' | 'new' | null
+  const [sheet, setSheet] = useState(null) // 'projects' | 'export' | 'variables' | 'new' | null
 
   /* ----------------------------------------------------------- startup -- */
 
@@ -27,7 +28,11 @@ export default function App() {
   useEffect(() => {
     const saved = readAutosave()
     if (saved?.objects?.length) {
-      useScene.setState({ objects: saved.objects, groups: saved.groups })
+      useScene.setState({
+        objects: saved.objects,
+        groups: saved.groups,
+        variables: saved.variables ?? [],
+      })
     }
     if (!isStorageAvailable()) {
       toast("This browser won't let Blockyard save — your build will vanish on refresh", 'warn')
@@ -43,7 +48,12 @@ export default function App() {
   /* --------------------------------------------------------- shortcuts -- */
 
   useEffect(() => {
-    const typing = (e) => e.target instanceof HTMLInputElement || e.target.isContentEditable
+    // A focused text field owns its own undo stack, so the shortcuts stay out
+    // of its way. A slider has no such thing, and leaving one focused after a
+    // drag shouldn't quietly disable Cmd-Z.
+    const typing = (e) =>
+      (e.target instanceof HTMLInputElement && e.target.type !== 'range') ||
+      e.target.isContentEditable
 
     const onKeyDown = (e) => {
       // Alt suspends grid snapping for as long as it's held.
@@ -106,6 +116,7 @@ export default function App() {
         onSave={() => setSheet('projects')}
         onLoad={() => setSheet('projects')}
         onExport={() => setSheet('export')}
+        onVariables={() => setSheet('variables')}
       />
 
       <div className="stage">
@@ -126,6 +137,7 @@ export default function App() {
         />
       )}
       {sheet === 'export' && <ExportMenu onClose={() => setSheet(null)} />}
+      {sheet === 'variables' && <VariablesModal onClose={() => setSheet(null)} />}
       {sheet === 'new' && (
         <ConfirmDialog
           title="Start a new build?"

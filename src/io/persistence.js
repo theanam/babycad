@@ -3,6 +3,8 @@
  * there is no server, no account, and nothing leaves the device.
  */
 import { SCENE_VERSION } from '../constants'
+import { normalizeParams } from '../shapes'
+import { resolvePatches, sanitizeVariables } from '../scene/variables'
 
 const PROJECTS_KEY = 'blockyard.projects.v1'
 const AUTOSAVE_KEY = 'blockyard.autosave.v1'
@@ -91,31 +93,70 @@ export function clearAutosave() {
 }
 
 /**
- * Bring an older scene up to the current schema. Today there is only one
- * version, so this just validates shape and fills in defaults.
+ * Bring an older scene up to the current schema.
+ *
+ * v1 scenes have no `params` at all. `normalizeParams` fills in the shape's
+ * defaults, which are precisely the fixed geometry v1 drew — so an old build
+ * reopens looking identical, and is editable from there. It also clamps and
+ * type-checks every value, so a hand-edited or truncated file can't reach a
+ * builder with a tooth count of `"lots"`.
+ *
+ * v2 scenes have no variables, which is just an empty list. The one thing
+ * worth care is a *binding* pointing at a variable that isn't in the file:
+ * `resolvePatches` prunes those, and then the parameters it re-resolves are
+ * exactly the plain numbers already stored, so a half-edited file degrades to
+ * unlinked values rather than to a crash.
  */
 export function migrate(scene) {
   if (!scene || typeof scene !== 'object') return null
-  const objects = Array.isArray(scene.objects) ? scene.objects : []
+  const rawObjects = Array.isArray(scene.objects) ? scene.objects : []
+  const variables = sanitizeVariables(scene.variables)
+  const known = new Set(variables.map((v) => v.id))
+
+  const objects = rawObjects
+    // A type this build doesn't know (a scene from a newer version) is kept
+    // rather than dropped; it falls back to a cube instead of vanishing.
+    .filter((o) => o && typeof o.id === 'string' && typeof o.type === 'string')
+    .map((o) => ({
+      id: o.id,
+      type: o.type,
+      params: normalizeParams(o.type, o.params),
+      bindings: bindingsOf(o.bindings, known),
+      position: triple(o.position, [0, 0.5, 0]),
+      rotation: triple(o.rotation, [0, 0, 0]),
+      scale: triple(o.scale, [1, 1, 1]),
+      color: typeof o.color === 'string' ? o.color : '#FFC93D',
+      parentGroupId: o.parentGroupId ?? null,
+    }))
+
+  // Apply the variables, so a file whose stored values disagree with its
+  // variables (hand-edited, or written by a crash mid-drag) comes back in
+  // agreement rather than showing one number and exporting another.
+  const settled = [...objects]
+  for (const patch of resolvePatches(objects, variables)) {
+    const at = settled.findIndex((o) => o.id === patch.id)
+    if (at !== -1) settled[at] = { ...settled[at], ...patch.after }
+  }
+
   return {
     version: SCENE_VERSION,
-    objects: objects
-      .filter((o) => o && typeof o.id === 'string' && typeof o.type === 'string')
-      .map((o) => ({
-        id: o.id,
-        type: o.type,
-        position: triple(o.position, [0, 0.5, 0]),
-        rotation: triple(o.rotation, [0, 0, 0]),
-        scale: triple(o.scale, [1, 1, 1]),
-        color: typeof o.color === 'string' ? o.color : '#FFC93D',
-        parentGroupId: o.parentGroupId ?? null,
-      })),
+    objects: settled,
     groups: (Array.isArray(scene.groups) ? scene.groups : []).filter(
       (g) => g && typeof g.id === 'string' && Array.isArray(g.memberIds)
     ),
+    variables,
     createdAt: scene.createdAt ?? new Date().toISOString(),
     updatedAt: scene.updatedAt ?? new Date().toISOString(),
   }
+}
+
+const bindingsOf = (raw, known) => {
+  if (!raw || typeof raw !== 'object') return null
+  const kept = {}
+  for (const key of Object.keys(raw)) {
+    if (typeof raw[key] === 'string' && known.has(raw[key])) kept[key] = raw[key]
+  }
+  return Object.keys(kept).length ? kept : null
 }
 
 const triple = (v, fallback) =>
