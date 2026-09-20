@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo } from 'react'
-import { Outlines } from '@react-three/drei'
+import { Edges, Outlines } from '@react-three/drei'
 import { keyOfParams } from '../shapes'
-import { acquireShape, releaseShape } from '../shapes/csg'
+import { acquireShape, isFinished, releaseShape } from '../shapes/csg'
 import { registerMesh } from './meshRegistry'
 import { dragBus } from './dragBus'
 
@@ -12,8 +12,6 @@ const OUTLINE_PX =
 
 /** What a hole looks like: see-through, and the same grey whatever it was. */
 const HOLE_COLOR = '#9AA3B4'
-/** A picked hole tints accent instead of wearing an outline — see below. */
-const HOLE_SELECTED = '#9E7CFF'
 
 /**
  * One shape. Geometry is shared by everything with the same type *and* the
@@ -38,6 +36,12 @@ function SceneObject({ object, selected, onSelect, holes, castShadow = true }) {
   const geometry = useMemo(() => acquireShape(object, holes), [shapeKey]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => releaseShape(geometry), [geometry])
 
+  // A combined hole has done its cutting and gets out of the way, leaving the
+  // solid with the bite taken out of it and nothing else. It is still here —
+  // still cutting, still selectable through its group, still there to come
+  // back when the piece is split apart — just not drawn.
+  const finished = isFinished(object)
+
   return (
     <mesh
       ref={bind}
@@ -45,6 +49,7 @@ function SceneObject({ object, selected, onSelect, holes, castShadow = true }) {
       position={object.position}
       rotation={object.rotation}
       scale={object.scale}
+      visible={!finished}
       castShadow={castShadow && !object.hole}
       receiveShadow={!object.hole}
       onPointerDown={(e) => {
@@ -66,11 +71,11 @@ function SceneObject({ object, selected, onSelect, holes, castShadow = true }) {
         // off so two overlapping holes don't punch each other out on screen.
         <meshStandardMaterial
           key="hole"
-          color={selected ? HOLE_SELECTED : HOLE_COLOR}
+          color={HOLE_COLOR}
           roughness={0.35}
           metalness={0}
           transparent
-          opacity={selected ? 0.42 : 0.3}
+          opacity={selected ? 0.4 : 0.26}
           depthWrite={false}
         />
       ) : (
@@ -80,14 +85,17 @@ function SceneObject({ object, selected, onSelect, holes, castShadow = true }) {
           Note: drei's `screenspace` flag means *object-space* offset, which
           blows the shell apart; the default (pixel-space) is what we want.
 
-          A hole gets none. The outline is a back-face shell sitting just
-          outside the mesh, which an opaque block hides all but the rim of — a
-          see-through one doesn't, so the shell fills the hole in solid purple
-          and it stops reading as a hole at all. Tinting the ghost says the
-          same thing without anything to see through. */}
-      {selected && !object.hole && (
-        <Outlines thickness={OUTLINE_PX} color="#7C4DFF" transparent opacity={1} toneMapped={false} />
-      )}
+          A hole gets edges instead. The outline is a back-face shell sitting
+          just outside the mesh, which an opaque block hides all but the rim of
+          — a see-through one doesn't, so the shell fills the ghost in solid
+          purple and it stops reading as a hole at all. Lines along the shape's
+          own edges say "picked" with nothing to see through. */}
+      {selected &&
+        (object.hole ? (
+          <Edges threshold={20} color="#7C4DFF" />
+        ) : (
+          <Outlines thickness={OUTLINE_PX} color="#7C4DFF" transparent opacity={1} toneMapped={false} />
+        ))}
     </mesh>
   )
 }

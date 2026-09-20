@@ -9,7 +9,7 @@
 import * as THREE from 'three'
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js'
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js'
-import { acquireShape, holesByGroup, holesFor, releaseShape } from '../shapes/csg'
+import { acquireShape, cuttersByObject, releaseShape } from '../shapes/csg'
 
 /**
  * Build the export scene, plus the function that hands its geometries back.
@@ -29,7 +29,7 @@ function buildExportScene(objects, groups) {
     root.add(node)
   }
 
-  const byGroup = holesByGroup(objects)
+  const cutters = cuttersByObject(objects)
 
   for (const o of objects) {
     // A hole is a cutting tool, not a part. It shapes what it is combined with
@@ -42,7 +42,7 @@ function buildExportScene(objects, groups) {
       roughness: 0.55,
       metalness: 0,
     })
-    const geometry = acquireShape(o, holesFor(o, byGroup))
+    const geometry = acquireShape(o, cutters.get(o.id) ?? null)
     borrowed.push(geometry)
     const mesh = new THREE.Mesh(geometry, material)
     mesh.name = o.type

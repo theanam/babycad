@@ -336,9 +336,10 @@ export default function PropertiesPanel() {
   const color = allSame((o) => o.color) ? primary.color : null
   // A mixed selection reads as neither, and picking either makes it all one.
   const isHole = allSame((o) => Boolean(o.hole)) ? Boolean(primary.hole) : null
-  // A hole that isn't combined with anything cuts nothing — worth saying,
-  // because the block goes see-through either way and looks like it's working.
-  const idleHole = isHole !== false && sel.some((o) => o.hole && !o.parentGroupId)
+  // A hole cuts the moment it overlaps something; combining is what tidies the
+  // ghost away afterwards. Worth saying, since nothing on screen suggests
+  // there is a second step available.
+  const looseHole = isHole !== false && sel.some((o) => o.hole && !o.parentGroupId)
 
   const centroid = [0, 1, 2].map(
     (i) => sel.reduce((sum, o) => sum + o.position[i], 0) / sel.length
@@ -459,10 +460,10 @@ export default function PropertiesPanel() {
               Hole
             </button>
           </div>
-          {idleHole && (
+          {looseHole && (
             <div className="prop-hint">
-              A hole only cuts what it&apos;s <strong>combined</strong> with. Pick it and the block
-              it should go through, then hit Combine.
+              It&apos;s already cutting whatever it overlaps. <strong>Combine</strong> it with that
+              block to put the grey away and leave just the cut.
             </div>
           )}
         </div>

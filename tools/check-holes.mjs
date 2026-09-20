@@ -1,9 +1,10 @@
 /**
  * Holes check:  `node tools/check-holes.mjs`
  *
- * A hole cuts the solids it is combined with (see src/shapes/csg.js). Nothing
- * here looks at pixels; what it checks is the part that is easy to get subtly
- * wrong and impossible to eyeball:
+ * A hole cuts every solid it overlaps (see src/shapes/csg.js); combining it is
+ * only what stops the ghost being drawn. Nothing here looks at pixels; what it
+ * checks is the part that is easy to get subtly wrong and impossible to
+ * eyeball:
  *
  *   the cut is the right size    signed volume of the result, against the
  *                                arithmetic — a subtraction that quietly did
@@ -12,8 +13,8 @@
  *   it comes back in local space the mesh keeps its own transform, so a cut
  *                                returned in world space would fling the block
  *                                across the plate
- *   only the right things cut    a hole cuts its own group and nothing else,
- *                                and never itself
+ *   only the right things cut    a hole reaches what it overlaps and nothing
+ *                                else, and never another hole or itself
  *   it stays watertight          no stray or degenerate triangles, or the STL
  *                                won't print
  */
@@ -22,7 +23,7 @@ import { register } from 'node:module'
 register('./resolve-extensionless.mjs', import.meta.url)
 
 const THREE = await import('three')
-const { acquireShape, releaseShape, holesByGroup, holesFor } = await import('../src/shapes/csg.js')
+const { acquireShape, releaseShape, cuttersByObject, isFinished } = await import('../src/shapes/csg.js')
 const { defaultParams } = await import('../src/shapes/index.js')
 
 let problems = 0
@@ -72,9 +73,9 @@ const block = (type, over = {}) => ({
 console.log('a hole takes exactly its own volume out…')
 {
   // A 20 mm cube with a 10 mm cube hole buried dead centre: 8000 - 1000.
-  const solid = block('cube', { id: 's', parentGroupId: 'g' })
+  const solid = block('cube', { id: 's' })
   const hole = block('cube', {
-    id: 'h', hole: true, parentGroupId: 'g',
+    id: 'h', hole: true,
     params: { width: 10, height: 10, depth: 10 },
   })
   const cut = acquireShape(solid, [hole])
@@ -89,9 +90,9 @@ console.log('\nthe cut comes back in the block’s own space…')
 {
   // Same pair, both slid 80 mm along x. The cut must be identical, and still
   // centred on the block's own origin.
-  const solid = block('cube', { id: 's', parentGroupId: 'g', position: [80, 10, 0] })
+  const solid = block('cube', { id: 's', position: [80, 10, 0] })
   const hole = block('cube', {
-    id: 'h', hole: true, parentGroupId: 'g', position: [80, 10, 0],
+    id: 'h', hole: true, position: [80, 10, 0],
     params: { width: 10, height: 10, depth: 10 },
   })
   const cut = acquireShape(solid, [hole])
@@ -105,41 +106,41 @@ console.log('\nthe cut comes back in the block’s own space…')
   releaseShape(cut)
 }
 
-console.log('\na hole that misses, or isn’t combined, changes nothing…')
+console.log('\nwho cuts whom…')
 {
-  const plain = volume(acquireShape(block('cube'), [])).volume
-  // Far enough away that the boxes never meet.
-  const solid = block('cube', { parentGroupId: 'g' })
-  const far = block('cube', { hole: true, parentGroupId: 'g', position: [200, 10, 0] })
-  const missed = volume(acquireShape(solid, [far])).volume
-  if (Math.abs(missed - plain) > 1e-6) fail(`a hole 200 mm away still cut ${(plain - missed).toFixed(1)}`)
-
-  // Overlapping, but in a different group — so not combined, so not cutting.
-  const objects = [
-    block('cube', { id: 's', parentGroupId: 'g1' }),
-    block('cube', { id: 'h', hole: true, parentGroupId: 'g2' }),
-  ]
-  const byGroup = holesByGroup(objects)
-  if (holesFor(objects[0], byGroup)) fail('a hole in another group was offered as a cutter')
-
-  // An ungrouped hole cuts nothing at all.
+  // Overlapping and not combined with anything: it still cuts. That is the
+  // whole point — the cut is what you see while you are lining the hole up.
   const loose = [block('cube', { id: 's' }), block('cube', { id: 'h', hole: true })]
-  if (holesFor(loose[0], holesByGroup(loose))) fail('an uncombined hole was offered as a cutter')
+  const cutters = cuttersByObject(loose)
+  if (cutters.get('s')?.length !== 1) fail('an overlapping hole did not cut a block it was not combined with')
+  if (cutters.has('h')) fail('a hole was handed a cutter of its own')
 
-  // And a hole is never cut by itself or its fellows.
-  const self = [
-    block('cube', { id: 'h1', hole: true, parentGroupId: 'g' }),
-    block('cube', { id: 'h2', hole: true, parentGroupId: 'g' }),
+  // Far enough away that the boxes never meet, so no subtraction is even tried.
+  const apart = [block('cube', { id: 's' }), block('cube', { id: 'h', hole: true, position: [200, 10, 0] })]
+  if (cuttersByObject(apart).has('s')) fail('a hole 200 mm away was offered as a cutter')
+
+  // A hole is never cut by another hole.
+  const two = [
+    block('cube', { id: 'h1', hole: true }),
+    block('cube', { id: 'h2', hole: true }),
   ]
-  if (holesFor(self[0], holesByGroup(self))) fail('a hole was offered itself to cut with')
+  if (cuttersByObject(two).size) fail('one hole was set to cut another')
+
+  // A scene with no holes in it does no work at all.
+  if (cuttersByObject([block('cube'), block('sphere')]).size) fail('a scene with no holes produced cutters')
+
+  // Combining is what retires the ghost, and only for a hole.
+  if (isFinished(block('cube', { hole: true }))) fail('an uncombined hole counted as finished')
+  if (!isFinished(block('cube', { hole: true, parentGroupId: 'g' }))) fail('a combined hole did not count as finished')
+  if (isFinished(block('cube', { parentGroupId: 'g' }))) fail('a combined solid counted as a finished hole')
 }
 
 console.log('\ntwo holes each take their share…')
 {
-  const solid = block('cube', { parentGroupId: 'g', params: { width: 40, height: 20, depth: 20 } })
+  const solid = block('cube', { params: { width: 40, height: 20, depth: 20 } })
   const mk = (x) =>
     block('cube', {
-      hole: true, parentGroupId: 'g', position: [x, 0, 0],
+      hole: true, position: [x, 0, 0],
       params: { width: 8, height: 8, depth: 8 },
     })
   const cut = acquireShape(solid, [mk(-10), mk(10)])
@@ -154,9 +155,9 @@ console.log('\na hole right through, and a round one…')
 {
   // A tube punched all the way through a cube: the cut is a cube minus a
   // cylinder, and the length of the cylinder past the faces doesn't count.
-  const solid = block('cube', { parentGroupId: 'g' })
+  const solid = block('cube')
   const drill = block('cylinder', {
-    hole: true, parentGroupId: 'g',
+    hole: true,
     params: { bottomRadius: 5, topRadius: 5, height: 60, sides: 64 },
   })
   const cut = acquireShape(solid, [drill])

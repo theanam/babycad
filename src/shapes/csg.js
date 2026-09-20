@@ -1,10 +1,15 @@
 /**
  * Cutting holes out of solids.
  *
- * A block is either a solid or a hole. A hole cuts the solids it is *combined*
- * with — Tinkercad's rule, and the reason it is a rule rather than "cuts
- * whatever it touches" is that it leaves you somewhere to put a hole while you
- * line it up.
+ * A block is either a solid or a hole, and a hole cuts every solid it reaches
+ * into — straight away, while you are still pushing it around. There is no
+ * step to perform and nothing to commit before the hole is a hole: drop a tube
+ * through a cube and the cube has a tube-shaped hole in it.
+ *
+ * `Combine` doesn't do the cutting, then. What it does is finish the job: a
+ * hole that has been combined with something stops being drawn, so all that is
+ * left on screen is the solid with the bite taken out of it. Split apart and
+ * the grey ghost comes back, still cutting, still movable.
  *
  * The subtraction is done per solid rather than once per group, which sounds
  * like more work and is the same answer: (A ∪ B) − H is (A − H) ∪ (B − H).
@@ -39,7 +44,6 @@ const _euler = new THREE.Euler()
 const _quat = new THREE.Quaternion()
 const _pos = new THREE.Vector3()
 const _scale = new THREE.Vector3()
-const _boxA = new THREE.Box3()
 const _boxB = new THREE.Box3()
 
 /** A block's own transform. Groups are logical here, so this is world space. */
@@ -61,27 +65,6 @@ function brushAt(geometry, matrix) {
   brush.matrix.decompose(brush.position, brush.quaternion, brush.scale)
   brush.updateMatrixWorld(true)
   return brush
-}
-
-/**
- * The holes that actually reach this solid. Anything whose world box misses
- * the solid's is skipped — without this, ten holes and ten solids in one group
- * would be a hundred subtractions to draw a scene where most pairs never meet.
- */
-function reaching(object, holes) {
-  if (!holes?.length) return []
-  const solid = acquireGeometry(object.type, object.params)
-  _boxA.copy(solid.boundingBox).applyMatrix4(matrixOf(object, _a))
-  releaseGeometry(solid)
-
-  const near = []
-  for (const hole of holes) {
-    const g = acquireGeometry(hole.type, hole.params)
-    _boxB.copy(g.boundingBox).applyMatrix4(matrixOf(hole, _b))
-    releaseGeometry(g)
-    if (_boxA.intersectsBox(_boxB)) near.push(hole)
-  }
-  return near
 }
 
 /**
@@ -131,7 +114,7 @@ function buildCut(object, holes) {
  * `releaseShape`, which hands it back to whichever cache lent it.
  */
 export function acquireShape(object, holes) {
-  const near = object.hole ? [] : reaching(object, holes)
+  const near = object.hole || !holes?.length ? [] : holes
   if (!near.length) return acquireGeometry(object.type, object.params)
 
   const key = cutKey(object, near)
@@ -163,20 +146,44 @@ export function releaseShape(geometry) {
   }
 }
 
-/**
- * The holes each group contains, so a block can be told what cuts it without
- * every block having to search the whole scene.
- */
-export function holesByGroup(objects) {
-  const byGroup = new Map()
-  for (const o of objects) {
-    if (!o.hole || !o.parentGroupId) continue
-    if (!byGroup.has(o.parentGroupId)) byGroup.set(o.parentGroupId, [])
-    byGroup.get(o.parentGroupId).push(o)
-  }
-  return byGroup
+/** A block's world-space bounding box, borrowed from the shape cache. */
+function worldBox(object, target) {
+  const geometry = acquireGeometry(object.type, object.params)
+  target.copy(geometry.boundingBox).applyMatrix4(matrixOf(object, _a))
+  releaseGeometry(geometry)
+  return target
 }
 
-/** What cuts this one block: the holes combined with it, and not itself. */
-export const holesFor = (object, byGroup) =>
-  object.hole || !object.parentGroupId ? null : byGroup.get(object.parentGroupId) ?? null
+/**
+ * Which holes cut which solids, worked out once for the whole scene.
+ *
+ * Boxes first, and only then geometry: ten holes among a hundred blocks is a
+ * thousand pairs, and all but a handful of them are nowhere near each other.
+ * A pair whose bounding boxes miss cannot possibly intersect, and that test is
+ * two comparisons per axis against a subtraction that is thousands of
+ * triangles of work.
+ *
+ * Solids only — a hole is never cut, by another hole or by itself.
+ */
+export function cuttersByObject(objects) {
+  const holes = objects.filter((o) => o.hole)
+  const out = new Map()
+  if (!holes.length) return out
+
+  const holeBoxes = holes.map((hole) => worldBox(hole, new THREE.Box3()))
+
+  for (const object of objects) {
+    if (object.hole) continue
+    worldBox(object, _boxB)
+    let near = null
+    for (let i = 0; i < holes.length; i++) {
+      if (!_boxB.intersectsBox(holeBoxes[i])) continue
+      ;(near ??= []).push(holes[i])
+    }
+    if (near) out.set(object.id, near)
+  }
+  return out
+}
+
+/** Whether a hole has been combined, and so has done its job and stepped back. */
+export const isFinished = (object) => Boolean(object.hole && object.parentGroupId)

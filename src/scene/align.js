@@ -52,7 +52,9 @@ export function alignBounds(objects, meshes) {
     const box = new THREE.Box3().makeEmpty()
     for (const o of members) {
       const mesh = meshes.get(o.id)
-      if (mesh) box.union(boxOfMesh(mesh, scratch))
+      // A combined hole is invisible, and lining things up by the reach of
+      // something nobody can see is a puzzle rather than a feature.
+      if (mesh?.visible) box.union(boxOfMesh(mesh, scratch))
     }
     if (box.isEmpty()) continue
     units.push({ members, box })

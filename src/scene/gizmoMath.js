@@ -26,7 +26,10 @@ export function boxOfMesh(mesh, target = new THREE.Box3()) {
  * progress, where the store is deliberately stale.
  */
 export function frameFromMeshes(ids, meshes, out) {
-  const live = ids.map((id) => meshes.get(id)).filter(Boolean)
+  // Invisible means a hole that has been combined and stepped back; the box
+  // has to be drawn around what is actually there, not around a ghost that
+  // isn't being shown any more.
+  const live = ids.map((id) => meshes.get(id)).filter((m) => m && m.visible)
   if (!live.length) return null
 
   if (live.length === 1) {

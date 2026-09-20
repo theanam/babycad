@@ -151,7 +151,9 @@ export const viewport = {
    */
   fit(ids) {
     if (!this.camera || !this.controls) return
-    const list = ids?.length ? ids.map((id) => meshes.get(id)).filter(Boolean) : [...meshes.values()]
+    const list = (
+      ids?.length ? ids.map((id) => meshes.get(id)) : [...meshes.values()]
+    ).filter((m) => m && m.visible)
     if (!list.length) return this.resetView()
 
     const box = new THREE.Box3()

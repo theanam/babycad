@@ -21,8 +21,13 @@ const fail = (message) => {
   problems++
 }
 
-/** A stand-in for a mesh: a unit cube of `size`, centred at `position`. */
-function fakeMesh(position, size = [10, 10, 10]) {
+/**
+ * A stand-in for a mesh: a box of `size`, centred at `position`. `visible`
+ * matters — a combined hole is a real mesh that simply isn't drawn, and
+ * alignment has to ignore it, so the stand-in carries the flag a THREE.Mesh
+ * always has rather than leaving it undefined.
+ */
+function fakeMesh(position, size = [10, 10, 10], visible = true) {
   const geometry = {
     boundingBox: new THREE.Box3(
       new THREE.Vector3(-size[0] / 2, -size[1] / 2, -size[2] / 2),
@@ -30,15 +35,15 @@ function fakeMesh(position, size = [10, 10, 10]) {
     ),
   }
   const matrixWorld = new THREE.Matrix4().makeTranslation(...position)
-  return { geometry, matrixWorld, updateMatrixWorld() {} }
+  return { geometry, matrixWorld, visible, updateMatrixWorld() {} }
 }
 
 function scene(spec) {
   const objects = []
   const meshes = new Map()
-  for (const [id, position, size, parentGroupId] of spec) {
+  for (const [id, position, size, parentGroupId, visible] of spec) {
     objects.push({ id, parentGroupId: parentGroupId ?? null, position })
-    meshes.set(id, fakeMesh(position, size))
+    meshes.set(id, fakeMesh(position, size, visible !== false))
   }
   return { objects, meshes }
 }
@@ -113,6 +118,23 @@ console.log('\nnothing to do is nothing to record…')
   ])
   if (alignOffsets(grouped.objects, grouped.meshes, 0, 'min').size) {
     fail('one group aligned against itself')
+  }
+}
+
+console.log('\nsomething that isn’t drawn doesn’t drag the edge out…')
+{
+  // The middle block is a combined hole: present, invisible, and reaching well
+  // past the other two. It must not be what the others line up against.
+  const { objects, meshes } = scene([
+    ['a', [0, 5, 0], [10, 10, 10]],
+    ['ghost', [-200, 5, 0], [10, 10, 10], null, false],
+    ['b', [40, 5, 0], [10, 10, 10]],
+  ])
+  const offsets = alignOffsets(objects, meshes, 0, 'min')
+  if (offsets.has('ghost')) fail('an invisible block was moved by an align')
+  // a's left edge is -5 and b's is 35, so a is the target and only b travels.
+  if (Math.abs((offsets.get('b') ?? 0) - -40) > 1e-6) {
+    fail(`b moved ${offsets.get('b')}, expected -40 — an invisible block set the edge`)
   }
 }
 

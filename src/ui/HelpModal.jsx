@@ -102,15 +102,15 @@ export default function HelpModal({ onClose, onShowWelcome }) {
             <h3>Holes</h3>
             <p>
               Any block can be a <strong>hole</strong> instead of a solid — the switch is at the
-              top of the rail. A hole goes see-through and grey, and it cuts its own shape out of
-              whatever it is <strong>combined</strong> with. So: drop a tube where you want the
-              hole, pick it and the block it should go through, hit Combine, and the hole is
-              drilled.
+              top of the rail. A hole goes grey and see-through, and it cuts its shape out of every
+              solid it overlaps, straight away. Push a tube through a cube and the cube has a
+              tube-shaped hole in it while you are still pushing.
             </p>
             <p>
-              Nothing is destroyed doing it. <strong>Split apart</strong> gives you both blocks
-              back, and while they are combined you can still move or resize the hole and watch the
-              cut follow. Holes never end up in an exported file — they are the tool, not the part.
+              <strong>Combine</strong> is how you finish: it puts the grey ghost away and leaves
+              just the solid with the bite taken out of it. Nothing is destroyed doing that —{' '}
+              <strong>Split apart</strong> brings the hole back, still cutting, still yours to move
+              or resize. Holes never end up in an exported file; they are the tool, not the part.
             </p>
           </section>
 

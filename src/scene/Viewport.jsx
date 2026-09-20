@@ -9,7 +9,7 @@ import CameraRig from './CameraRig'
 import { useScene } from './sceneStore'
 import { HOME_CAMERA, viewport } from './viewportApi'
 import { HEAVY_SCENE, PLATE, PLATE_HALF, SNAP } from '../constants'
-import { holesByGroup, holesFor } from '../shapes/csg'
+import { cuttersByObject } from '../shapes/csg'
 import { gesture } from './gesture'
 
 /** Publishes camera/renderer/controls so the DOM chrome can drive the scene. */
@@ -90,8 +90,8 @@ function Blocks() {
 
   const selected = useMemo(() => new Set(selectedIds), [selectedIds])
   // Which holes cut what, worked out once for the scene rather than once per
-  // block searching the whole list for its own group.
-  const byGroup = useMemo(() => holesByGroup(objects), [objects])
+  // block testing itself against every hole in the yard.
+  const cutters = useMemo(() => cuttersByObject(objects), [objects])
   // Past a heavy scene, stop every block casting a shadow rather than let the
   // frame rate collapse.
   const shadows = objects.length <= HEAVY_SCENE
@@ -104,7 +104,7 @@ function Blocks() {
           object={o}
           selected={selected.has(o.id)}
           onSelect={select}
-          holes={holesFor(o, byGroup)}
+          holes={cutters.get(o.id) ?? null}
           castShadow={shadows}
         />
       ))}
