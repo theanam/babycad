@@ -1,7 +1,7 @@
 import { useScene } from '../scene/sceneStore'
 import { ExportIcon, FolderIcon, PlusIcon, RedoIcon, SaveIcon, UndoIcon, VariableIcon } from './icons'
 
-export default function TopBar({ onNew, onSave, onLoad, onExport, onVariables }) {
+export default function TopBar({ onNew, onSave, onLoad, onExport, onVariables, variablesOpen }) {
   const undo = useScene((s) => s.undo)
   const redo = useScene((s) => s.redo)
   const canUndo = useScene((s) => s.past.length > 0)
@@ -30,11 +30,16 @@ export default function TopBar({ onNew, onSave, onLoad, onExport, onVariables })
 
       <div className="topbar-right">
         <button
-          className="bar-btn"
+          className={`bar-btn${variablesOpen ? ' on' : ''}`}
           onClick={onVariables}
-          title="Numbers you can share between shapes"
+          aria-pressed={variablesOpen}
+          title={
+            variablesOpen
+              ? 'Close the variables panel'
+              : 'Numbers you can share between shapes'
+          }
         >
-          <VariableIcon size={18} stroke="#8A93A5" />
+          <VariableIcon size={18} stroke={variablesOpen ? '#C9B6FF' : '#8A93A5'} />
           Variables
           {variableCount > 0 && <span className="bar-count">{variableCount}</span>}
         </button>

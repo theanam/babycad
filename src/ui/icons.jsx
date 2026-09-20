@@ -141,6 +141,11 @@ export const CloseIcon = (p) => (
     <path d="M6 6l12 12M18 6 6 18" />
   </Svg>
 )
+export const CheckIcon = (p) => (
+  <Svg width={2.8} {...p}>
+    <path d="m5 13 5 5L19 7" />
+  </Svg>
+)
 export const ChevronUpIcon = (p) => (
   <Svg width={2.4} {...p}>
     <path d="m6 14 6-6 6 6" />

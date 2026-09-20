@@ -17,7 +17,7 @@ const OPTIONS = [
   },
   {
     id: 'json',
-    title: 'BabyCAD file (.json)',
+    title: 'BabyCAD file (.babycad)',
     body: 'Save it anywhere, then open it again here — even on another device.',
   },
 ]

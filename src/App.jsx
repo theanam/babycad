@@ -9,7 +9,7 @@ import PropertiesPanel from './ui/PropertiesPanel'
 import ViewCube from './ui/ViewCube'
 import ProjectsModal from './ui/ProjectsModal'
 import ExportMenu from './ui/ExportMenu'
-import VariablesModal from './ui/VariablesModal'
+import VariablesPanel from './ui/VariablesPanel'
 import ConfirmDialog from './ui/ConfirmDialog'
 import Toasts, { toast } from './ui/Toast'
 import { isStorageAvailable, readAutosave, writeAutosave } from './io/persistence'
@@ -19,7 +19,10 @@ export default function App() {
   const undo = useScene((s) => s.undo)
   const redo = useScene((s) => s.redo)
 
-  const [sheet, setSheet] = useState(null) // 'projects' | 'export' | 'variables' | 'new' | null
+  const [sheet, setSheet] = useState(null) // 'projects' | 'export' | 'new' | null
+  // Variables aren't a sheet: they take over the right rail, so the build they
+  // are reshaping stays in full view while a value is dragged.
+  const [showVariables, setShowVariables] = useState(false)
 
   /* ----------------------------------------------------------- startup -- */
 
@@ -116,7 +119,8 @@ export default function App() {
         onSave={() => setSheet('projects')}
         onLoad={() => setSheet('projects')}
         onExport={() => setSheet('export')}
-        onVariables={() => setSheet('variables')}
+        onVariables={() => setShowVariables((on) => !on)}
+        variablesOpen={showVariables}
       />
 
       <div className="stage">
@@ -126,7 +130,11 @@ export default function App() {
 
         <ShapeTray />
         {objects.length > 0 && <ViewTools />}
-        <PropertiesPanel />
+        {showVariables ? (
+          <VariablesPanel onClose={() => setShowVariables(false)} />
+        ) : (
+          <PropertiesPanel />
+        )}
         <ViewCube />
       </div>
 
@@ -137,7 +145,6 @@ export default function App() {
         />
       )}
       {sheet === 'export' && <ExportMenu onClose={() => setSheet(null)} />}
-      {sheet === 'variables' && <VariablesModal onClose={() => setSheet(null)} />}
       {sheet === 'new' && (
         <ConfirmDialog
           title="Start a new build?"

@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { useScene } from '../scene/sceneStore'
 import { KIND_LABEL, usageCounts } from '../scene/variables'
-import { CloseIcon, PlusIcon, TrashIcon, VariableIcon } from './icons'
+import { CheckIcon, PlusIcon, TrashIcon, VariableIcon } from './icons'
 
 const show = (value) => {
   if (typeof value === 'boolean') return value ? 'yes' : 'no'
@@ -106,20 +106,35 @@ function VariableRow({ variable, used }) {
 
   return (
     <div className="var-row">
-      <input
-        className="var-name"
-        aria-label="Variable name"
-        value={name ?? variable.name}
-        maxLength={24}
-        onChange={(e) => setName(e.target.value)}
-        onBlur={(e) => {
-          setName(null)
-          if (e.target.value.trim() && e.target.value !== variable.name) {
-            renameVariable(variable.id, e.target.value)
+      <div className="var-row-top">
+        <input
+          className="var-name"
+          aria-label="Variable name"
+          value={name ?? variable.name}
+          maxLength={24}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={(e) => {
+            setName(null)
+            if (e.target.value.trim() && e.target.value !== variable.name) {
+              renameVariable(variable.id, e.target.value)
+            }
+          }}
+          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+        />
+
+        <button
+          className="var-del"
+          onClick={() => deleteVariable(variable.id)}
+          title={
+            used
+              ? `Delete "${variable.name}" — the ${used} shape${used > 1 ? 's' : ''} using it keep this value`
+              : `Delete "${variable.name}"`
           }
-        }}
-        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-      />
+          aria-label={`Delete ${variable.name}`}
+        >
+          <TrashIcon size={18} stroke="#FF7A6B" />
+        </button>
+      </div>
 
       <div className="var-control">
         {variable.kind === 'number' && (
@@ -175,20 +190,9 @@ function VariableRow({ variable, used }) {
         )}
       </div>
 
-      <div className="var-used">{used ? `${used} shape${used > 1 ? 's' : ''}` : 'unused'}</div>
-
-      <button
-        className="var-del"
-        onClick={() => deleteVariable(variable.id)}
-        title={
-          used
-            ? `Delete "${variable.name}" — the ${used} shape${used > 1 ? 's' : ''} using it keep this value`
-            : `Delete "${variable.name}"`
-        }
-        aria-label={`Delete ${variable.name}`}
-      >
-        <TrashIcon size={18} stroke="#FF7A6B" />
-      </button>
+      <div className="var-used">
+        {used ? `used by ${used} shape${used > 1 ? 's' : ''}` : 'not used yet'}
+      </div>
     </div>
   )
 }
@@ -197,8 +201,13 @@ function VariableRow({ variable, used }) {
  * Every variable in the build, in one place: what they're called, what they're
  * worth and how many shapes are following each. Changing a value here reshapes
  * everything bound to it in one undoable step.
+ *
+ * It takes over the right-hand rail rather than opening over the scene. A
+ * variable is only worth dragging if you can watch the build answer, and a
+ * centred sheet covers the very thing it is changing. Done hands the rail back
+ * to the shape settings.
  */
-export default function VariablesModal({ onClose }) {
+export default function VariablesPanel({ onClose }) {
   const variables = useScene((s) => s.variables)
   const objects = useScene((s) => s.objects)
   const addVariable = useScene((s) => s.addVariable)
@@ -216,17 +225,23 @@ export default function VariablesModal({ onClose }) {
   }
 
   return (
-    <div className="scrim" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal vars-modal" role="dialog" aria-label="Variables">
-        <div className="modal-head">
-          <div className="modal-title">Variables</div>
-          <div className="modal-tag">SHARED ACROSS THIS BUILD</div>
-          <button className="modal-close" onClick={onClose} title="Close" aria-label="Close">
-            <CloseIcon stroke="#8A93A5" />
-          </button>
+    <aside className="props vars-panel" aria-label="Variables">
+      <div className="props-head">
+        <div className="vars-mark" aria-hidden="true">
+          <VariableIcon size={20} stroke="#C3CAD9" />
         </div>
+        <div className="props-title">
+          <div className="sel-name">Variables</div>
+          <div className="sel-sub">
+            {sorted.length
+              ? `${sorted.length} shared across this build`
+              : 'shared across this build'}
+          </div>
+        </div>
+      </div>
 
-        <div className="save-row">
+      <div className="props-body">
+        <div className="var-add">
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -235,9 +250,8 @@ export default function VariablesModal({ onClose }) {
             aria-label="New variable name"
             maxLength={24}
           />
-          <button className="save-btn" onClick={add} title="Add a number you can use anywhere">
-            <PlusIcon stroke="#fff" width={2.4} />
-            Add
+          <button className="var-add-btn" onClick={add} title="Add a number you can use anywhere">
+            <PlusIcon size={20} stroke="#fff" width={2.6} />
           </button>
         </div>
 
@@ -246,32 +260,37 @@ export default function VariablesModal({ onClose }) {
             <VariableIcon size={28} stroke="#3A414F" />
             <p>No variables yet</p>
             <span>
-              Add one above, or press the <VariableIcon size={13} stroke="#8A93A5" /> beside any
-              shape setting to turn that number into one. Anything following a variable changes
+              Name one above, or press <VariableIcon size={13} stroke="#8A93A5" /> beside any shape
+              setting — press Done first, then pick a shape. Anything following a variable changes
               with it.
             </span>
           </div>
         ) : (
           <>
-            <div className="var-head">
-              <span>NAME</span>
-              <span>VALUE</span>
-              <span>USED BY</span>
-              <span />
-            </div>
             <div className="vars-list">
               {sorted.map((v) => (
                 <VariableRow key={v.id} variable={v} used={used.get(v.id) ?? 0} />
               ))}
             </div>
             <p className="props-note vars-note">
-              Yes/no and either-or variables come from the{' '}
+              Drag a value and watch the build follow. Yes/no and either-or variables come from the{' '}
               <VariableIcon size={12} stroke="#8A93A5" /> button on a shape setting — they carry the
               choices that setting offers. {KIND_LABEL.number} variables you can add here.
             </p>
           </>
         )}
       </div>
-    </div>
+
+      <div className="props-foot">
+        <button
+          className="props-act wide"
+          onClick={onClose}
+          title="Go back to the shape settings"
+        >
+          <CheckIcon size={20} stroke="#C3CAD9" />
+          Done
+        </button>
+      </div>
+    </aside>
   )
 }

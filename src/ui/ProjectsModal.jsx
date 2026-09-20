@@ -79,7 +79,7 @@ export default function ProjectsModal({ onClose, onRequestNew }) {
       const scene = migrate(JSON.parse(await file.text()))
       if (!scene?.objects?.length) throw new Error('empty')
       loadScene(scene)
-      setProjectName(file.name.replace(/\.(babycad\.|blockyard\.)?json$/i, ''))
+      setProjectName(file.name.replace(/\.(babycad|(babycad\.|blockyard\.)?json)$/i, ''))
       toast(`Opened ${file.name}`)
       onClose()
     } catch {
@@ -177,7 +177,7 @@ export default function ProjectsModal({ onClose, onRequestNew }) {
           <button
             className="foot-btn"
             onClick={() => fileInput.current?.click()}
-            title="Open a BabyCAD .json file from your device"
+            title="Open a .babycad file from your device"
           >
             <OpenIcon stroke="#8A93A5" />
             Open a file
@@ -185,7 +185,7 @@ export default function ProjectsModal({ onClose, onRequestNew }) {
           <input
             ref={fileInput}
             type="file"
-            accept="application/json,.json"
+            accept=".babycad,application/json,.json"
             onChange={openFile}
             hidden
           />

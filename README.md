@@ -32,7 +32,7 @@ site or a project site without hardcoding the repo name.
 | Add a block | tap a shape in the left tray — it lands where the camera is looking |
 | Change what it *is* | the shape's own numbers, at the top of the properties panel |
 | Share a number | the `{}` beside any setting — make it a variable, or point it at one |
-| All the variables | **Variables** in the top bar — rename them, retype them, drag them |
+| All the variables | **Variables** in the top bar — takes over the right rail, so the build stays in view while you drag |
 | Select | tap a block; tap empty space to deselect |
 | Multi-select | shift-click, or turn on **Pick many** for touch |
 | Move | drag the block itself along the floor |
@@ -77,12 +77,12 @@ src/
     dragBus.js        lets a block hand a body-drag to the gizmo
   ui/
     ParamMenu.jsx     the {} beside every setting: make a variable, or use one
-    VariablesModal.jsx  the whole list, with values you can drag
+    VariablesPanel.jsx  the whole list in the right rail, values you can drag
     ViewCube.jsx      orientation cube, axis triad and camera buttons
     ...               the rest of the DOM chrome
   io/
     persistence.js    localStorage save/load
-    exporters.js      GLB / STL / JSON
+    exporters.js      GLB / STL / .babycad
   history/
     undoRedo.js       command pattern; every command carries its own inverse
 tools/
@@ -175,7 +175,7 @@ angle.
 One UI note that is easy to undo by accident: the `{}` menu is portalled to the
 body. The properties rail scrolls, and a pop-over drawn inside a scroll
 container is clipped by it — for the bottom parameter of a gear that means the
-menu is simply invisible. The variables sheet's sliders run `0..1000` with the
+menu is simply invisible. The variables panel's sliders run `0..1000` with the
 value mapped by hand for a related reason: changing `step` on a range input
 makes the browser re-snap and fire an `input` event, which lands just after a
 drag ends and reads as one more edit.
@@ -273,10 +273,11 @@ Matching the spec's v1 boundary:
   and cutting a matching internal one out of a block needs a real subtraction.
 - **The undo stack resets on refresh.** The *build* doesn't: it autosaves to
   localStorage and comes back. That's the split the spec asks for.
-- **Import is BabyCAD JSON, not `.glb`.** The design's footer button reads
+- **Import is a `.babycad` file, not `.glb`.** The design's footer button reads
   "Open a .glb", but reading an arbitrary GLB back would produce meshes that
   don't map onto the primitive data model. The button opens the scene JSON that
-  Export writes, which is the round-trip the spec's data model describes.
+  Export writes — a `.babycad` file — which is the round-trip the spec's data
+  model describes.
   Importing GLB would need a v2 decision about non-primitive geometry.
 - **No Move/Turn/Size mode switch.** Replaced by direct manipulation on the
   bounding box, plus a numeric properties panel. This is a deliberate departure

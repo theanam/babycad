@@ -6,11 +6,17 @@ import { FitIcon, IsoIcon, ResetIcon } from './icons'
 
 /* Widget geometry, in the SVG's own units. */
 const VIEW = 150
-const MID = { x: 75, y: 72 }
-const S = 23 // half-edge of the cube
+const MID = { x: 75, y: 70 }
+const S = 20 // half-edge of the cube
 
-/** Axis arrows spring from this corner of the box: left, bottom, front. */
-const ORIGIN = [-1, -1, 1]
+/**
+ * Where the arrows spring from: off the box's left-bottom-front corner, and
+ * clear of it. Sitting exactly *on* the corner put the X and Y arms along two
+ * of the cube's own edges, where they read as colored-in edges rather than as
+ * axes. Pushed out along the corner's diagonal they stay obviously attached to
+ * that corner while keeping their own space.
+ */
+const ORIGIN = [-1.4, -1.4, 1.25]
 
 /**
  * The six faces. `n` is the outward normal, `u` and `v` the in-plane axes the
@@ -26,14 +32,21 @@ const FACES = [
 ]
 
 /**
- * Arm lengths differ on purpose. X and Y start at the far side of the box and
- * run along its edges, so they need to span it; Z starts on the front face
- * already and only has to poke out towards the viewer.
+ * One arm length for all three. They used to differ — X and Y spanned the box
+ * while Z only poked out of its front face — which drew a triad with a stubby
+ * blue arm less than half the length of the other two, reading as a broken
+ * axis rather than a foreshortened one. Equal arms let the projection do the
+ * foreshortening, which is the part that actually tells you where Z points.
  */
+const ARM = 1.2
+
+// Keeps an axis letter this far inside the viewBox.
+const EDGE = 9
+
 const AXES = [
-  { key: 'x', vec: [1, 0, 0], color: '#FF5A47', arm: 2.3 },
-  { key: 'y', vec: [0, 1, 0], color: '#35C46B', arm: 2.3 },
-  { key: 'z', vec: [0, 0, 1], color: '#2E7DF6', arm: 1.05 },
+  { key: 'x', label: 'X', vec: [1, 0, 0], color: '#FF5A47' },
+  { key: 'y', label: 'Y', vec: [0, 1, 0], color: '#35C46B' },
+  { key: 'z', label: 'Z', vec: [0, 0, 1], color: '#2E7DF6' },
 ]
 
 // Past this, a press is a turn of the view rather than a tap on a face.
@@ -78,6 +91,7 @@ export default function ViewCube() {
     // Cube space to SVG space. SVG y grows downward, hence the negation.
     const sx = (n) => MID.x + n * S
     const sy = (n) => MID.y - n * S
+    const pin = (n) => Math.max(EDGE, Math.min(VIEW - EDGE, n))
 
     const tick = () => {
       raf = requestAnimationFrame(tick)
@@ -136,7 +150,7 @@ export default function ViewCube() {
       for (const axis of AXES) {
         const part = parts.current[axis.key]
         if (!part) continue
-        to.set(...ORIGIN).addScaledVector(v.set(...axis.vec), axis.arm).applyQuaternion(q)
+        to.set(...ORIGIN).addScaledVector(v.set(...axis.vec), ARM).applyQuaternion(q)
         const tx = sx(to.x)
         const ty = sy(to.y)
 
@@ -161,8 +175,11 @@ export default function ViewCube() {
             `${(tx - dx * head + dy * wing).toFixed(1)},${(ty - dy * head - dx * wing).toFixed(1)}`,
           ].join(' ')
         )
-        part.label.setAttribute('x', (tx + dx * 8).toFixed(1))
-        part.label.setAttribute('y', (ty + dy * 8).toFixed(1))
+        // Held inside the frame: an axis pointing straight out of the screen
+        // puts its tip at the widget's edge, and an unclamped letter would sit
+        // half outside the viewBox and be cut in two.
+        part.label.setAttribute('x', pin(tx + dx * 8).toFixed(1))
+        part.label.setAttribute('y', pin(ty + dy * 8).toFixed(1))
 
         // Arrows pointing away from the viewer fade back.
         const depth = (0.45 + 0.55 * (to.z * 0.5 + 0.5)).toFixed(2)
@@ -277,7 +294,7 @@ export default function ViewCube() {
               textAnchor="middle"
               dominantBaseline="middle"
             >
-              {axis.key}
+              {axis.label}
             </text>
           </g>
         ))}
