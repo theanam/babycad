@@ -268,9 +268,26 @@ OrbitControls' `lookAt` then agrees with where the camera already points, so
 nothing jumps and pan, zoom and damping still work. Keep that invariant —
 target on the view axis — if you touch either file.
 
-**The yard is a bounded 20x20 plate**, not an endless grid, and the home camera
-is framed to it (`HOME_CAMERA` in `viewportApi.js`). New blocks are clamped to
-land on the plate.
+**One world unit is one millimetre.** The numbers in the properties rail are
+mm, the grid's heavier lines are 20 mm apart, and an exported STL lands in a
+slicer at the size it says it is. `FOOTPRINT` in `constants.js` is that 20 mm
+square: every shape's defaults are drawn to fill it, placement keeps one clear
+per element so shapes dropped one after another land side by side rather than
+inside one another, and a copy appears half a footprint over. Snap is 5 mm,
+which is one grid cell and a quarter of a footprint. Scale — the SIZE row — is
+a multiplier, not a length, which is why it alone carries no mm.
+
+**The yard is a bounded 200x200 mm plate**, ten footprints across, not an
+endless grid, and the home camera is framed to it (`HOME_CAMERA` in
+`viewportApi.js`). New blocks are clamped to land on the plate.
+
+**Builds saved before millimetres are scaled on the way in.** `migrate` in
+`persistence.js` multiplies positions and lengths by 20 for any scene below
+v4, so an old build comes back the same shape in the same place rather than a
+speck on a plate that grew around it. Only lengths move: a spec is a length if
+it went through the `size` helper in `shapes/index.js`, which is why a gear's
+tooth *count* and a sweep in degrees survive untouched. A variable is scaled
+only when every parameter following it is a length.
 
 **Undo is a command stack, not snapshots.** Each command in `undoRedo.js` is a
 pair of pure functions over `{ objects, groups }` and captures whatever it

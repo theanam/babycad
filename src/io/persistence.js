@@ -3,7 +3,7 @@
  * there is no server, no account, and nothing leaves the device.
  */
 import { SCENE_VERSION } from '../constants'
-import { normalizeParams } from '../shapes'
+import { getShapeDef, normalizeParams } from '../shapes'
 import { resolvePatches, sanitizeVariables } from '../scene/variables'
 
 const PROJECTS_KEY = 'babycad.projects.v1'
@@ -134,6 +134,13 @@ export function migrate(scene) {
   const variables = sanitizeVariables(scene.variables)
   const known = new Set(variables.map((v) => v.id))
 
+  // Pre-v4 builds were drawn in world units, where a cube was 1 across; the
+  // world is millimetres now and that same cube is 20. Scaling on the way in
+  // is what keeps an old build the size it looks, rather than a speck in the
+  // corner of a plate that grew twenty times around it.
+  const legacy = !(Number(scene.version) >= 4)
+  if (legacy) scaleVariablesToMm(variables, rawObjects)
+
   const objects = rawObjects
     // A type this build doesn't know (a scene from a newer version) is kept
     // rather than dropped; it falls back to a cube instead of vanishing.
@@ -141,9 +148,9 @@ export function migrate(scene) {
     .map((o) => ({
       id: o.id,
       type: o.type,
-      params: normalizeParams(o.type, o.params),
+      params: normalizeParams(o.type, legacy ? paramsToMm(o.type, o.params) : o.params),
       bindings: bindingsOf(o.bindings, known),
-      position: triple(o.position, [0, 0.5, 0]),
+      position: scaleTriple(triple(o.position, [0, 0.5 * MM, 0]), legacy ? MM : 1),
       rotation: triple(o.rotation, [0, 0, 0]),
       scale: triple(o.scale, [1, 1, 1]),
       color: typeof o.color === 'string' ? o.color : '#FFC93D',
@@ -170,6 +177,51 @@ export function migrate(scene) {
     updatedAt: scene.updatedAt ?? new Date().toISOString(),
   }
 }
+
+/* ------------------------------------------------- v3 -> v4: millimetres -- */
+
+const MM = 20
+
+/**
+ * Multiply the lengths in one shape's stored parameters, and only those: a
+ * gear's tooth *count* and a sweep in degrees mean the same thing at any
+ * scale, and multiplying them would turn a 16-tooth gear into a 320-tooth
+ * one. `length: true` on the spec is what says a number is a length; see the
+ * `size` helper in shapes/index.js.
+ */
+function paramsToMm(type, raw) {
+  if (!raw || typeof raw !== 'object') return raw
+  const specs = getShapeDef(type)?.params
+  if (!specs) return raw
+  const out = { ...raw }
+  for (const spec of specs) {
+    if (spec.length && Number.isFinite(out[spec.key])) out[spec.key] *= MM
+  }
+  return out
+}
+
+/**
+ * A variable is scaled only if every parameter following it is a length. One
+ * driving a radius here and a tooth count there has no single right answer —
+ * it was already a strange thing to build — and leaving it alone keeps the
+ * tooth count right, which is the half a kid is more likely to notice.
+ */
+function scaleVariablesToMm(variables, rawObjects) {
+  const allLengths = new Map()
+  for (const o of rawObjects) {
+    const specs = getShapeDef(o?.type)?.params
+    if (!specs || !o?.bindings) continue
+    for (const [key, id] of Object.entries(o.bindings)) {
+      const isLength = specs.find((spec) => spec.key === key)?.length === true
+      allLengths.set(id, (allLengths.get(id) ?? true) && isLength)
+    }
+  }
+  for (const v of variables) {
+    if (v.kind === 'number' && allLengths.get(v.id) && Number.isFinite(v.value)) v.value *= MM
+  }
+}
+
+const scaleTriple = (t, by) => (by === 1 ? t : t.map((n) => n * by))
 
 const bindingsOf = (raw, known) => {
   if (!raw || typeof raw !== 'object') return null

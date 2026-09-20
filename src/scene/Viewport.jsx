@@ -7,7 +7,7 @@ import BoxGizmo from './BoxGizmo'
 import CameraRig from './CameraRig'
 import { useScene } from './sceneStore'
 import { HOME_CAMERA, viewport } from './viewportApi'
-import { HEAVY_SCENE, PLATE, PLATE_HALF } from '../constants'
+import { HEAVY_SCENE, PLATE, PLATE_HALF, SNAP } from '../constants'
 import { gesture } from './gesture'
 
 /** Publishes camera/renderer/controls so the DOM chrome can drive the scene. */
@@ -25,9 +25,10 @@ function Rig() {
 }
 
 /**
- * The yard: a bounded 20x20 plate rather than an endless grid. A definite
+ * The yard: a bounded 200x200 mm plate rather than an endless grid. A definite
  * edge gives the scene a sense of scale, and keeps new blocks somewhere the
- * camera is actually looking.
+ * camera is actually looking. The grid reads in millimetres: a cell is one
+ * snap step, a heavier section line every 20 mm — one shape footprint.
  */
 function BuildPlate() {
   const border = useMemo(() => {
@@ -45,20 +46,20 @@ function BuildPlate() {
 
   return (
     <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.004, 0]} receiveShadow>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.08, 0]} receiveShadow>
         <planeGeometry args={[PLATE, PLATE]} />
         <meshStandardMaterial color="#12161e" roughness={1} metalness={0} />
       </mesh>
 
       <Grid
         args={[PLATE, PLATE]}
-        cellSize={1}
+        cellSize={SNAP.move}
         cellThickness={1}
         cellColor="#2B3140"
-        sectionSize={5}
+        sectionSize={20}
         sectionThickness={1.4}
         sectionColor="#3A4254"
-        fadeDistance={90}
+        fadeDistance={1800}
         fadeStrength={0.6}
         followCamera={false}
       />
@@ -72,9 +73,9 @@ function BuildPlate() {
 
 /** Dashed landing pad shown while the scene is still empty. */
 function StartPad() {
-  const geometry = useMemo(() => new THREE.RingGeometry(1.9, 2, 4, 1), [])
+  const geometry = useMemo(() => new THREE.RingGeometry(38, 40, 4, 1), [])
   return (
-    <mesh geometry={geometry} rotation={[-Math.PI / 2, 0, Math.PI / 4]} position={[0, 0.01, 0]}>
+    <mesh geometry={geometry} rotation={[-Math.PI / 2, 0, Math.PI / 4]} position={[0, 0.2, 0]}>
       <meshBasicMaterial color="#3A4254" side={THREE.DoubleSide} transparent opacity={0.8} />
     </mesh>
   )
@@ -112,11 +113,11 @@ function GroundShadow() {
   if (count > HEAVY_SCENE) return null
   return (
     <ContactShadows
-      position={[0, 0.002, 0]}
+      position={[0, 0.04, 0]}
       opacity={0.5}
-      scale={24}
+      scale={480}
       blur={2.4}
-      far={14}
+      far={280}
       resolution={512}
     />
   )
@@ -130,16 +131,16 @@ function Lighting() {
       <ambientLight intensity={0.85} />
       <hemisphereLight args={['#dfe6ff', '#1b2030', 0.55]} />
       <directionalLight
-        position={[6, 12, 8]}
+        position={[120, 240, 160]}
         intensity={1.5}
         castShadow={!heavy}
         shadow-mapSize={heavy ? [512, 512] : [2048, 2048]}
         shadow-bias={-0.0005}
       >
-        <orthographicCamera attach="shadow-camera" args={[-16, 16, 16, -16, 0.1, 40]} />
+        <orthographicCamera attach="shadow-camera" args={[-320, 320, 320, -320, 2, 800]} />
       </directionalLight>
       {/* Cool rim light so the dark side of a block never goes fully flat. */}
-      <directionalLight position={[-8, 5, -6]} intensity={0.35} color="#9fb4ff" />
+      <directionalLight position={[-160, 100, -120]} intensity={0.35} color="#9fb4ff" />
     </>
   )
 }
@@ -153,7 +154,7 @@ export default function Viewport() {
       dpr={[1, 2]}
       // preserveDrawingBuffer lets us grab a thumbnail when a build is saved.
       gl={{ antialias: true, preserveDrawingBuffer: true }}
-      camera={{ position: HOME_CAMERA.position, fov: 40, near: 0.1, far: 200 }}
+      camera={{ position: HOME_CAMERA.position, fov: 40, near: 2, far: 4000 }}
       // Only a real click clears the selection — not the end of a camera swing.
       onPointerMissed={() => {
         if (!gesture.moved) clearSelection()
@@ -177,8 +178,8 @@ export default function Viewport() {
         target={HOME_CAMERA.target}
         enableDamping
         dampingFactor={0.12}
-        minDistance={2.5}
-        maxDistance={45}
+        minDistance={50}
+        maxDistance={900}
         // Scrolling zooms towards whatever is under the pointer.
         zoomToCursor
         // Orbiting is CameraRig's job, so it can pivot on the cursor.

@@ -13,8 +13,9 @@
  * Two families: `solid` for the plain primitives, `generator` for the shapes
  * whose parameters describe a mechanism rather than a box.
  *
- * Defaults are chosen so a fresh shape is about one world unit, and so the six
- * original primitives come out byte-identical to their pre-parametric versions.
+ * Lengths are millimetres — one world unit is 1 mm. Defaults are chosen so a
+ * fresh shape drops with a 20 mm footprint, the size of the yard's grid
+ * squares, so anything placed sits on the grid like a building block.
  */
 import { choice, deg, defaultsOf, int, normalize, num, paramsKey } from './params'
 import {
@@ -32,7 +33,13 @@ import { buildGear } from './builders/gear'
 import { buildThread } from './builders/thread'
 import { buildKnot, buildSpring } from './builders/spring'
 
-const size = (key, label, def, opts) => num(key, label, def, { min: 0.02, max: 8, step: 0.1, ...opts })
+/**
+ * A length, in millimetres. `length: true` is what the v3 -> v4 migration
+ * looks for when it scales an older build up into millimetres, so a size that
+ * doesn't go through here won't be found: put every length through it.
+ */
+const size = (key, label, def, opts) =>
+  num(key, label, def, { min: 0.4, max: 160, step: 2, unit: 'mm', length: true, ...opts })
 const smoothness = (def = 32) => int('sides', 'Smoothness', def, { min: 3, max: 96 })
 const sweep = () => deg('sweep', 'Sweep', 360, { min: 10, max: 360, step: 15 })
 const HAND = [
@@ -47,9 +54,9 @@ export const SHAPE_DEFS = [
     family: 'solid',
     color: '#FFC93D',
     params: [
-      size('width', 'Width', 1),
-      size('height', 'Height', 1),
-      size('depth', 'Depth', 1),
+      size('width', 'Width', 20),
+      size('height', 'Height', 20),
+      size('depth', 'Depth', 20),
     ],
     build: buildCube,
   },
@@ -59,7 +66,7 @@ export const SHAPE_DEFS = [
     family: 'solid',
     color: '#2E7DF6',
     params: [
-      size('radius', 'Radius', 0.5),
+      size('radius', 'Radius', 10),
       smoothness(32),
       int('rings', 'Rings', 24, { min: 2, max: 64 }),
       deg('slice', 'Slice', 360, { min: 10, max: 360, step: 15 }),
@@ -71,7 +78,7 @@ export const SHAPE_DEFS = [
     label: 'Cone',
     family: 'solid',
     color: '#FF5A47',
-    params: [size('radius', 'Radius', 0.5), size('height', 'Height', 1), smoothness(32), sweep()],
+    params: [size('radius', 'Radius', 10), size('height', 'Height', 20), smoothness(32), sweep()],
     build: buildCone,
   },
   {
@@ -80,9 +87,9 @@ export const SHAPE_DEFS = [
     family: 'solid',
     color: '#35C46B',
     params: [
-      size('bottomRadius', 'Bottom', 0.5),
-      size('topRadius', 'Top', 0.5, { min: 0 }),
-      size('height', 'Height', 1),
+      size('bottomRadius', 'Bottom', 10),
+      size('topRadius', 'Top', 10, { min: 0 }),
+      size('height', 'Height', 20),
       smoothness(32),
       sweep(),
     ],
@@ -94,8 +101,8 @@ export const SHAPE_DEFS = [
     family: 'solid',
     color: '#FF8A3D',
     params: [
-      size('radius', 'Base', 0.72),
-      size('height', 'Height', 1),
+      size('radius', 'Base', 14.4),
+      size('height', 'Height', 20),
       int('sides', 'Sides', 4, { min: 3, max: 16 }),
     ],
     build: buildPyramid,
@@ -106,8 +113,8 @@ export const SHAPE_DEFS = [
     family: 'solid',
     color: '#FF5FA2',
     params: [
-      size('radius', 'Radius', 0.34),
-      size('tube', 'Thickness', 0.16),
+      size('radius', 'Radius', 6.8),
+      size('tube', 'Thickness', 3.2),
       int('segments', 'Smoothness', 40, { min: 3, max: 96 }),
       int('sides', 'Roundness', 18, { min: 3, max: 48 }),
       sweep(),
@@ -119,7 +126,7 @@ export const SHAPE_DEFS = [
     label: 'Ramp',
     family: 'solid',
     color: '#16C1C1',
-    params: [size('width', 'Width', 1), size('height', 'Height', 1), size('depth', 'Depth', 1)],
+    params: [size('width', 'Width', 20), size('height', 'Height', 20), size('depth', 'Depth', 20)],
     build: buildWedge,
   },
   {
@@ -128,9 +135,9 @@ export const SHAPE_DEFS = [
     family: 'solid',
     color: '#7C4DFF',
     params: [
-      size('radius', 'Radius', 0.5),
-      size('wall', 'Wall', 0.12, { max: 2, step: 0.02 }),
-      size('height', 'Height', 1),
+      size('radius', 'Radius', 10),
+      size('wall', 'Wall', 2.4, { max: 40, step: 0.4 }),
+      size('height', 'Height', 20),
       smoothness(48),
       sweep(),
     ],
@@ -143,9 +150,9 @@ export const SHAPE_DEFS = [
     color: '#D6E24A',
     params: [
       int('points', 'Points', 5, { min: 3, max: 24 }),
-      size('radius', 'Radius', 0.5),
-      size('innerRadius', 'Inner', 0.22),
-      size('height', 'Thickness', 0.3),
+      size('radius', 'Radius', 10),
+      size('innerRadius', 'Inner', 4.4),
+      size('height', 'Thickness', 6),
       deg('twist', 'Twist', 0, { min: -360, max: 360, step: 15 }),
     ],
     build: buildStar,
@@ -161,14 +168,14 @@ export const SHAPE_DEFS = [
     blurb: 'Involute spur gear — two gears of the same tooth size mesh.',
     params: [
       int('teeth', 'Teeth', 16, { min: 6, max: 80 }),
-      num('module', 'Tooth size', 0.06, { min: 0.01, max: 0.4, step: 0.005 }),
-      size('thickness', 'Thickness', 0.25, { max: 3 }),
+      size('module', 'Tooth size', 1.2, { min: 0.2, max: 8, step: 0.1 }),
+      size('thickness', 'Thickness', 5, { max: 60 }),
       choice('pressureAngle', 'Tooth angle', 20, [
         { value: 14.5, label: '14.5°' },
         { value: 20, label: '20°' },
         { value: 25, label: '25°' },
       ]),
-      size('bore', 'Hole', 0.2, { min: 0, max: 4, step: 0.05 }),
+      size('bore', 'Hole', 4, { min: 0, max: 80, step: 1 }),
       deg('helix', 'Helix', 0, { min: -45, max: 45, step: 5 }),
     ],
     build: buildGear,
@@ -180,9 +187,9 @@ export const SHAPE_DEFS = [
     color: '#EDEFF4',
     blurb: 'Threaded rod with an ISO metric profile.',
     params: [
-      size('diameter', 'Diameter', 0.6, { max: 4 }),
-      num('pitch', 'Pitch', 0.16, { min: 0.02, max: 1, step: 0.01 }),
-      size('length', 'Length', 1.4, { max: 8 }),
+      size('diameter', 'Diameter', 12, { max: 80 }),
+      size('pitch', 'Pitch', 3.2, { min: 0.4, max: 20, step: 0.2 }),
+      size('length', 'Length', 28, { max: 160 }),
       deg('angle', 'Thread angle', 60, { min: 20, max: 100, step: 5 }),
       int('starts', 'Starts', 1, { min: 1, max: 6 }),
       choice('hand', 'Hand', 'right', HAND),
@@ -197,10 +204,10 @@ export const SHAPE_DEFS = [
     color: '#8A93A5',
     blurb: 'Round-wire coil.',
     params: [
-      size('radius', 'Coil radius', 0.4),
-      num('wire', 'Wire', 0.08, { min: 0.01, max: 1, step: 0.01 }),
+      size('radius', 'Coil radius', 8),
+      size('wire', 'Wire', 1.6, { min: 0.2, max: 20, step: 0.2 }),
       num('turns', 'Turns', 5, { min: 0.25, max: 40, step: 0.5 }),
-      size('height', 'Height', 1.2, { max: 8 }),
+      size('height', 'Height', 24, { max: 160 }),
       int('sides', 'Smoothness', 10, { min: 3, max: 32 }),
       choice('hand', 'Hand', 'right', HAND),
     ],
@@ -213,8 +220,8 @@ export const SHAPE_DEFS = [
     color: '#FF5FA2',
     blurb: 'Torus knot — p turns one way, q the other.',
     params: [
-      size('radius', 'Radius', 0.4),
-      num('tube', 'Thickness', 0.12, { min: 0.01, max: 1, step: 0.01 }),
+      size('radius', 'Radius', 8),
+      size('tube', 'Thickness', 2.4, { min: 0.2, max: 20, step: 0.2 }),
       int('p', 'P', 2, { min: 1, max: 12 }),
       int('q', 'Q', 3, { min: 1, max: 12 }),
       int('sides', 'Smoothness', 12, { min: 3, max: 32 }),

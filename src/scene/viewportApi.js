@@ -4,7 +4,7 @@
  * where to drop a new block, a thumbnail, or a camera reset.
  */
 import * as THREE from 'three'
-import { PLATE_HALF, SNAP } from '../constants'
+import { FOOTPRINT, PLATE_HALF, SNAP } from '../constants'
 import { restingHeight } from '../shapes/geometryCache'
 import { meshes } from './meshRegistry'
 import { boxOfMesh } from './gizmoMath'
@@ -13,7 +13,7 @@ const FLIGHT_MS = 260
 
 const UP = new THREE.Vector3(0, 1, 0)
 // Keep the camera above the plate and stop it tipping past straight down.
-const MIN_CAMERA_Y = 0.5
+const MIN_CAMERA_Y = 10
 const MAX_LOOK_UP = -0.02
 const MAX_LOOK_DOWN = -0.995
 
@@ -57,9 +57,9 @@ export function orbitCamera(camera, controls, pivot, dx, dy, height) {
   controls.target.copy(next.position).addScaledVector(next.forward, distance)
 }
 
-// Framed close enough that a fresh one-unit block reads as a real object, not
-// a speck on an endless floor.
-export const HOME_CAMERA = { position: [7.5, 6, 7.5], target: [0, 0.75, 0] }
+// Framed close enough that a fresh 20 mm block reads as a real object, not a
+// speck on an endless floor.
+export const HOME_CAMERA = { position: [150, 120, 150], target: [0, 15, 0] }
 
 export const viewport = {
   camera: null,
@@ -160,7 +160,7 @@ export const viewport = {
     if (box.isEmpty()) return this.resetView()
 
     const center = box.getCenter(new THREE.Vector3())
-    const radius = Math.max(0.8, box.getBoundingSphere(new THREE.Sphere()).radius)
+    const radius = Math.max(16, box.getBoundingSphere(new THREE.Sphere()).radius)
     const fov = (this.camera.fov * Math.PI) / 180
     // A little headroom so the build isn't flush against the edges.
     const distance = (radius / Math.sin(fov / 2)) * 1.2
@@ -177,22 +177,29 @@ export const viewport = {
   placementPoint(type, objects = [], params) {
     const t = this.controls?.target
     const snap = (n) => Math.round(n / SNAP.move) * SNAP.move
-    const limit = PLATE_HALF - 1
+    const limit = PLATE_HALF - FOOTPRINT
     const clamp = (n) => Math.max(-limit, Math.min(limit, n))
     let x = clamp(t ? snap(t.x) : 0)
     let z = clamp(t ? snap(t.z) : 0)
 
-    // Don't drop a block exactly on top of one that's already there.
+    // Every shape drops with a 20 mm footprint, so that is the square this
+    // keeps clear: a block already inside it means this spot is taken, and
+    // the search steps out a whole footprint at a time. Two shapes dropped in
+    // a row land side by side on the grid rather than inside one another.
     const taken = (px, pz) =>
-      objects.some((o) => Math.abs(o.position[0] - px) < 0.5 && Math.abs(o.position[2] - pz) < 0.5)
+      objects.some(
+        (o) =>
+          Math.abs(o.position[0] - px) < FOOTPRINT / 2 &&
+          Math.abs(o.position[2] - pz) < FOOTPRINT / 2
+      )
 
     if (taken(x, z)) {
       outward: for (let ring = 1; ring <= 8; ring++) {
         for (let dx = -ring; dx <= ring; dx++) {
           for (let dz = -ring; dz <= ring; dz++) {
             if (Math.max(Math.abs(dx), Math.abs(dz)) !== ring) continue
-            const nx = clamp(x + dx)
-            const nz = clamp(z + dz)
+            const nx = clamp(x + dx * FOOTPRINT)
+            const nz = clamp(z + dz * FOOTPRINT)
             if (!taken(nx, nz)) {
               x = nx
               z = nz

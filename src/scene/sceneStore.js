@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import * as cmd from '../history/undoRedo'
-import { MAX_HISTORY, SCENE_VERSION } from '../constants'
+import { FOOTPRINT, MAX_HISTORY, SCENE_VERSION } from '../constants'
 import { defaultParams, normalizeParams, SHAPE_COLOR } from '../shapes'
 import { restingHeight } from '../shapes/geometryCache'
 import {
@@ -463,7 +463,7 @@ export const useScene = create((set, get) => ({
     const clones = sel.map((o) => ({
       ...o,
       id: uid(),
-      position: [o.position[0] + 0.5, o.position[1], o.position[2] + 0.5],
+      position: [o.position[0] + FOOTPRINT / 2, o.position[1], o.position[2] + FOOTPRINT / 2],
       parentGroupId: o.parentGroupId ? groupMap.get(o.parentGroupId) : null,
     }))
     const newGroups = [...groupMap.values()].map((gid) => ({

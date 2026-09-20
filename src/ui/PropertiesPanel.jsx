@@ -459,7 +459,7 @@ export default function PropertiesPanel() {
         {/* Labelled the CAD way — Z is the one that goes up. `slot` is where
             that axis lives in the scene's own y-up triples, and `sign` flips
             the one that points the other way; see scene/axes. */}
-        <Row title="POSITION">
+        <Row title="POSITION (MM)">
           {AXES.map((a) => (
             <NumField
               key={a.label}
@@ -491,9 +491,11 @@ export default function PropertiesPanel() {
           ))}
         </Row>
 
-        {/* Size is a length, never negative, so it takes the slot but not the
-            sign: a block 2 deep is 2 deep whichever way the axis runs. */}
-        <Row title="SIZE">
+        {/* Size is a multiplier, not a length — 2 means twice the shape's own
+            millimetres — so it carries no mm, and being a magnitude it takes
+            the slot but not the sign: a block 2 deep is 2 deep whichever way
+            the axis runs. */}
+        <Row title="SIZE (×)">
           {AXES.map((a) => (
             <NumField
               key={a.label}

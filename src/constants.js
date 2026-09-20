@@ -37,23 +37,39 @@ export const COLOR_NAME = {
 // in src/shapes, not here, because each one now carries its own parameters and
 // its own builder. This file is for values that aren't about any one shape.
 
-// Snapping defaults on; hold Alt while dragging for free movement.
+// One world unit is one millimetre. The numbers in the properties rail are
+// millimetres, the grid squares are 20 mm — one shape footprint — and an
+// exported STL lands in a slicer at the size it says it is.
+
+// Snapping defaults on; hold Alt while dragging for free movement. `scale` is
+// a multiplier rather than a length, so it carries no unit and no mm.
 export const SNAP = {
-  move: 0.25,
+  move: 5,
   rotate: Math.PI / 12, // 15°
   scale: 0.25,
 }
 
-// The build plate is a bounded 20x20 yard rather than an endless grid, so the
-// scene reads at a definite size and blocks always land somewhere meaningful.
-export const PLATE = 20
+// The build plate is a bounded 200x200 mm yard rather than an endless grid, so
+// the scene reads at a definite size and blocks always land somewhere
+// meaningful. Ten shape footprints across.
+export const PLATE = 200
 export const PLATE_HALF = PLATE / 2
+
+// The floor space one placed shape gets to itself. Every shape's defaults are
+// drawn to fill it, the grid's heavier lines mark it out, and placement keeps
+// it clear — so shapes dropped one after another land side by side on the
+// grid instead of inside one another.
+export const FOOTPRINT = 20
 
 // v2 added per-shape parameters; v3 added named variables and the bindings
 // that point parameters at them. Both migrate forward without changing how a
 // build looks: a v1 shape's defaults are exactly the geometry v1 had, and a
 // scene with no variables is a scene with nothing bound.
-export const SCENE_VERSION = 3
+// v4 is the move to millimetres, and is the one migration that changes the
+// numbers rather than filling in missing ones: every length in an older build
+// is multiplied by 20, so it comes back the same shape in the same place on a
+// plate that grew by the same factor.
+export const SCENE_VERSION = 4
 export const MAX_HISTORY = 200
 
 // Past this many blocks we drop shadow quality rather than let the frame rate go.
