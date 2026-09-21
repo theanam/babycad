@@ -219,11 +219,14 @@ button:disabled { cursor: default; }
 
 /* ---------------------------------------------------- floating overlays -- */
 
+/* A bar the full width of the stage, between the shape rail and the
+   properties rail and level with their tops. Sized to its contents it read as
+   a stray button floating in space most of the time, since most of the time
+   the only thing in it is the snap switch. */
 .mode-switch {
   position: absolute;
-  left: 50%; transform: translateX(-50%);
-  top: 18px;
-  display: flex; gap: 6px;
+  left: 120px; right: 328px; top: 14px;
+  display: flex; align-items: center; gap: 6px;
   background: #12151ce6;
   border: 1px solid var(--line-raised);
   border-radius: var(--r-panel);
@@ -244,16 +247,14 @@ button:disabled { cursor: default; }
 .mode-btn.wide { width: 126px; }
 .mode-sep { width: 1px; height: 40px; background: var(--line-soft); align-self: center; margin: 0 4px; }
 
-/* The align key: a second line under the switch, spanning its full width. */
-.mode-switch { flex-wrap: wrap; }
+/* The align key: fills the rest of the bar, to the right of the switches. */
 .align-legend {
-  flex-basis: 100%;
+  margin-left: auto;
   display: flex; flex-direction: column; gap: 3px;
-  padding: 8px 12px 6px;
-  border-top: 1px solid var(--line-soft);
-  margin-top: 4px;
+  padding: 0 12px 0 16px;
+  border-left: 1px solid var(--line-soft);
   font-size: 12.5px; font-weight: 700; color: var(--muted);
-  text-align: center; text-wrap: pretty;
+  text-align: right; text-wrap: pretty;
 }
 .align-legend b { color: var(--ink-dim); font-weight: 800; }
 .align-legend i { font-style: normal; font-weight: 900; }
@@ -917,6 +918,7 @@ button:disabled { cursor: default; }
 /* Below this the inspector tightens rather than crowding the scene. */
 @media (max-width: 1100px) {
   .props { width: 252px; }
+  .mode-switch { right: 280px; }
   .color-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
