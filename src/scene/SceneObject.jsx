@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { Edges, Outlines } from '@react-three/drei'
 import { keyOfParams } from '../shapes'
 import { acquireShape, isFinished, releaseShape } from '../shapes/csg'
@@ -23,7 +23,32 @@ const HOLE_COLOR = '#9AA3B4'
  * geometry, and the key has to change when the hole moves or is resized.
  */
 function SceneObject({ object, selected, onSelect, holes, castShadow = true }) {
-  const bind = useCallback((mesh) => registerMesh(object.id, mesh), [object.id])
+  const meshRef = useRef()
+  const bind = useCallback(
+    (mesh) => {
+      meshRef.current = mesh
+      registerMesh(object.id, mesh)
+    },
+    [object.id]
+  )
+
+  // The transform is written to the mesh directly, every time the object
+  // changes, rather than left to R3F's prop diffing. The gizmo mutates the
+  // mesh behind React's back while a drag is in flight, so by the time the
+  // drag commits, what React last *set* and what the mesh actually *holds*
+  // have come apart. A resize is the case that bites: the drag paints
+  // scale 1.4 onto the mesh, the commit bakes that into the shape's
+  // millimetres and puts the store's scale back to 1 — and React, comparing
+  // the new [1,1,1] with the [1,1,1] it remembers setting, skips it. The mesh
+  // is left wearing the drag's 1.4 on top of geometry that has already grown
+  // by 1.4, and the block jumps a whole step the moment you let go.
+  useLayoutEffect(() => {
+    const mesh = meshRef.current
+    if (!mesh) return
+    mesh.position.fromArray(object.position)
+    mesh.rotation.fromArray(object.rotation)
+    mesh.scale.fromArray(object.scale)
+  }, [object.position, object.rotation, object.scale])
 
   // Holes go in by shape *and* by where they sit relative to this block, so
   // sliding the pair across the plate together doesn't rebuild the cut.
@@ -46,9 +71,6 @@ function SceneObject({ object, selected, onSelect, holes, castShadow = true }) {
     <mesh
       ref={bind}
       geometry={geometry}
-      position={object.position}
-      rotation={object.rotation}
-      scale={object.scale}
       visible={!finished}
       castShadow={castShadow && !object.hole}
       receiveShadow={!object.hole}
