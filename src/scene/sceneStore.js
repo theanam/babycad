@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import * as THREE from 'three'
 import * as cmd from '../history/undoRedo'
-import { FOOTPRINT, MAX_HISTORY, SCENE_VERSION, SNAP } from '../constants'
+import { FOOTPRINT, MAX_HISTORY, SCENE_VERSION, SNAP_DEFAULT } from '../constants'
 import { defaultParams, normalizeParams, SHAPE_COLOR } from '../shapes'
 import { resizeToParams } from '../shapes/resize'
 import { measure, restingHeight } from '../shapes/geometryCache'
@@ -58,12 +58,11 @@ export const useScene = create((set, get) => ({
   ...emptyScene(),
   selectedIds: [],
   snapEnabled: true, // grid snapping, on by default
-  snapStep: SNAP.move, // millimetres a drag snaps to while snapping is on
+  snapStep: SNAP_DEFAULT, // millimetres a drag snaps to while snapping is on
   freeMove: false, // Alt held: temporarily ignore the snap grid
   aligning: false, // the align targets are showing instead of the box handles
   past: [],
   future: [],
-  projectName: '',
 
   // ---------------------------------------------------------- history --
 
@@ -626,15 +625,6 @@ export const useScene = create((set, get) => ({
     }
     st.apply(cmd.replaceScene(before, after, label))
     set({ selectedIds: [] })
-  },
-
-  newScene() {
-    get().loadScene(emptyScene(), 'new build')
-    set({ projectName: '' })
-  },
-
-  setProjectName(projectName) {
-    set({ projectName })
   },
 
   /** Plain-JSON snapshot — this is exactly what gets persisted and exported. */

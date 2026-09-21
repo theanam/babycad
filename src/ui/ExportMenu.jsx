@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useScene } from '../scene/sceneStore'
-import { exportGLB, exportJSON, exportSTL } from '../io/exporters'
+import { useDocs } from '../state/documents'
+import { exportGLB, exportSTL } from '../io/exporters'
 import { CloseIcon, ExportIcon } from './icons'
 import { toast } from './Toast'
 
@@ -15,18 +16,12 @@ const OPTIONS = [
     title: 'Printing file (.stl)',
     body: 'Shape only, no color. This is the one for a 3D printer.',
   },
-  {
-    id: 'json',
-    title: 'BabyCAD file (.babycad)',
-    body: 'Save it anywhere, then open it again here — even on another device.',
-  },
 ]
 
 export default function ExportMenu({ onClose }) {
   const objects = useScene((s) => s.objects)
   const groups = useScene((s) => s.groups)
-  const serialize = useScene((s) => s.serialize)
-  const projectName = useScene((s) => s.projectName)
+  const name = useDocs((s) => s.active()?.name)
 
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
@@ -35,11 +30,10 @@ export default function ExportMenu({ onClose }) {
   }, [onClose])
 
   const run = async (id) => {
-    const name = projectName || 'babycad-build'
     try {
-      if (id === 'glb') await exportGLB(objects, groups, name)
-      else if (id === 'stl') exportSTL(objects, groups, name)
-      else exportJSON(serialize(), name)
+      const file = name || 'babycad-build'
+      if (id === 'glb') await exportGLB(objects, groups, file)
+      else exportSTL(objects, groups, file)
       toast(`Downloaded your ${id.toUpperCase()}`)
       onClose()
     } catch {

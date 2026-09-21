@@ -98,9 +98,3 @@ export function exportSTL(objects, groups, name) {
     done()
   }
 }
-
-/** The scene JSON itself, so a build can move between browsers or devices. */
-export function exportJSON(scene, name) {
-  const blob = new Blob([JSON.stringify(scene, null, 2)], { type: 'application/json' })
-  download(blob, `${safeName(name)}.babycad`)
-}

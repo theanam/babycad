@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { EXAMPLES } from '../examples'
 import { REPO_URL } from '../links'
 import ExampleArt from './ExampleArt'
-import { BlankIcon, GithubIcon, HelpIcon } from './icons'
+import { BlankIcon, GithubIcon, HelpIcon, OpenIcon } from './icons'
 
 /**
  * The first thing a new visitor sees: what this is, and three ways in.
@@ -12,7 +12,7 @@ import { BlankIcon, GithubIcon, HelpIcon } from './icons'
  * still dismissible — Escape, or the backdrop — and dismissing it is the same
  * as choosing a blank build, since that is what is already underneath.
  */
-export default function WelcomeScreen({ onBlank, onExample, onHelp }) {
+export default function WelcomeScreen({ onBlank, onExample, onHelp, onOpenFile }) {
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onBlank()
     document.addEventListener('keydown', onKey)
@@ -35,7 +35,8 @@ export default function WelcomeScreen({ onBlank, onExample, onHelp }) {
           <p>
             A 3D building yard that runs entirely in this browser. Drop shapes on the plate, give
             them real millimetres, and take the result away as a model or a printable file.
-            There&apos;s no account, and nothing you build leaves this device.
+            There&apos;s no account, no cloud, and your builds are ordinary files you keep
+            wherever you like.
           </p>
         </div>
 
@@ -46,6 +47,16 @@ export default function WelcomeScreen({ onBlank, onExample, onHelp }) {
           <span>
             <b>Start with an empty plate</b>
             <em>200 × 200 mm, nothing on it. Pick a shape from the rail and go.</em>
+          </span>
+        </button>
+
+        <button className="welcome-blank welcome-open" onClick={onOpenFile}>
+          <i aria-hidden="true">
+            <OpenIcon size={24} stroke="#8A93A5" />
+          </i>
+          <span>
+            <b>Open a build you already have</b>
+            <em>A .babycad file from your computer. Builds are files here — nothing is kept in the browser.</em>
           </span>
         </button>
 

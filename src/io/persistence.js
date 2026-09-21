@@ -1,35 +1,25 @@
 /**
- * Local-only persistence. Everything lives in this browser's localStorage —
- * there is no server, no account, and nothing leaves the device.
+ * The session cache, and nothing else.
+ *
+ * Builds used to live in this browser's localStorage under names, which made
+ * the browser look like a filing cabinet it is not: clear your site data and
+ * the cabinet is empty. Builds are files on disk now (see io/files); what is
+ * left here is a cache of the tabs you had open, so a refresh or a closed
+ * laptop doesn't cost you the afternoon. It is a safety net under the file,
+ * never the place the file lives.
  */
 import { SCENE_VERSION } from '../constants'
 import { getShapeDef, normalizeParams } from '../shapes'
 import { resolvePatches, sanitizeVariables } from '../scene/variables'
 
-const PROJECTS_KEY = 'babycad.projects.v1'
-const AUTOSAVE_KEY = 'babycad.autosave.v1'
+const SESSION_KEY = 'babycad.session.v1'
 const WELCOMED_KEY = 'babycad.welcomed.v1'
 
-// The project was called Blockyard before it was called BabyCAD, and a browser
-// that used it still holds its builds under the old keys. Carry them over once,
-// on first load, so the rename doesn't look like the builds were deleted. The
-// old keys are left in place: copying is cheap, and a half-finished migration
-// that has already removed them would lose the builds for good.
-;(function adoptLegacyKeys() {
-  try {
-    for (const [now, before] of [
-      [PROJECTS_KEY, 'blockyard.projects.v1'],
-      [AUTOSAVE_KEY, 'blockyard.autosave.v1'],
-    ]) {
-      const legacy = localStorage.getItem(before)
-      if (legacy !== null && localStorage.getItem(now) === null) {
-        localStorage.setItem(now, legacy)
-      }
-    }
-  } catch {
-    // Storage blocked. The app already warns about that; nothing to do here.
-  }
-})()
+// Where builds used to be kept, back when the app had a library of its own.
+// Read once, to hand them back as tabs, and then left alone.
+const LEGACY_PROJECTS_KEY = 'babycad.projects.v1'
+const LEGACY_AUTOSAVE_KEY = 'babycad.autosave.v1'
+const LEGACY_TAKEN_KEY = 'babycad.projects.rescued.v1'
 
 function readJSON(key, fallback) {
   try {
@@ -61,48 +51,46 @@ export function isStorageAvailable() {
   }
 }
 
-/** All saved builds, newest first. */
-export function listProjects() {
-  const all = readJSON(PROJECTS_KEY, {})
-  return Object.entries(all)
-    .map(([name, p]) => ({ name, ...p }))
-    .sort((a, b) => (b.scene?.updatedAt ?? '').localeCompare(a.scene?.updatedAt ?? ''))
+/* ------------------------------------------------------------- session -- */
+
+/** Keep the open tabs across an accidental refresh. */
+export function writeSession(snapshot) {
+  writeJSON(SESSION_KEY, snapshot)
 }
 
-export function saveProject(name, scene, thumbnail) {
-  const all = readJSON(PROJECTS_KEY, {})
-  const existing = all[name]
-  all[name] = {
-    scene: { ...scene, createdAt: existing?.scene?.createdAt ?? scene.createdAt },
-    thumbnail: thumbnail ?? existing?.thumbnail ?? null,
+/** The tabs from last time, each build brought up to the current schema. */
+export function readSession() {
+  const saved = readJSON(SESSION_KEY, null)
+  const docs = (saved?.docs ?? [])
+    .map((d) => ({ ...d, scene: migrate(d.scene) }))
+    .filter((d) => d.scene)
+  if (!docs.length) return null
+  return { activeId: saved.activeId, docs }
+}
+
+/**
+ * The builds from the old in-browser library, handed over once so they can be
+ * opened as tabs and saved somewhere real. They are not deleted: the key is
+ * simply never read again, which costs a few kilobytes and means a mistake
+ * here isn't the kind you can't take back.
+ */
+export function takeLegacyProjects() {
+  try {
+    if (localStorage.getItem(LEGACY_TAKEN_KEY)) return []
+    localStorage.setItem(LEGACY_TAKEN_KEY, new Date().toISOString())
+    const all = readJSON(LEGACY_PROJECTS_KEY, {})
+    return Object.entries(all)
+      .map(([name, entry]) => ({ name, scene: migrate(entry?.scene) }))
+      .filter((p) => p.scene?.objects?.length)
+      .slice(0, 12)
+  } catch {
+    return []
   }
-  if (writeJSON(PROJECTS_KEY, all)) return { ok: true }
-
-  // Most likely the thumbnails have filled the quota — retry without this one.
-  all[name].thumbnail = null
-  if (writeJSON(PROJECTS_KEY, all)) return { ok: true, droppedThumbnail: true }
-  return { ok: false }
 }
 
-export function deleteProject(name) {
-  const all = readJSON(PROJECTS_KEY, {})
-  delete all[name]
-  writeJSON(PROJECTS_KEY, all)
-}
-
-export function loadProject(name) {
-  const all = readJSON(PROJECTS_KEY, {})
-  const entry = all[name]
-  return entry ? migrate(entry.scene) : null
-}
-
-/** Keeps a kid's in-progress build across an accidental refresh. */
-export function writeAutosave(scene) {
-  writeJSON(AUTOSAVE_KEY, scene)
-}
-
-export function readAutosave() {
-  const scene = readJSON(AUTOSAVE_KEY, null)
+/** The single build the old autosave held, if this is the first run since. */
+export function takeLegacyAutosave() {
+  const scene = readJSON(LEGACY_AUTOSAVE_KEY, null)
   return scene ? migrate(scene) : null
 }
 
@@ -127,14 +115,6 @@ export function hasBeenWelcomed() {
 
 export function markWelcomed() {
   writeJSON(WELCOMED_KEY, new Date().toISOString())
-}
-
-export function clearAutosave() {
-  try {
-    localStorage.removeItem(AUTOSAVE_KEY)
-  } catch {
-    /* nothing we can do, and nothing that should break the app */
-  }
 }
 
 /**

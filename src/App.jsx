@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Viewport from './scene/Viewport'
 import { useScene } from './scene/sceneStore'
 import { viewport } from './scene/viewportApi'
@@ -7,20 +7,25 @@ import ShapeTray from './ui/ShapeTray'
 import ViewTools from './ui/ViewTools'
 import PropertiesPanel from './ui/PropertiesPanel'
 import ViewCube from './ui/ViewCube'
-import ProjectsModal from './ui/ProjectsModal'
 import ExportMenu from './ui/ExportMenu'
 import VariablesPanel from './ui/VariablesPanel'
 import ConfirmDialog from './ui/ConfirmDialog'
 import WelcomeScreen from './ui/WelcomeScreen'
 import HelpModal from './ui/HelpModal'
+import TabStrip from './ui/TabStrip'
 import Toasts, { toast } from './ui/Toast'
 import { buildExample, getExample } from './examples'
+import { isDirty, useDocs } from './state/documents'
+import { canUseFileSystem, openFromDisk, saveToDisk } from './io/files'
 import {
   hasBeenWelcomed,
   isStorageAvailable,
   markWelcomed,
-  readAutosave,
-  writeAutosave,
+  migrate,
+  readSession,
+  takeLegacyAutosave,
+  takeLegacyProjects,
+  writeSession,
 } from './io/persistence'
 
 export default function App() {
@@ -28,39 +33,90 @@ export default function App() {
   const undo = useScene((s) => s.undo)
   const redo = useScene((s) => s.redo)
 
-  const [sheet, setSheet] = useState(null) // 'projects' | 'export' | 'new' | 'help' | null
+  const docs = useDocs((s) => s.docs)
+  const activeId = useDocs((s) => s.activeId)
+
+  const [sheet, setSheet] = useState(null) // 'export' | 'help' | null
+  const [closing, setClosing] = useState(null) // a tab with unsaved changes
   // Variables aren't a sheet: they take over the right rail, so the build they
   // are reshaping stays in full view while a value is dragged.
   const [showVariables, setShowVariables] = useState(false)
   // Decided once, before the first paint, so the welcome screen can't flash up
-  // over a build that the autosave is about to restore.
-  const [welcoming, setWelcoming] = useState(() => !hasBeenWelcomed() && !readAutosave()?.objects?.length)
+  // over the tabs that are about to come back.
+  const [welcoming, setWelcoming] = useState(() => !hasBeenWelcomed() && !readSession())
 
   /* ----------------------------------------------------------- startup -- */
 
-  // Pick the scene back up after an accidental refresh. The undo stack is
-  // deliberately not restored — only the build itself is.
+  // Put the tabs back after a refresh. Files themselves are on disk; this is
+  // only the cache of what was open — see io/persistence.
+  const started = useRef(false)
   useEffect(() => {
-    const saved = readAutosave()
-    if (saved?.objects?.length) {
-      useScene.setState({
-        objects: saved.objects,
-        groups: saved.groups,
-        variables: saved.variables ?? [],
-      })
+    // Once, even though React runs effects twice in development — opening the
+    // first tab twice would leave a stray empty one every time.
+    if (started.current) return
+    started.current = true
+
+    const store = useDocs.getState()
+    let restored = store.restore(readSession() ?? {})
+
+    // First run since builds stopped living in the browser: whatever was in
+    // the old library opens as tabs, so nothing is stranded somewhere the app
+    // no longer looks. They arrive unsaved, because they are not files yet.
+    const rescued = takeLegacyProjects()
+    const strays = restored ? rescued : [...rescued]
+    if (!restored) {
+      const carried = takeLegacyAutosave()
+      if (carried?.objects?.length) strays.unshift({ name: 'Untitled', scene: carried })
     }
+    for (const { name, scene } of strays) store.open({ name, scene })
+    if (strays.length) restored = true
+    if (rescued.length) {
+      toast(
+        `${rescued.length} build${rescued.length > 1 ? 's' : ''} from this browser opened as tabs — save them to a file to keep them`,
+        'warn'
+      )
+    }
+    if (!restored) store.open({})
+
     if (!isStorageAvailable()) {
-      toast("This browser won't let BabyCAD save — your build will vanish on refresh", 'warn')
+      toast("This browser won't remember your open tabs — save to a file as you go", 'warn')
     }
   }, [])
 
-  // Autosave, throttled, so a long build session survives a closed tab.
+  // Cache the open tabs, throttled, so a refresh doesn't cost the afternoon.
+  // The same beat re-reads the active build's fingerprint, which is what puts
+  // the unsaved dot on its tab.
+  // Names and open tabs matter to the cache as much as the blocks do, so a
+  // rename alone is enough to write it. `touch` only writes when a build has
+  // actually changed, so this can't chase its own tail.
+  const docsKey = docs.map((d) => `${d.id}:${d.name}`).join('|')
   useEffect(() => {
-    const id = setTimeout(() => writeAutosave(useScene.getState().serialize()), 600)
+    const id = setTimeout(() => {
+      useDocs.getState().touch()
+      writeSession(useDocs.getState().snapshot())
+    }, 600)
     return () => clearTimeout(id)
-  }, [objects])
+  }, [objects, activeId, docsKey])
+
+  // A build with changes not yet written to disk is worth a word on the way
+  // out. Browsers show their own text, not ours; all we control is whether
+  // they ask at all.
+  useEffect(() => {
+    const onBeforeUnload = (e) => {
+      if (!useDocs.getState().docs.some(isDirty)) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [])
 
   /* --------------------------------------------------------- shortcuts -- */
+
+  // The save and open handlers are reached through refs, so the key listener
+  // is bound once rather than re-bound every time a tab changes.
+  const saveRef = useRef(() => {})
+  const openRef = useRef(() => {})
 
   useEffect(() => {
     // A focused text field owns its own undo stack, so the shortcuts stay out
@@ -90,6 +146,12 @@ export default function App() {
         // reaching for Ctrl-A in a CAD program wanted.
         e.preventDefault()
         store.selectAll()
+      } else if (meta && e.key.toLowerCase() === 's') {
+        e.preventDefault()
+        saveRef.current(e.shiftKey)
+      } else if (meta && e.key.toLowerCase() === 'o') {
+        e.preventDefault()
+        openRef.current()
       } else if (meta && e.key.toLowerCase() === 'd') {
         e.preventDefault()
         store.duplicate()
@@ -131,14 +193,64 @@ export default function App() {
 
   /* ------------------------------------------------------------ actions -- */
 
-  const confirmNew = useCallback(() => {
-    useScene.getState().newScene()
+  const onNew = useCallback(() => {
+    useDocs.getState().open({})
     viewport.resetView()
-    setSheet(null)
-    toast('Fresh yard')
   }, [])
 
-  const onNew = () => (objects.length ? setSheet('new') : toast('Already a fresh yard'))
+  const onOpen = useCallback(async () => {
+    let files
+    try {
+      files = await openFromDisk()
+    } catch {
+      return toast("That file couldn't be opened", 'warn')
+    }
+    let opened = 0
+    for (const file of files) {
+      let scene = null
+      try {
+        scene = migrate(JSON.parse(file.text))
+      } catch {
+        scene = null
+      }
+      if (!scene?.objects?.length) {
+        toast(`${file.name} isn't a BabyCAD build`, 'warn')
+        continue
+      }
+      useDocs.getState().open({ name: file.name, handle: file.handle, scene, saved: true })
+      opened++
+    }
+    if (opened) {
+      requestAnimationFrame(() => viewport.fit())
+      toast(opened > 1 ? `Opened ${opened} builds` : 'Opened it')
+    }
+  }, [])
+
+  const save = useCallback(async (saveAs) => {
+    const store = useDocs.getState()
+    const doc = store.active()
+    if (!doc) return
+    const text = JSON.stringify(useScene.getState().serialize(), null, 2)
+    let result
+    try {
+      result = await saveToDisk({ handle: doc.handle, name: doc.name, text, saveAs })
+    } catch {
+      return toast("That save didn't work — try Save as", 'warn')
+    }
+    if (!result) return // the dialog was dismissed; nothing to report
+    store.markSaved(doc.id, result)
+    toast(result.downloaded ? `Downloaded ${result.name}.babycad` : `Saved ${result.name}.babycad`)
+  }, [])
+
+  const onSave = useCallback(() => save(false), [save])
+  const onSaveAs = useCallback(() => save(true), [save])
+
+  /** Closing a tab with unsaved work asks first; a clean one just goes. */
+  const onCloseRequest = useCallback((id) => {
+    const doc = useDocs.getState().docs.find((d) => d.id === id)
+    if (doc && isDirty(doc)) setClosing(doc)
+    else useDocs.getState().close(id)
+  }, [])
 
   /* ----------------------------------------------------------- welcome -- */
 
@@ -158,27 +270,44 @@ export default function App() {
       if (!example) return
       const scene = buildExample(example)
       if (!scene) return toast("That example didn't open — start with a blank plate", 'warn')
-      useScene.getState().loadScene(scene, `open ${example.name}`)
-      useScene.getState().setProjectName(example.name)
+      // Into whichever tab is showing if it is still empty, otherwise a new
+      // one: opening an example should never tip out work in progress.
+      const store = useDocs.getState()
+      if (useScene.getState().objects.length) store.open({ name: example.name, scene })
+      else {
+        useScene.getState().loadScene(scene, `open ${example.name}`)
+        store.rename(store.activeId, example.name)
+      }
       dismissWelcome()
-      // Frame it once the meshes exist; loadScene has only just written them.
+      // Frame it once the meshes exist; the scene has only just been written.
       requestAnimationFrame(() => viewport.fit())
       toast(`Opened the ${example.name.toLowerCase()} — it's yours to take apart`)
     },
     [dismissWelcome]
   )
 
+  const onOpenFile = useCallback(() => {
+    dismissWelcome()
+    onOpen()
+  }, [dismissWelcome, onOpen])
+
+  saveRef.current = (shift) => save(Boolean(shift))
+  openRef.current = onOpen
+
   return (
     <div className="app">
       <TopBar
         onNew={onNew}
-        onSave={() => setSheet('projects')}
-        onLoad={() => setSheet('projects')}
+        onSave={onSave}
+        onSaveAs={onSaveAs}
+        onOpen={onOpen}
         onExport={() => setSheet('export')}
         onVariables={() => setShowVariables((on) => !on)}
         onHelp={() => setSheet('help')}
         variablesOpen={showVariables}
       />
+
+      <TabStrip onNew={onNew} onCloseRequest={onCloseRequest} />
 
       <div className="stage">
         <Viewport />
@@ -199,12 +328,6 @@ export default function App() {
         <ViewCube />
       </div>
 
-      {sheet === 'projects' && (
-        <ProjectsModal
-          onClose={() => setSheet(null)}
-          onRequestNew={() => (objects.length ? setSheet('new') : confirmNew())}
-        />
-      )}
       {sheet === 'export' && <ExportMenu onClose={() => setSheet(null)} />}
       {sheet === 'help' && (
         <HelpModal
@@ -215,14 +338,17 @@ export default function App() {
           }}
         />
       )}
-      {sheet === 'new' && (
+      {closing && (
         <ConfirmDialog
-          title="Start a new build?"
-          body="This clears the yard. Anything you haven't saved will be gone — and this one can't be undone."
-          confirmLabel="Clear it"
-          confirmHint="Empty the yard and start over — this can't be undone"
-          onConfirm={confirmNew}
-          onCancel={() => setSheet(null)}
+          title={`Close ${closing.name}?`}
+          body="It has changes that aren't in a file yet. Closing the tab loses them, and this one can't be undone."
+          confirmLabel="Close it"
+          confirmHint="Close the tab and lose the changes"
+          onConfirm={() => {
+            useDocs.getState().close(closing.id)
+            setClosing(null)
+          }}
+          onCancel={() => setClosing(null)}
         />
       )}
 
@@ -230,6 +356,7 @@ export default function App() {
         <WelcomeScreen
           onBlank={startBlank}
           onExample={startExample}
+          onOpenFile={onOpenFile}
           onHelp={() => {
             dismissWelcome()
             setSheet('help')

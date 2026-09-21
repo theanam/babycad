@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { PLATE, SNAP } from '../constants'
+import { PLATE, SNAP, SNAP_DEFAULT, SNAP_STEPS } from '../constants'
 import { FEEDBACK_EMAIL, FEEDBACK_MAILTO, ISSUES_URL, REPO_URL } from '../links'
 import { BugIcon, CloseIcon, ExternalIcon, GithubIcon, MailIcon } from './icons'
 
@@ -7,6 +7,8 @@ const SHORTCUTS = [
   ['Ctrl / ⌘ + Z', 'Undo'],
   ['Shift + Ctrl / ⌘ + Z', 'Redo'],
   ['Ctrl / ⌘ + A', 'Pick every block'],
+  ['Ctrl / ⌘ + S', 'Save this build to its file'],
+  ['Ctrl / ⌘ + O', 'Open a build'],
   ['Ctrl / ⌘ + D', 'Copy what’s selected'],
   ['Delete or Backspace', 'Remove what’s selected'],
   ['Esc', 'Deselect'],
@@ -38,7 +40,7 @@ export default function HelpModal({ onClose, onShowWelcome }) {
       <div className="modal help" role="dialog" aria-label="How BabyCAD works">
         <div className="modal-head">
           <div className="modal-title">How this works</div>
-          <div className="modal-tag">EVERYTHING STAYS IN THIS BROWSER</div>
+          <div className="modal-tag">YOUR BUILDS ARE FILES ON YOUR COMPUTER</div>
           <button className="modal-close" onClick={onClose} title="Close" aria-label="Close">
             <CloseIcon stroke="#8A93A5" />
           </button>
@@ -48,9 +50,9 @@ export default function HelpModal({ onClose, onShowWelcome }) {
           <section>
             <h3>The plate</h3>
             <p>
-              You build on a {PLATE} × {PLATE} mm plate. One grid square is {SNAP.move} mm — the
-              same step blocks snap to — and the heavier line every 20 mm marks out the footprint a
-              freshly dropped shape takes up. Every number in the app is millimetres, so an{' '}
+              You build on a {PLATE} × {PLATE} mm plate. One grid square is {SNAP.move} mm, the
+              heavier line every 20 mm marks out the footprint a freshly dropped shape takes up,
+              and a new block lands on that grid. Every number in the app is millimetres, so an{' '}
               <strong>.stl</strong> exported from here arrives in a slicer at the size it says it
               is.
             </p>
@@ -112,10 +114,10 @@ export default function HelpModal({ onClose, onShowWelcome }) {
               </li>
             </ul>
             <p>
-              Dragging snaps to the grid — {SNAP.move} mm to begin with, or 1 mm if you pick it
-              from the <strong>Snap</strong> switch&apos;s menu (right-click it, or press the arrow
-              beside it) — and turns snap to 15°. Hold <strong>Alt</strong> for as long as you want
-              snapping off, or switch it off altogether from the same switch.
+              Dragging snaps to {SNAP_DEFAULT} mm to begin with. The <strong>Snap</strong>{' '}
+              switch&apos;s menu — right-click it, or press the arrow beside it — offers{' '}
+              {SNAP_STEPS.join(' mm, ')} mm, or no snapping at all. Turns snap to 15° either way.
+              Hold <strong>Alt</strong> to suspend snapping for as long as you need.
             </p>
           </section>
 
@@ -183,14 +185,25 @@ export default function HelpModal({ onClose, onShowWelcome }) {
           </section>
 
           <section>
-            <h3>Keeping it</h3>
+            <h3>Files and tabs</h3>
             <p>
-              Builds save into this browser&apos;s own storage — no account, no server, nothing
-              uploaded. That also means they are only on this device, and clearing your browser
-              data clears them. To take one with you, or move it to another machine, use{' '}
-              <strong>Export</strong>: <strong>.glb</strong> keeps the colours,{' '}
-              <strong>.stl</strong> is the one for a 3D printer, and <strong>.babycad</strong> is
-              the whole build, ready to open here again.
+              A build is a file. <strong>Save</strong> writes a <strong>.babycad</strong> wherever
+              you keep your things and <strong>Open</strong> reads one back — no account, no
+              server, nothing uploaded, and nothing kept in the browser for a cleared cache to
+              take away. <strong>Save as…</strong> is under the arrow beside Save.
+              <em> Ctrl/⌘ + S</em> saves, <em>Ctrl/⌘ + O</em> opens.
+            </p>
+            <p>
+              Several builds can be open at once, one per <strong>tab</strong> along the top. Each
+              keeps its own undo history. A dot on a tab means it has changes that aren&apos;t in
+              a file yet; double-click a tab&apos;s name to rename it. Your open tabs come back
+              after a refresh, but that is a safety net, not a filing cabinet — the file is the
+              thing that lasts.
+            </p>
+            <p>
+              <strong>Export</strong> is for taking a build somewhere else:{' '}
+              <strong>.glb</strong> keeps the colours for a 3D viewer, and <strong>.stl</strong>{' '}
+              is the one for a printer.
             </p>
           </section>
 

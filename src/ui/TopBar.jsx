@@ -1,10 +1,12 @@
+import { useEffect, useRef, useState } from 'react'
 import { useScene } from '../scene/sceneStore'
 import { REPO_URL } from '../links'
 import {
+  ChevronUpIcon,
   ExportIcon,
-  FolderIcon,
   GithubIcon,
   HelpIcon,
+  OpenIcon,
   PlusIcon,
   RedoIcon,
   SaveIcon,
@@ -15,7 +17,8 @@ import {
 export default function TopBar({
   onNew,
   onSave,
-  onLoad,
+  onSaveAs,
+  onOpen,
   onExport,
   onVariables,
   onHelp,
@@ -26,6 +29,24 @@ export default function TopBar({
   const canUndo = useScene((s) => s.past.length > 0)
   const canRedo = useScene((s) => s.future.length > 0)
   const variableCount = useScene((s) => s.variables.length)
+
+  // Save is a button with a menu hung off it, so "Save as" has somewhere to
+  // live without taking a slot of its own in a bar that is full.
+  const [menu, setMenu] = useState(false)
+  const saveWrap = useRef(null)
+  useEffect(() => {
+    if (!menu) return
+    const onDown = (e) => {
+      if (!saveWrap.current?.contains(e.target)) setMenu(false)
+    }
+    const onKey = (e) => e.key === 'Escape' && setMenu(false)
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [menu])
 
   return (
     <header className="topbar">
@@ -65,18 +86,57 @@ export default function TopBar({
 
         <div className="rule-v" />
 
-        <button className="bar-btn" onClick={onNew} title="Start a fresh build">
+        <button className="bar-btn" onClick={onNew} title="Start a fresh build in a new tab">
           <PlusIcon size={18} stroke="#8A93A5" />
           New
         </button>
-        <button className="bar-btn" onClick={onSave} title="Save this build in your browser">
-          <SaveIcon size={18} stroke="#8A93A5" />
-          Save
+        <button className="bar-btn" onClick={onOpen} title="Open a .babycad file from your computer">
+          <OpenIcon size={18} stroke="#8A93A5" />
+          Open
         </button>
-        <button className="bar-btn" onClick={onLoad} title="Open one of your saved builds">
-          <FolderIcon size={18} stroke="#8A93A5" />
-          Load
-        </button>
+
+        <div className="bar-save" ref={saveWrap}>
+          <button
+            className="bar-btn"
+            onClick={onSave}
+            title="Save this build to a file on your computer (Ctrl/⌘ + S)"
+          >
+            <SaveIcon size={18} stroke="#8A93A5" />
+            Save
+          </button>
+          <button
+            className="bar-chevron"
+            onClick={() => setMenu((m) => !m)}
+            aria-haspopup="menu"
+            aria-expanded={menu}
+            aria-label="More saving options"
+            title="More saving options"
+          >
+            <ChevronUpIcon size={14} stroke="#8A93A5" style={{ transform: 'rotate(180deg)' }} />
+          </button>
+          {menu && (
+            <div className="bar-menu" role="menu">
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setMenu(false)
+                  onSave()
+                }}
+              >
+                Save
+              </button>
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setMenu(false)
+                  onSaveAs()
+                }}
+              >
+                Save as…
+              </button>
+            </div>
+          )}
+        </div>
         <button className="bar-btn accent" onClick={onExport} title="Download this build as a file">
           <ExportIcon size={18} stroke="#fff" width={2.4} />
           Export

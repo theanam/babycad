@@ -46,6 +46,64 @@ button:disabled { cursor: default; }
 
 .stage { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 
+/* ----------------------------------------------------------------- tabs -- */
+
+/* One row of tabs under the top bar, reading as the top edge of the stage
+   rather than as a second toolbar: no background of its own, and the active
+   tab is the only thing that shares the stage's colour. */
+.tabs {
+  flex: 0 0 38px;
+  display: flex; align-items: flex-end; gap: 2px;
+  padding: 0 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+
+.tab {
+  flex: 0 1 auto; min-width: 96px; max-width: 200px; height: 30px;
+  display: flex; align-items: center; gap: 7px;
+  padding: 0 6px 0 12px;
+  border-radius: 9px 9px 0 0;
+  background: transparent;
+  font-size: 13px; font-weight: 700; color: var(--muted);
+  cursor: pointer; user-select: none;
+  transition: background var(--fade), color var(--fade);
+}
+.tab:hover { background: var(--control); }
+.tab.on {
+  background: var(--shell);
+  color: var(--ink);
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+.tab-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tab-dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--accent-ink); }
+.tab-close {
+  width: 20px; height: 20px; flex: none;
+  border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity var(--fade), background var(--fade);
+}
+.tab:hover .tab-close, .tab.on .tab-close { opacity: 1; }
+.tab-close:hover { background: var(--control-hi); }
+.tab-rename {
+  flex: 1; min-width: 0; height: 22px;
+  border: 1px solid var(--accent); border-radius: 5px;
+  background: #0f1218;
+  padding: 0 6px;
+  font-family: var(--sans); font-size: 13px; font-weight: 700; color: var(--ink);
+}
+.tab-new {
+  width: 30px; height: 30px; flex: none;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  margin-left: 4px; margin-bottom: 1px;
+  transition: background var(--fade);
+}
+.tab-new:hover { background: var(--control); }
+
 .stage canvas { touch-action: none; display: block; }
 
 /* --------------------------------------------------------------- topbar -- */
@@ -101,6 +159,37 @@ button:disabled { cursor: default; }
   font-weight: 800;
 }
 .bar-btn.on .bar-count { background: var(--accent); color: #fff; }
+
+/* Save, with its "Save as" menu hung off a narrow arrow on the right. */
+.bar-save { position: relative; display: flex; }
+.bar-save .bar-btn { border-radius: var(--r-control) 0 0 var(--r-control); padding-right: 10px; }
+.bar-chevron {
+  width: 24px; height: 40px; flex: none;
+  border-radius: 0 var(--r-control) var(--r-control) 0;
+  background: var(--control);
+  border-left: 1px solid var(--panel);
+  display: flex; align-items: center; justify-content: center;
+  transition: background var(--fade);
+}
+.bar-chevron:hover { background: var(--control-hi); }
+.bar-menu {
+  position: absolute; right: 0; top: calc(100% + 6px);
+  min-width: 150px; z-index: 50;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 6px;
+  border-radius: var(--r-control-lg);
+  background: var(--panel-raised);
+  border: 1px solid var(--line-raised);
+  box-shadow: 0 20px 40px -20px #000;
+  animation: fade var(--fade);
+}
+.bar-menu button {
+  height: 38px; padding: 0 12px;
+  border-radius: 8px; text-align: left;
+  font-size: 14px; font-weight: 700; color: var(--ink-dim);
+  transition: background var(--fade);
+}
+.bar-menu button:hover { background: var(--control); }
 
 .bar-btn.accent {
   padding: 0 16px;
@@ -383,75 +472,6 @@ button:disabled { cursor: default; }
   flex: none;
 }
 
-.save-row {
-  display: flex; gap: 12px; align-items: center;
-  background: var(--control); border-radius: 14px;
-  padding: 12px; margin-bottom: 20px;
-}
-.save-row input {
-  flex: 1; min-width: 0; height: var(--tap-lg);
-  border-radius: 11px;
-  background: #0f1218;
-  border: 2px solid var(--line-raised);
-  padding: 0 16px;
-  font-family: var(--sans); font-size: 18px; font-weight: 700; color: var(--ink);
-  transition: border-color var(--fade);
-}
-.save-row input:focus { border-color: var(--accent); outline: none; }
-.save-row input::placeholder { color: var(--muted-deep); font-weight: 700; }
-.save-btn {
-  height: var(--tap-lg); padding: 0 24px;
-  border-radius: 11px; background: var(--accent);
-  display: flex; align-items: center; gap: 10px;
-  font-size: 17px; font-weight: 900; color: #fff;
-  flex: none;
-  transition: background var(--fade), opacity var(--fade);
-}
-.save-btn:disabled { opacity: 0.4; }
-.save-btn:not(:disabled):active { background: #6b3df0; }
-
-.builds { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-@media (max-width: 720px) { .builds { grid-template-columns: repeat(2, 1fr); } }
-
-.build {
-  border-radius: var(--r-panel);
-  background: var(--control);
-  border: 1px solid var(--line-soft);
-  overflow: hidden;
-  text-align: left;
-  display: flex; flex-direction: column;
-  transition: border-color var(--fade);
-}
-.build.on { border: 2px solid var(--accent); }
-.build-shot {
-  height: 140px;
-  background: radial-gradient(120% 100% at 50% 10%, #222836 0%, #12161d 70%);
-  display: block; width: 100%; object-fit: cover;
-}
-.build-meta { padding: 14px; }
-.build-name { font-size: 17px; font-weight: 800; }
-.build-sub { font-family: var(--mono); font-size: 11px; color: var(--muted-deep); margin-top: 4px; }
-.build-del {
-  position: absolute; right: 10px; top: 10px;
-  width: 36px; height: 36px; border-radius: 10px;
-  background: #0f1218cc; backdrop-filter: blur(4px);
-  display: flex; align-items: center; justify-content: center;
-}
-.build-wrap { position: relative; }
-
-.build.new {
-  background: #141821;
-  border: 1px dashed var(--line-raised);
-  align-items: center; justify-content: center;
-  gap: 12px; min-height: 212px;
-  font-size: 16px; font-weight: 700; color: var(--muted);
-}
-.build.new i {
-  width: var(--tap-lg); height: var(--tap-lg);
-  border-radius: var(--r-panel); background: var(--control);
-  display: flex; align-items: center; justify-content: center;
-}
-
 .modal-foot {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
   margin-top: 22px; padding-top: 18px;
@@ -473,12 +493,6 @@ button:disabled { cursor: default; }
 .modal-copy { font-size: 17px; font-weight: 700; color: var(--muted); line-height: 1.55; text-wrap: pretty; }
 .modal-btns { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
 
-.empty-builds {
-  grid-column: 1 / -1;
-  padding: 28px 0;
-  text-align: center;
-  font-size: 16px; font-weight: 700; color: var(--muted-deep);
-}
 
 /* --------------------------------------------------------------- toasts -- */
 
@@ -1046,6 +1060,16 @@ button:disabled { cursor: default; }
   display: block; margin-top: 4px;
   font-style: normal; font-size: 14px; font-weight: 700; color: var(--muted);
 }
+
+/* The second way in is quieter than the first: same shape, no accent. */
+.welcome-open {
+  margin-top: 10px;
+  background: var(--panel);
+  border-color: var(--line);
+}
+.welcome-open:hover { border-color: var(--line-raised); }
+.welcome-open:active { background: var(--panel-raised); }
+.welcome-open i { background: var(--control); }
 
 /* A rule with the word sitting in the gap. */
 .welcome-or {

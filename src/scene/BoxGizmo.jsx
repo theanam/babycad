@@ -6,7 +6,7 @@ import { axisColor } from './axes'
 import { meshes } from './meshRegistry'
 import { dragBus } from './dragBus'
 import { beginDrag, endDrag, setLive } from './liveStore'
-import { SNAP } from '../constants'
+import { SNAP, SNAP_DEFAULT } from '../constants'
 import { coupledMask } from '../shapes/resize'
 import { toast } from '../ui/Toast'
 import {
@@ -148,7 +148,7 @@ export default function BoxGizmo() {
   const lastReadout = useRef(0)
 
   // The step to snap to, in millimetres, or 0 for none.
-  const snapRef = useRef(SNAP.move)
+  const snapRef = useRef(SNAP_DEFAULT)
   snapRef.current = snapEnabled && !freeMove ? snapStep : 0
 
   const multi = selectedIds.length > 1
@@ -371,8 +371,8 @@ export default function BoxGizmo() {
         let ratio = Math.max(0.02, (d.length + (t - d.grabT)) / d.length)
         if (!Number.isFinite(ratio)) return
 
-        // Snap the size, not the multiplier. The switch says "Snap 5 mm" (or
-        // 1 mm, from its menu) and has to mean it: stepping the multiplier by a quarter moved a 40 mm
+        // Snap the size, not the multiplier. The switch names a grid in
+        // millimetres and has to mean it: stepping the multiplier by a quarter moved a 40 mm
         // block in 10 mm jumps and a 42 mm one in 10.5 mm jumps, always
         // landing somewhere past the size that was wanted. Snapping the
         // dimension the handle is pulling puts it on the same millimetre grid

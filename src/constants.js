@@ -43,6 +43,11 @@ export const COLOR_NAME = {
 
 // Snapping defaults on; hold Alt while dragging for free movement. `scale` is
 // a multiplier rather than a length, so it carries no unit and no mm.
+//
+// `move` is the plate's grid: how far apart the lines are drawn and where a
+// freshly dropped block lands. It is no longer what a drag snaps to — that is
+// chosen from the snap switch, out of SNAP_STEPS below, and starts finer than
+// the grid so a nudge is a nudge rather than a jump to the next line.
 export const SNAP = {
   move: 5,
   rotate: Math.PI / 12, // 15°
@@ -52,6 +57,10 @@ export const SNAP = {
 // The build plate is a bounded 200x200 mm yard rather than an endless grid, so
 // the scene reads at a definite size and blocks always land somewhere
 // meaningful. Ten shape footprints across.
+// The grids the snap switch offers, finest first, and the one it starts on.
+export const SNAP_STEPS = [0.5, 1, 5]
+export const SNAP_DEFAULT = 0.5
+
 export const PLATE = 200
 export const PLATE_HALF = PLATE / 2
 

@@ -131,26 +131,6 @@ export const viewport = {
       }
     }
     return [x, restingHeight(type, params), z]
-  },
+  }
 
-  /** A small JPEG of the current scene, used as a saved-build thumbnail. */
-  capture(width = 320, height = 180) {
-    const source = this.gl?.domElement
-    if (!source) return null
-    try {
-      // Force a fresh frame so the drawing buffer definitely holds the scene.
-      this.gl.render(this.gl.__babycadScene, this.camera)
-      const out = document.createElement('canvas')
-      out.width = width
-      out.height = height
-      const ctx = out.getContext('2d')
-      const scale = Math.max(width / source.width, height / source.height)
-      const w = source.width * scale
-      const h = source.height * scale
-      ctx.drawImage(source, (width - w) / 2, (height - h) / 2, w, h)
-      return out.toDataURL('image/jpeg', 0.6)
-    } catch {
-      return null
-    }
-  },
 }

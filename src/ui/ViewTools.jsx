@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useScene } from '../scene/sceneStore'
+import { SNAP_STEPS } from '../constants'
 import { AlignIcon, ChevronUpIcon, SnapIcon } from './icons'
-
-/** The grids on offer. Anything finer than a millimetre is typed, not dragged. */
-const STEPS = [5, 1]
 
 /**
  * The scene-wide switches, in a strip at the top of the right rail: grid
@@ -79,7 +77,7 @@ export default function ViewTools() {
 
           {menu && (
             <div className="tools-menu" role="menu" aria-label="Snap grid">
-              {STEPS.map((step) => (
+              {SNAP_STEPS.map((step) => (
                 <button
                   key={step}
                   role="menuitemradio"
