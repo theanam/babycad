@@ -240,7 +240,7 @@ export default function BoxGizmo() {
     const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(vec, f.center)
     const grab = new THREE.Vector3()
     if (!event.ray.intersectPlane(plane, grab)) return
-    begin('move-y', { plane, grab }, event)
+    begin('move-y', { plane, grab, handle: 'lift' }, event)
   }
 
   const startScale = (def, event) => {
@@ -279,7 +279,11 @@ export default function BoxGizmo() {
       if (mask[i] && extent[i] > 1e-6 && (primary < 0 || extent[i] > extent[primary])) primary = i
     }
 
-    begin('scale', { anchor, dir, length, grabT, extent, primary, mask, quat: f.quat.clone() }, event)
+    begin(
+      'scale',
+      { anchor, dir, length, grabT, extent, primary, mask, quat: f.quat.clone(), handle: def.key },
+      event
+    )
   }
 
   const startTurn = (def, event) => {
@@ -313,6 +317,7 @@ export default function BoxGizmo() {
         center: f.center.clone(),
         startAngle: angleInPlane(hit, f.center, u, v),
         dialRadius: radius,
+        handle: def.key,
       },
       event
     )
@@ -500,26 +505,45 @@ export default function BoxGizmo() {
       if (turning) dial.scale.setScalar(d.dialRadius)
     }
 
+    // While a handle is being dragged it lights up and grows, and every other
+    // handle fades back, so there is never a question of which one has the
+    // pointer — nine resize handles and three levers sit close together, and
+    // the one you meant to grab is not always the one you got.
+    const active = drag.current?.handle ?? null
+    const dragging = Boolean(drag.current)
+    const quiet = (on) => (on ? 1 : dragging ? 0.22 : null) // null: leave the resting opacity
+
     for (const [key, node] of Object.entries(handles.current)) {
       if (!node || key === 'shell') continue
       const { sign, lift, turn } = node.userData
+      const on = key === active
       if (sign) {
         node.position.set(sign[0] * f.half.x, sign[1] * f.half.y, sign[2] * f.half.z)
-        node.scale.setScalar(k)
+        node.scale.setScalar(k * (on ? 1.45 : 1))
+        node.material.color.set(on ? '#7C4DFF' : '#EDEFF4')
+        node.material.opacity = quiet(on) ?? 0.72
       } else if (lift) {
         node.position.set(0, topY + k * 2.2, 0)
-        node.scale.setScalar(k)
+        node.scale.setScalar(k * (on ? 1.35 : 1))
+        node.material.color.set(on ? '#C8B6FF' : '#7C4DFF')
+        node.material.opacity = quiet(on) ?? 0.9
       } else if (turn) {
         // Stick starts at the box surface; ball sits a little beyond it.
         const start = node.userData.along === 'z' ? f.half.z : f.half.x
         const end = start + k * 4
         const [stick, ball, target] = node.children
-        stick.scale.set(k * 0.085, end - start, k * 0.085)
+        stick.scale.set(k * (on ? 0.12 : 0.085), end - start, k * (on ? 0.12 : 0.085))
         stick.position.y = (start + end) / 2
-        ball.scale.setScalar(k * 0.85)
+        ball.scale.setScalar(k * (on ? 1.15 : 0.85))
         ball.position.y = end
         target.scale.setScalar(k * 2.4)
         target.position.y = end
+        // The lever keeps its axis colour and goes white-hot at the ball when
+        // it is the one turning; its colour is what says which axis, so it
+        // must not change to say "active".
+        ball.material.color.set(on ? '#FFFFFF' : node.userData.color)
+        ball.material.opacity = quiet(on) ?? 0.85
+        stick.material.opacity = on ? 1 : dragging ? 0.15 : 0.55
       }
     }
   })
@@ -564,7 +588,7 @@ export default function BoxGizmo() {
         {TURN_HANDLES.map((def) => (
           <group
             key={def.key}
-            ref={bind(def.key, { turn: def.key, along: def.along })}
+            ref={bind(def.key, { turn: def.key, along: def.along, color: def.color })}
             rotation={def.rotation}
             onPointerDown={(e) => startTurn(def, e)}
           >
