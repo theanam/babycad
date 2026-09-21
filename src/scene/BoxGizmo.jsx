@@ -77,11 +77,17 @@ const READOUT_MS = 90
 // Kept small: zoomed out, a scene is mostly gizmo otherwise.
 const HANDLE_SCREEN = 0.017
 
+// How often the "can I actually reach this handle" test runs. Every frame
+// would be wasted work: it only changes when the camera or the block moves.
+const OCCLUDE_MS = 70
+
 const euler = new THREE.Euler()
 const mat = new THREE.Matrix4()
 const quat = new THREE.Quaternion()
 const vec = new THREE.Vector3()
 const vec2 = new THREE.Vector3()
+const reachPoint = new THREE.Vector3()
+const reachDir = new THREE.Vector3()
 
 /**
  * The selection's bounding box, and every way to transform it.
@@ -139,6 +145,9 @@ export default function BoxGizmo() {
     g.setAttribute('position', new THREE.Float32BufferAttribute(points, 3))
     return g
   }, [])
+
+  const reachRay = useMemo(() => new THREE.Raycaster(), [])
+  const occludeAt = useRef(0)
 
   const frame = useRef(emptyFrame())
   const boxGroup = useRef() // turns with the block
@@ -558,6 +567,49 @@ export default function BoxGizmo() {
         ball.material.color.set(on ? '#FFFFFF' : node.userData.color)
         ball.material.opacity = quiet(on) ?? 0.85
         stick.material.opacity = on ? 1 : dragging ? 0.15 : 0.55
+      }
+    }
+
+    /*
+     * Take away the handles the block is standing in front of.
+     *
+     * Handles draw with depth testing off, so they sit cleanly on top of
+     * everything instead of being half-buried in the block they belong to.
+     * The cost is that the ones on the far side show through as well — and
+     * those cannot be used: the block's own surface is nearer along that ray,
+     * so pressing one grabs the block and slides it across the floor. A
+     * control that does something else when you press it is worse than no
+     * control, so the ones out of reach go away and the box stops promising
+     * more than it has.
+     *
+     * The test is a ray from the camera to the handle, run against the blocks
+     * themselves rather than against the selection's box: a ball leaves its
+     * box's corners out in the open, and those corners really are reachable.
+     * Against every visible block, not just the selected ones, because a
+     * block parked in front is just as much in the way. Frozen while a drag
+     * is in flight, so the handle in your hand can never vanish underneath
+     * it, and throttled the rest of the time.
+     */
+    const now = performance.now()
+    if (!dragging && now - occludeAt.current > OCCLUDE_MS) {
+      occludeAt.current = now
+      const blocks = []
+      for (const mesh of meshes.values()) if (mesh.visible) blocks.push(mesh)
+
+      for (const [key, node] of Object.entries(handles.current)) {
+        if (!node || key === 'shell' || key === 'dial') continue
+        // A lever is grabbed by the ball on its end, not by the stick.
+        const grabbable = node.userData.turn ? node.children[1] : node
+        grabbable.getWorldPosition(reachPoint)
+        reachDir.subVectors(reachPoint, camera.position)
+        const reach = reachDir.length()
+        if (reach < 1e-6) continue
+
+        reachRay.set(camera.position, reachDir.divideScalar(reach))
+        // Stop short of the handle itself by half its own size, so a ray that
+        // merely grazes the corner it sits on doesn't count as blocked.
+        reachRay.far = reach - k * 0.5
+        node.visible = reachRay.far <= 0 || reachRay.intersectObjects(blocks, false).length === 0
       }
     }
   })
