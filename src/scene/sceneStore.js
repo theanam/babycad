@@ -675,12 +675,14 @@ function bakeResize(object, was, now) {
  * Where a block's underside is, relative to its own position, once its
  * geometry has been turned and stretched the way the block is. The eight
  * corners of the shape's box go through the block's rotation and scale, and
- * the lowest one is the answer.
+ * the lowest one is the answer. Negative: it is how far below the block's
+ * centre the block reaches. The rail uses it to show Z as the height of the
+ * underside above the plate, which is what anyone means by "how high is it".
  */
 const _q = new THREE.Quaternion()
 const _e = new THREE.Euler()
 const _v = new THREE.Vector3()
-function bottomOf(object, params) {
+export function bottomOf(object, params = object.params) {
   const { min, max } = measure(object.type, params)
   _q.setFromEuler(_e.fromArray(object.rotation))
   let lowest = Infinity

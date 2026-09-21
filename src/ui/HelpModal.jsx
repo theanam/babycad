@@ -56,8 +56,10 @@ export default function HelpModal({ onClose, onShowWelcome }) {
             </p>
             <p>
               Axes are named the CAD way: <strong>X</strong> across, <strong>Y</strong> away from
-              you and <strong>Z</strong> straight up. The little cube at the bottom left turns the
-              view — drag it, or tap a face to look at the build straight on.
+              you and <strong>Z</strong> straight up. A block&apos;s <strong>Z</strong> is how far
+              its underside is above the plate, so anything resting on the plate reads 0. The
+              little cube at the bottom left turns the view — drag it, or tap a face to look at
+              the build straight on.
             </p>
           </section>
 

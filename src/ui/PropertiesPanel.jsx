@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { useScene } from '../scene/sceneStore'
+import { bottomOf, useScene } from '../scene/sceneStore'
 import { AXES } from '../scene/axes'
 import { useLive } from '../scene/liveStore'
 import { COLOR_NAME, PALETTE, SNAP } from '../constants'
@@ -349,12 +349,25 @@ export default function PropertiesPanel() {
     (i) => sel.reduce((sum, o) => sum + o.position[i], 0) / sel.length
   )
 
+  /* Z is not the centre. A block's position is its centre, which is the right
+     number for X and Y, but "how high is it" means how far its underside is
+     off the plate — a block resting on the plate is at 0, not at half its
+     height. So the height axis shows the underside, and typing into it moves
+     the underside there. For several blocks it is the lowest underside of the
+     lot, and typing moves them all by the same amount. */
+  const UP = 1
+  const undersideOf = (o, pos = o.position, rot = o.rotation, scl = o.scale) =>
+    pos[UP] + bottomOf({ ...o, rotation: rot, scale: scl })
+  const shownUnderside = multi
+    ? Math.min(...sel.map((o) => undersideOf(o)))
+    : undersideOf(primary, position, rotation, scale)
+
   /* Single selection edits the block directly. A multi-selection moves as a
      unit, so position is applied as a delta from the group's centre and the
      per-block turn and size are left to the gizmo. */
   const setPosition = (i, v) => {
     if (multi) {
-      const delta = v - centroid[i]
+      const delta = v - (i === UP ? shownUnderside : centroid[i])
       transformSelection(
         (o) => ({
           position: replaceAt(o.position, i, o.position[i] + delta),
@@ -364,8 +377,9 @@ export default function PropertiesPanel() {
         'move'
       )
     } else {
+      const target = i === UP ? v - bottomOf(primary) : v
       transformSelection(
-        (o) => ({ position: replaceAt(o.position, i, v), rotation: o.rotation, scale: o.scale }),
+        (o) => ({ position: replaceAt(o.position, i, target), rotation: o.rotation, scale: o.scale }),
         'move'
       )
     }
@@ -518,8 +532,14 @@ export default function PropertiesPanel() {
               key={a.label}
               label={a.label}
               step={SNAP.move}
-              hint={`Move ${multi ? 'the group' : 'it'} along ${a.label} — arrow keys step by ${SNAP.move}`}
-              value={(multi ? centroid[a.slot] : position[a.slot]) * a.sign}
+              hint={
+                a.slot === UP
+                  ? `How far ${multi ? 'the lowest block' : 'its underside'} is above the plate — 0 is resting on it`
+                  : `Move ${multi ? 'the group' : 'it'} along ${a.label} — arrow keys step by ${SNAP.move}`
+              }
+              value={
+                a.slot === UP ? shownUnderside : (multi ? centroid[a.slot] : position[a.slot]) * a.sign
+              }
               onCommit={(v) => setPosition(a.slot, v * a.sign)}
             />
           ))}
