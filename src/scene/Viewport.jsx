@@ -163,6 +163,10 @@ function Lighting() {
       </directionalLight>
       {/* Cool rim light so the dark side of a block never goes fully flat. */}
       <directionalLight position={[-160, 100, -120]} intensity={0.35} color="#9fb4ff" />
+      {/* A fill from underneath, so a build seen from below is a build and not
+          a silhouette. Every other light is above the plate. No shadows: it is
+          there to be seen by, not to cast anything. */}
+      <directionalLight position={[60, -200, 80]} intensity={1.2} color="#c9d2e6" />
     </>
   )
 }

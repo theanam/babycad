@@ -132,7 +132,10 @@ export const EXAMPLES = [
         lift: 14,
       },
 
-      // Four bolts, one per corner of the plate.
+      // Four bolts, one per corner of the plate. Lifted half a millimetre so
+      // their ends sit just inside the slab rather than exactly on its
+      // underside, where two faces in the same plane flicker against each
+      // other when the build is looked at from below.
       ...[
         [-46, -28],
         [46, -28],
@@ -143,6 +146,7 @@ export const EXAMPLES = [
         color: '#EDEFF4',
         params: { diameter: 8, pitch: 2, length: 18, angle: 60, starts: 1, sides: 32 },
         at,
+        lift: 0.5,
       })),
     ],
   },

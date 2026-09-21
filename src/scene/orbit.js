@@ -24,10 +24,11 @@
 import * as THREE from 'three'
 import { gesture } from './gesture'
 
-// Kept just inside the top pole, where `lookAt` would have no defined roll,
-// and above the plate at the bottom so nobody ends up looking up through it.
+// Kept just inside both poles, where `lookAt` would have no defined roll. The
+// full range otherwise: the underside of a build is a real thing to want to
+// see, and the plate is single-sided so from below it simply isn't in the way.
 const POLAR_MIN = 1e-3
-const POLAR_MAX = Math.PI / 2 - 0.05
+const POLAR_MAX = Math.PI - POLAR_MIN
 
 const ROTATE_SPEED = 0.0045 // radians per pixel
 const ZOOM_SPEED = 0.0015
