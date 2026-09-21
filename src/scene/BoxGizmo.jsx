@@ -169,6 +169,12 @@ export default function BoxGizmo() {
     drag.current = {
       kind,
       ...extra,
+      // A hole cuts what it overlaps, and the cut is worked out from the store
+      // — which a drag deliberately doesn't write. With a hole anywhere in the
+      // yard the drag stages itself a few times a second as well, so the cube
+      // is seen to open up while the tube is still moving rather than only
+      // once it lands.
+      liveCut: useScene.getState().objects.some((o) => o.hole),
       items: selected.map((o) => ({
         id: o.id,
         position: new THREE.Vector3(...o.position),
@@ -357,6 +363,19 @@ export default function BoxGizmo() {
             scale: mesh.scale.toArray(),
           })
         }
+        if (d.liveCut) stageTransform(d.items.map((item) => staged(item.id)).filter(Boolean))
+      }
+    }
+
+    /** The transform a mesh is showing right now, in the store's own terms. */
+    const staged = (id) => {
+      const mesh = meshes.get(id)
+      if (!mesh) return null
+      return {
+        id,
+        position: mesh.position.toArray(),
+        rotation: [mesh.rotation.x, mesh.rotation.y, mesh.rotation.z],
+        scale: mesh.scale.toArray(),
       }
     }
 
@@ -370,15 +389,10 @@ export default function BoxGizmo() {
       const patches = []
       const before = {}
       for (const item of d.items) {
-        const mesh = meshes.get(item.id)
-        if (!mesh) continue
+        const patch = staged(item.id)
+        if (!patch) continue
         before[item.id] = item.before
-        patches.push({
-          id: item.id,
-          position: mesh.position.toArray(),
-          rotation: [mesh.rotation.x, mesh.rotation.y, mesh.rotation.z],
-          scale: mesh.scale.toArray(),
-        })
+        patches.push(patch)
       }
       if (patches.length) {
         stageTransform(patches)

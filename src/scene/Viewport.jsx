@@ -1,28 +1,44 @@
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
-import { Canvas, useThree } from '@react-three/fiber'
-import { ContactShadows, Grid, OrbitControls } from '@react-three/drei'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { ContactShadows, Grid } from '@react-three/drei'
 import SceneObject from './SceneObject'
 import BoxGizmo from './BoxGizmo'
 import AlignGizmo from './AlignGizmo'
-import CameraRig from './CameraRig'
+import { OrbitCamera } from './orbit'
 import { useScene } from './sceneStore'
 import { HOME_CAMERA, viewport } from './viewportApi'
 import { HEAVY_SCENE, PLATE, PLATE_HALF, SNAP } from '../constants'
 import { cuttersByObject } from '../shapes/csg'
 import { gesture } from './gesture'
 
-/** Publishes camera/renderer/controls so the DOM chrome can drive the scene. */
+/**
+ * Owns the camera: builds the OrbitCamera over the canvas, publishes it (and
+ * the renderer) so the DOM chrome can drive the scene, and advances any glide
+ * it has in flight each frame. It is also handed to R3F as `controls`, which
+ * is how the gizmo finds it to switch orbiting off during a drag.
+ */
 function Rig() {
-  const { camera, gl, scene, controls } = useThree()
+  const { camera, gl, scene, set } = useThree()
   useEffect(() => {
+    const orbit = new OrbitCamera(camera, gl.domElement)
+    orbit.flyTo(
+      new THREE.Vector3(...HOME_CAMERA.position),
+      new THREE.Vector3(...HOME_CAMERA.target),
+      false
+    )
+    set({ controls: orbit })
     viewport.camera = camera
     viewport.gl = gl
+    viewport.controls = orbit
     gl.__babycadScene = scene
-  }, [camera, gl, scene])
-  useEffect(() => {
-    viewport.controls = controls ?? null
-  }, [controls])
+    return () => {
+      orbit.dispose()
+      set({ controls: null })
+      viewport.controls = null
+    }
+  }, [camera, gl, scene, set])
+  useFrame(() => viewport.controls?.tick())
   return null
 }
 
@@ -187,24 +203,6 @@ export default function Viewport() {
 
       <Blocks />
       <Handles />
-      <CameraRig />
-
-      <OrbitControls
-        makeDefault
-        target={HOME_CAMERA.target}
-        enableDamping
-        dampingFactor={0.12}
-        minDistance={50}
-        maxDistance={900}
-        // Scrolling zooms towards whatever is under the pointer.
-        zoomToCursor
-        // Orbiting is CameraRig's job, so it can pivot on the cursor.
-        enableRotate={false}
-        // Keep the camera above the floor so kids can't get lost underneath.
-        maxPolarAngle={Math.PI / 2 - 0.05}
-        // One finger orbits (handled by CameraRig); two pinch-zoom and pan.
-        touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
-      />
     </Canvas>
   )
 }

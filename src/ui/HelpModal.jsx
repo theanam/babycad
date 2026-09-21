@@ -11,6 +11,7 @@ const SHORTCUTS = [
   ['Delete or Backspace', 'Remove what’s selected'],
   ['Esc', 'Deselect'],
   ['Shift + click', 'Add a block to the selection'],
+  ['Shift + drag', 'Slide the view (or right-drag)'],
   ['L', 'Line up everything you’ve picked'],
   ['Hold Alt', 'Move without snapping to the grid'],
   ['Arrow keys', 'Step the number field you’re in'],
@@ -58,6 +59,22 @@ export default function HelpModal({ onClose, onShowWelcome }) {
               you and <strong>Z</strong> straight up. The little cube at the bottom left turns the
               view — drag it, or tap a face to look at the build straight on.
             </p>
+          </section>
+
+          <section>
+            <h3>Looking around</h3>
+            <ul className="help-list">
+              <li>
+                <b>Drag on empty space</b> to turn the view round the build.
+              </li>
+              <li>
+                <b>Right-drag, middle-drag or Shift-drag</b> to slide the view sideways.
+              </li>
+              <li>
+                <b>Scroll</b> to zoom. On a touchscreen, one finger turns, two fingers pinch and
+                slide.
+              </li>
+            </ul>
           </section>
 
           <section>

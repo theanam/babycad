@@ -244,6 +244,39 @@ button:disabled { cursor: default; }
 .mode-btn.wide { width: 126px; }
 .mode-sep { width: 1px; height: 40px; background: var(--line-soft); align-self: center; margin: 0 4px; }
 
+/* The align key: a second line under the switch, spanning its full width. */
+.mode-switch { flex-wrap: wrap; }
+.align-legend {
+  flex-basis: 100%;
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 8px 12px 6px;
+  border-top: 1px solid var(--line-soft);
+  margin-top: 4px;
+  font-size: 12.5px; font-weight: 700; color: var(--muted);
+  text-align: center; text-wrap: pretty;
+}
+.align-legend b { color: var(--ink-dim); font-weight: 800; }
+.align-legend i { font-style: normal; font-weight: 900; }
+
+/* Labels that ride along with the align targets in the scene. */
+.align-axis {
+  font-family: var(--mono); font-size: 13px; font-weight: 700;
+  padding: 3px 7px; border-radius: 6px;
+  background: #12151ce6; border: 1px solid var(--line-raised);
+  backdrop-filter: blur(6px);
+  pointer-events: none; white-space: nowrap;
+  transform: translate(-50%, -50%);
+}
+.align-tip {
+  font-size: 13px; font-weight: 800; color: var(--ink);
+  padding: 7px 11px; border-radius: 9px;
+  background: #1b1f29f2; border: 1px solid var(--accent-edge);
+  box-shadow: 0 10px 24px -12px #000;
+  pointer-events: none; white-space: nowrap;
+  transform: translate(-50%, calc(-100% - 18px));
+}
+.align-tip em { font-style: normal; color: var(--accent-ink); }
+
 .readout {
   position: absolute;
   right: 18px; top: 18px;

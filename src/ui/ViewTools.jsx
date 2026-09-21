@@ -45,6 +45,22 @@ export default function ViewTools() {
           </button>
         </>
       )}
+
+      {/* Nine dots with nothing written on them is a puzzle; this is the key
+          to it, and it sits here rather than in the scene so it never covers
+          the blocks it's talking about. */}
+      {aligning && multi && (
+        <div className="align-legend" role="note">
+          <span>
+            Each row of dots is one axis — <i style={{ color: '#FF5A47' }}>X</i>,{' '}
+            <i style={{ color: '#35C46B' }}>Y</i>, <i style={{ color: '#2E7DF6' }}>Z</i>.
+          </span>
+          <span>
+            <b>Outer dots</b> bring those sides together · <b>middle dot</b> centres them.
+            Hover to see where things will land.
+          </span>
+        </div>
+      )}
     </div>
   )
 }

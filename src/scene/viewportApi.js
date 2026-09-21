@@ -1,61 +1,15 @@
 /**
  * A tiny imperative bridge to the live viewport, so chrome that lives outside
- * the R3F <Canvas> (the top bar, the tray) can ask the 3D scene for things:
- * where to drop a new block, a thumbnail, or a camera reset.
+ * the R3F <Canvas> (the top bar, the tray, the view cube) can ask the 3D scene
+ * for things: where to drop a new block, a thumbnail, or a camera move. The
+ * camera itself is an OrbitCamera (see scene/orbit); everything here that
+ * moves the view goes through it.
  */
 import * as THREE from 'three'
 import { FOOTPRINT, PLATE_HALF, SNAP } from '../constants'
 import { restingHeight } from '../shapes/geometryCache'
 import { meshes } from './meshRegistry'
 import { boxOfMesh } from './gizmoMath'
-
-const FLIGHT_MS = 260
-
-const UP = new THREE.Vector3(0, 1, 0)
-// Keep the camera above the plate and stop it tipping past straight down.
-const MIN_CAMERA_Y = 10
-const MAX_LOOK_UP = -0.02
-const MAX_LOOK_DOWN = -0.995
-
-/**
- * Swing the camera rigidly about a pivot: position and view direction turn
- * together, then the target is parked back on the new view axis at the same
- * distance so OrbitControls' own `lookAt` agrees with where the camera already
- * points. Nothing jumps, and pan, zoom and damping keep working.
- *
- * `height` is the pixel span a full turn is spread over — the canvas height
- * when dragging the scene, something much smaller for the little view cube.
- */
-export function orbitCamera(camera, controls, pivot, dx, dy, height) {
-  const speed = (2 * Math.PI) / height
-  const distance = camera.position.distanceTo(controls.target)
-
-  const forward = new THREE.Vector3()
-  camera.getWorldDirection(forward)
-  const right = new THREE.Vector3().crossVectors(forward, UP).normalize()
-
-  const yaw = new THREE.Quaternion().setFromAxisAngle(UP, -dx * speed)
-  const pitch = new THREE.Quaternion().setFromAxisAngle(right, -dy * speed)
-
-  const swing = (q) => ({
-    position: new THREE.Vector3().subVectors(camera.position, pivot).applyQuaternion(q).add(pivot),
-    forward: forward.clone().applyQuaternion(q),
-  })
-
-  let next = swing(yaw.clone().multiply(pitch))
-  // If tilting would put us under the plate or past vertical, yaw only — the
-  // horizontal half of the drag still works.
-  if (
-    next.position.y < MIN_CAMERA_Y ||
-    next.forward.y > MAX_LOOK_UP ||
-    next.forward.y < MAX_LOOK_DOWN
-  ) {
-    next = swing(yaw)
-  }
-
-  camera.position.copy(next.position)
-  controls.target.copy(next.position).addScaledVector(next.forward, distance)
-}
 
 // Framed close enough that a fresh 20 mm block reads as a real object, not a
 // speck on an endless floor.
@@ -64,58 +18,29 @@ export const HOME_CAMERA = { position: [150, 120, 150], target: [0, 15, 0] }
 export const viewport = {
   camera: null,
   gl: null,
-  controls: null,
+  controls: null, // the OrbitCamera
 
-  _flight: null,
-
-  /**
-   * Ease the camera to a new spot. Snapping instantly from one face of the
-   * view cube to another is disorienting; a short glide keeps a kid oriented.
-   * Any interaction cancels it — see cancelFlight.
-   */
+  /** Ease the camera to a new spot — see OrbitCamera.flyTo. */
   flyTo(position, target) {
-    if (!this.camera || !this.controls) return
-    const camera = this.camera
-    const controls = this.controls
-    const from = { position: camera.position.clone(), target: controls.target.clone() }
-    const started = performance.now()
-    this.cancelFlight()
-
-    const step = () => {
-      const t = Math.min(1, (performance.now() - started) / FLIGHT_MS)
-      // easeOutCubic: quick off the mark, settles gently
-      const e = 1 - Math.pow(1 - t, 3)
-      camera.position.lerpVectors(from.position, position, e)
-      controls.target.lerpVectors(from.target, target, e)
-      controls.update()
-      this._flight = t < 1 ? requestAnimationFrame(step) : null
-    }
-    this._flight = requestAnimationFrame(step)
+    this.controls?.flyTo(position, target)
   },
 
   cancelFlight() {
-    if (this._flight) cancelAnimationFrame(this._flight)
-    this._flight = null
+    this.controls?.cancelFlight()
   },
 
   /**
-   * Turn the view by a pointer delta, pivoting on what the camera is looking
-   * at. This is what dragging the view cube does.
+   * Turn the view by a pointer delta. This is what dragging the view cube
+   * does; `span` is how many pixels make a full turn, so the little cube can
+   * spin the view round over its own width.
    */
-  orbitBy(dx, dy, height = 220) {
-    if (!this.camera || !this.controls) return
-    this.cancelFlight()
-    orbitCamera(this.camera, this.controls, this.controls.target.clone(), dx, dy, height)
-    this.controls.update()
+  orbitBy(dx, dy, span = 220) {
+    this.controls?.orbitBy(dx, dy, (2 * Math.PI) / span)
   },
 
-  /** Snap the camera back to the default framing. */
+  /** Glide back to the default framing. */
   resetView() {
-    if (!this.camera || !this.controls) return
-    this.flyTo(
-      new THREE.Vector3(...HOME_CAMERA.position),
-      new THREE.Vector3(...HOME_CAMERA.target)
-    )
+    this.flyTo(new THREE.Vector3(...HOME_CAMERA.position), new THREE.Vector3(...HOME_CAMERA.target))
   },
 
   /**
@@ -123,26 +48,20 @@ export const viewport = {
    * distance. This is what the view cube's faces do.
    */
   lookFrom(direction) {
-    if (!this.camera || !this.controls) return
+    if (!this.controls) return
     const target = this.controls.target.clone()
-    const distance = this.camera.position.distanceTo(target)
     const dir = new THREE.Vector3(...direction).normalize()
-    this.flyTo(target.clone().addScaledVector(dir, distance), target)
+    this.flyTo(target.clone().addScaledVector(dir, this.controls.radius), target)
   },
 
   /** Back to the three-quarter angle, without changing where or how close. */
   isoView() {
     if (!this.camera || !this.controls) return
     const target = this.controls.target.clone()
-    const distance = this.camera.position.distanceTo(target)
     // Keep whichever corner the camera is nearest, so it turns the short way.
     const here = this.camera.position.clone().sub(target)
-    const dir = new THREE.Vector3(
-      Math.sign(here.x) || 1,
-      1,
-      Math.sign(here.z) || 1
-    ).normalize()
-    this.flyTo(target.clone().addScaledVector(dir, distance), target)
+    const dir = new THREE.Vector3(Math.sign(here.x) || 1, 1, Math.sign(here.z) || 1).normalize()
+    this.flyTo(target.clone().addScaledVector(dir, this.controls.radius), target)
   },
 
   /**
