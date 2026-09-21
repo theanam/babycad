@@ -22,18 +22,31 @@ import {
 /**
  * Resize handles, in units of the box's half-extents.
  *
- * Deliberately few. The four corners sit on the *bottom* of the box and each
- * one anchors to the opposite bottom corner, so resizing grows the block up
- * and outward from the floor instead of sinking it. The single top handle
- * changes height the same way. Anything more precise is typed into the
- * properties panel rather than crowded onto the box.
+ * Every one of them sits on the *bottom* of the box and anchors to the far
+ * side, so a block grows up and outward from the floor rather than sinking
+ * through it, and only ever grows the way you pulled. `mask` says which axes
+ * a handle is allowed to touch, and it is the whole difference between them:
+ *
+ *   sides    one axis. Pull the right face and only the width changes.
+ *   corners  the two floor axes together, so the footprint keeps its shape.
+ *            Deliberately *not* the height: grabbing a corner to make a block
+ *            wider and finding it had grown taller too is the thing this
+ *            mask exists to stop.
+ *   top      the height, on its own.
  */
+const SIDE_HANDLES = [
+  { key: 's+x', handle: [1, -1, 0], anchor: [-1, -1, 0], mask: [1, 0, 0] },
+  { key: 's-x', handle: [-1, -1, 0], anchor: [1, -1, 0], mask: [1, 0, 0] },
+  { key: 's+z', handle: [0, -1, 1], anchor: [0, -1, -1], mask: [0, 0, 1] },
+  { key: 's-z', handle: [0, -1, -1], anchor: [0, -1, 1], mask: [0, 0, 1] },
+]
+
 const CORNER_HANDLES = [
   { key: 'c++', handle: [1, -1, 1], anchor: [-1, -1, -1] },
   { key: 'c+-', handle: [1, -1, -1], anchor: [-1, -1, 1] },
   { key: 'c-+', handle: [-1, -1, 1], anchor: [1, -1, -1] },
   { key: 'c--', handle: [-1, -1, -1], anchor: [1, -1, 1] },
-].map((h) => ({ ...h, mask: [1, 1, 1] }))
+].map((h) => ({ ...h, mask: [1, 0, 1] }))
 
 const HEIGHT_HANDLE = { key: 'top', handle: [0, 1, 0], anchor: [0, -1, 0], mask: [0, 1, 0] }
 
@@ -136,7 +149,7 @@ export default function BoxGizmo() {
   snapRef.current = snapEnabled && !freeMove
 
   const multi = selectedIds.length > 1
-  const scaleHandles = multi ? CORNER_HANDLES : [...CORNER_HANDLES, HEIGHT_HANDLE]
+  const scaleHandles = [...CORNER_HANDLES, ...SIDE_HANDLES, HEIGHT_HANDLE]
 
   /* ------------------------------------------------------------- input -- */
 
@@ -309,7 +322,13 @@ export default function BoxGizmo() {
       } else if (d.kind === 'scale') {
         const t = distanceAlongLine(ray, d.anchor, d.dir)
         if (t === null) return
-        const ratio = Math.max(0.02, t / d.length)
+        // How far the pointer has *travelled* along the handle's line, not
+        // where it is aiming. `grabT` is where the press landed, which is
+        // never the handle's exact centre — the handle is a ball a dozen-odd
+        // pixels across — so mapping the aim straight onto the size jumped
+        // the block a whole snap step before the drag had begun, and the
+        // block ended up bigger than it was ever dragged to.
+        const ratio = Math.max(0.02, (d.length + (t - d.grabT)) / d.length)
         if (!Number.isFinite(ratio)) return
 
         for (const item of d.items) {
