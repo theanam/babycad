@@ -222,7 +222,11 @@ function ShapeSection({ sel }) {
   const fanOut = (key, value) => Object.fromEntries(sel.map((o) => [o.id, { [key]: value }]))
 
   const begin = () => {
-    if (!snapshot.current) snapshot.current = Object.fromEntries(sel.map((o) => [o.id, o.params]))
+    if (!snapshot.current) {
+      snapshot.current = Object.fromEntries(
+        sel.map((o) => [o.id, { params: o.params, position: o.position }])
+      )
+    }
   }
   const release = () => {
     if (!snapshot.current) return

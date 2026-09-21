@@ -79,13 +79,15 @@ export function transformObjects(patches, label = 'move') {
 }
 
 /**
- * Shape parameter edit. `patches` is [{ id, before, after }] of whole
- * parameter objects — the full set, not a delta, so undo restores exactly the
- * shape that was there even if the edit touched several fields at once.
+ * Shape parameter edit. `patches` is [{ id, before, after }] where each side
+ * is `{ params, position }`: the whole parameter set, not a delta, so undo
+ * restores exactly the shape that was there even if the edit touched several
+ * fields at once — and the position, because changing a height moves the
+ * block to keep its underside where it was (see sceneStore's `reseated`).
  */
 export function reshapeObjects(patches, label = 'reshape') {
-  const after = Object.fromEntries(patches.map((p) => [p.id, { params: p.after }]))
-  const before = Object.fromEntries(patches.map((p) => [p.id, { params: p.before }]))
+  const after = Object.fromEntries(patches.map((p) => [p.id, { ...p.after }]))
+  const before = Object.fromEntries(patches.map((p) => [p.id, { ...p.before }]))
   return {
     label,
     forward: (s) => ({ ...s, objects: patchObjects(s.objects, after) }),

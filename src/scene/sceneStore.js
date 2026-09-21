@@ -1,9 +1,10 @@
 import { create } from 'zustand'
+import * as THREE from 'three'
 import * as cmd from '../history/undoRedo'
 import { FOOTPRINT, MAX_HISTORY, SCENE_VERSION } from '../constants'
 import { defaultParams, normalizeParams, SHAPE_COLOR } from '../shapes'
 import { resizeToParams } from '../shapes/resize'
-import { restingHeight } from '../shapes/geometryCache'
+import { measure, restingHeight } from '../shapes/geometryCache'
 import { alignOffsets } from './align'
 import { meshes } from './meshRegistry'
 import {
@@ -201,21 +202,27 @@ export const useScene = create((set, get) => ({
     set((st) => {
       const byId = variableMap(st.variables)
       return {
-        objects: st.objects.map((o) =>
-          patch[o.id] ? { ...o, params: settle(o, { ...o.params, ...patch[o.id] }, byId) } : o
-        ),
+        objects: st.objects.map((o) => {
+          if (!patch[o.id]) return o
+          const params = settle(o, { ...o.params, ...patch[o.id] }, byId)
+          return { ...o, params, position: reseated(o, params) }
+        }),
       }
     })
   },
 
-  /** Close out a slider drag: diff against the snapshot taken when it started. */
+  /**
+   * Close out a slider drag: diff against the snapshot taken when it started.
+   * `before` holds `{ params, position }` per block, since a height change
+   * moves the block as well as reshaping it.
+   */
   commitParams(before, label = 'reshape') {
     const st = get()
     const patches = []
     for (const o of st.objects) {
       const was = before[o.id]
-      if (!was || sameParams(was, o.params)) continue
-      patches.push({ id: o.id, before: was, after: o.params })
+      if (!was || (sameParams(was.params, o.params) && same(was.position, o.position))) continue
+      patches.push({ id: o.id, before: was, after: { params: o.params, position: o.position } })
     }
     if (patches.length) st.record(cmd.reshapeObjects(patches, label))
   },
@@ -227,9 +234,13 @@ export const useScene = create((set, get) => ({
     const patches = []
     for (const o of st.objects) {
       if (!patch[o.id]) continue
-      const after = settle(o, { ...o.params, ...patch[o.id] }, byId)
-      if (sameParams(o.params, after)) continue
-      patches.push({ id: o.id, before: o.params, after })
+      const params = settle(o, { ...o.params, ...patch[o.id] }, byId)
+      if (sameParams(o.params, params)) continue
+      patches.push({
+        id: o.id,
+        before: { params: o.params, position: o.position },
+        after: { params, position: reseated(o, params) },
+      })
     }
     if (patches.length) st.apply(cmd.reshapeObjects(patches, label))
   },
@@ -658,6 +669,45 @@ function bakeResize(object, was, now) {
     // parameters this resize replaces — those are what undo puts back.
     undoParams: object.params,
   }
+}
+
+/**
+ * Where a block's underside is, relative to its own position, once its
+ * geometry has been turned and stretched the way the block is. The eight
+ * corners of the shape's box go through the block's rotation and scale, and
+ * the lowest one is the answer.
+ */
+const _q = new THREE.Quaternion()
+const _e = new THREE.Euler()
+const _v = new THREE.Vector3()
+function bottomOf(object, params) {
+  const { min, max } = measure(object.type, params)
+  _q.setFromEuler(_e.fromArray(object.rotation))
+  let lowest = Infinity
+  for (const x of [min.x, max.x]) {
+    for (const y of [min.y, max.y]) {
+      for (const z of [min.z, max.z]) {
+        _v.set(x * object.scale[0], y * object.scale[1], z * object.scale[2]).applyQuaternion(_q)
+        if (_v.y < lowest) lowest = _v.y
+      }
+    }
+  }
+  return lowest
+}
+
+/**
+ * The position a block should take with `params` so that its underside stays
+ * exactly where it is. Everything in this app rests on the plate and the
+ * gizmo grows blocks up from the floor; typing a bigger height into the rail
+ * used to grow the block about its middle instead, sinking half the change
+ * through the plate. This is the same rule applied to the rail.
+ */
+function reseated(object, params) {
+  const shift = bottomOf(object, object.params) - bottomOf(object, params)
+  if (Math.abs(shift) < 1e-9) return object.position
+  const position = [...object.position]
+  position[1] += shift
+  return position
 }
 
 const variableMap = (variables) => new Map(variables.map((v) => [v.id, v]))
