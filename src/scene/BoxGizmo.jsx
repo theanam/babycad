@@ -161,7 +161,37 @@ export default function BoxGizmo() {
   snapRef.current = snapEnabled && !freeMove ? snapStep : 0
 
   const multi = selectedIds.length > 1
-  const scaleHandles = [...CORNER_HANDLES, ...SIDE_HANDLES, HEIGHT_HANDLE]
+
+  // The shape of the one block picked, if it is one block. Which handles are
+  // worth drawing depends on what its shape can tell apart.
+  const soleType = useScene((s) =>
+    s.selectedIds.length === 1
+      ? (s.objects.find((o) => o.id === s.selectedIds[0])?.type ?? null)
+      : null
+  )
+
+  /**
+   * Only the handles that do different things.
+   *
+   * A handle can only pull what the shape can say, and a round shape says
+   * very little: every axis of a ball is its radius, so all nine handles
+   * scale it uniformly and eight of them are a promise of control that isn't
+   * there. A tube is between the two — its width and depth are one number, so
+   * the sides repeat the corners, but its height is its own.
+   *
+   * The corners always stay: they give a growth direction on each side of the
+   * footprint, which is real even when the size they set is the same. A side
+   * or the top is drawn only when it reaches something the corners can't. So
+   * a cube keeps all nine, a tube keeps four corners and the top, and a ball
+   * keeps four corners.
+   */
+  const scaleHandles = useMemo(() => {
+    const all = [...CORNER_HANDLES, ...SIDE_HANDLES, HEIGHT_HANDLE]
+    if (!soleType) return all // several blocks: no one shape to reason about
+    const reach = (h) => coupledMask(soleType, h.mask).join('')
+    const corners = reach(CORNER_HANDLES[0])
+    return all.filter((h) => CORNER_HANDLES.includes(h) || reach(h) !== corners)
+  }, [soleType])
 
   /* ------------------------------------------------------------- input -- */
 
