@@ -112,8 +112,10 @@ export default function HelpModal({ onClose, onShowWelcome }) {
               </li>
             </ul>
             <p>
-              Dragging snaps to {SNAP.move} mm and 15°. Hold <strong>Alt</strong> for as long as
-              you want that off, or turn snapping off altogether with the switch over the scene.
+              Dragging snaps to the grid — {SNAP.move} mm to begin with, or 1 mm if you pick it
+              from the <strong>Snap</strong> switch&apos;s menu (right-click it, or press the arrow
+              beside it) — and turns snap to 15°. Hold <strong>Alt</strong> for as long as you want
+              snapping off, or switch it off altogether from the same switch.
             </p>
           </section>
 

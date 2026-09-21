@@ -246,6 +246,41 @@ button:disabled { cursor: default; }
   transition: background var(--fade), color var(--fade);
 }
 .tools-btn.on { background: var(--accent); color: #fff; font-weight: 800; }
+
+/* The snap switch and its grid menu. The arrow is a second, narrower button
+   glued to the switch's right edge, for choosing the grid without a right
+   mouse button; the menu drops down beneath both. */
+.tools-snap { flex: 1; position: relative; display: flex; }
+.tools-snap .tools-btn { border-radius: var(--r-control) 0 0 var(--r-control); }
+.tools-chevron {
+  width: 30px; height: var(--tap); flex: none;
+  border-radius: 0 var(--r-control) var(--r-control) 0;
+  background: var(--control);
+  border-left: 1px solid var(--panel);
+  display: flex; align-items: center; justify-content: center;
+  transition: background var(--fade);
+}
+.tools-chevron.on { background: var(--accent); border-left-color: #6b3df0; }
+.tools-menu {
+  position: absolute; left: 0; right: 0; top: calc(100% + 6px);
+  z-index: 5;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 6px;
+  border-radius: var(--r-control-lg);
+  background: var(--panel-raised);
+  border: 1px solid var(--line-raised);
+  box-shadow: 0 20px 40px -20px #000;
+  animation: fade var(--fade);
+}
+.tools-menu button {
+  height: 38px; padding: 0 12px;
+  border-radius: 8px;
+  text-align: left;
+  font-size: 13px; font-weight: 700; color: var(--ink-dim);
+  transition: background var(--fade);
+}
+.tools-menu button:hover { background: var(--control); }
+.tools-menu button.on { background: var(--accent-soft); color: var(--accent-ink); font-weight: 800; }
 .tools-legend {
   margin-top: 8px; padding: 10px 6px 4px;
   border-top: 1px solid var(--line-soft);

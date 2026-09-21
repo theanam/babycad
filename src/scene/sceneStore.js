@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import * as THREE from 'three'
 import * as cmd from '../history/undoRedo'
-import { FOOTPRINT, MAX_HISTORY, SCENE_VERSION } from '../constants'
+import { FOOTPRINT, MAX_HISTORY, SCENE_VERSION, SNAP } from '../constants'
 import { defaultParams, normalizeParams, SHAPE_COLOR } from '../shapes'
 import { resizeToParams } from '../shapes/resize'
 import { measure, restingHeight } from '../shapes/geometryCache'
@@ -58,6 +58,7 @@ export const useScene = create((set, get) => ({
   ...emptyScene(),
   selectedIds: [],
   snapEnabled: true, // grid snapping, on by default
+  snapStep: SNAP.move, // millimetres a drag snaps to while snapping is on
   freeMove: false, // Alt held: temporarily ignore the snap grid
   aligning: false, // the align targets are showing instead of the box handles
   past: [],
@@ -174,6 +175,11 @@ export const useScene = create((set, get) => ({
 
   toggleSnap() {
     set((st) => ({ snapEnabled: !st.snapEnabled }))
+  },
+
+  /** Pick a grid to snap to, and snap. `0` is the same as switching it off. */
+  setSnapStep(step) {
+    set(step > 0 ? { snapStep: step, snapEnabled: true } : { snapEnabled: false })
   },
 
   selectedObjects() {

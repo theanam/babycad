@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame, useThree } from '@react-three/fiber'
-import { useScene } from './sceneStore'
+import { bottomOf, useScene } from './sceneStore'
 import { axisColor } from './axes'
 import { meshes } from './meshRegistry'
 import { dragBus } from './dragBus'
@@ -101,6 +101,7 @@ const vec2 = new THREE.Vector3()
 export default function BoxGizmo() {
   const selectedIds = useScene((s) => s.selectedIds)
   const snapEnabled = useScene((s) => s.snapEnabled)
+  const snapStep = useScene((s) => s.snapStep)
   const freeMove = useScene((s) => s.freeMove)
   const stageTransform = useScene((s) => s.stageTransform)
   const commitTransform = useScene((s) => s.commitTransform)
@@ -146,8 +147,9 @@ export default function BoxGizmo() {
   const drag = useRef(null)
   const lastReadout = useRef(0)
 
-  const snapRef = useRef(true)
-  snapRef.current = snapEnabled && !freeMove
+  // The step to snap to, in millimetres, or 0 for none.
+  const snapRef = useRef(SNAP.move)
+  snapRef.current = snapEnabled && !freeMove ? snapStep : 0
 
   const multi = selectedIds.length > 1
   const scaleHandles = [...CORNER_HANDLES, ...SIDE_HANDLES, HEIGHT_HANDLE]
@@ -240,7 +242,8 @@ export default function BoxGizmo() {
     const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(vec, f.center)
     const grab = new THREE.Vector3()
     if (!event.ray.intersectPlane(plane, grab)) return
-    begin('move-y', { plane, grab, handle: 'lift' }, event)
+    const lead = useScene.getState().selectedObjects()[0]
+    begin('move-y', { plane, grab, handle: 'lift', leadBottom: lead ? bottomOf(lead) : 0 }, event)
   }
 
   const startScale = (def, event) => {
@@ -338,10 +341,21 @@ export default function BoxGizmo() {
         if (d.kind === 'move-xz') delta.y = 0
         else delta.x = delta.z = 0
         if (snap) {
+          // Snap where the block *lands*, not how far it moved: snapping the
+          // distance keeps a block that is off the grid off it for good,
+          // which mattered little while everything started on the same 5 mm
+          // and matters a lot now the grid can be changed under it. The
+          // first block sets the destination and the rest ride along
+          // unchanged, so a selection stays rigid. Across the floor it is
+          // the centre that lands on the grid, the way blocks are placed;
+          // vertically it is the underside, the way the rail reports Z.
+          const lead = d.items[0]
+          const seat = d.kind === 'move-y' ? d.leadBottom : 0
+          const to = vec.copy(lead.position).add(delta)
           delta.set(
-            snapTo(delta.x, SNAP.move),
-            snapTo(delta.y, SNAP.move),
-            snapTo(delta.z, SNAP.move)
+            d.kind === 'move-xz' ? snapTo(to.x, snap) - lead.position.x : 0,
+            d.kind === 'move-y' ? snapTo(to.y + seat, snap) - seat - lead.position.y : 0,
+            d.kind === 'move-xz' ? snapTo(to.z, snap) - lead.position.z : 0
           )
         }
         for (const item of d.items) paint(item.id, vec.copy(item.position).add(delta), null, null)
@@ -357,8 +371,8 @@ export default function BoxGizmo() {
         let ratio = Math.max(0.02, (d.length + (t - d.grabT)) / d.length)
         if (!Number.isFinite(ratio)) return
 
-        // Snap the size, not the multiplier. The switch says "Snap 5 mm" and
-        // has to mean it: stepping the multiplier by a quarter moved a 40 mm
+        // Snap the size, not the multiplier. The switch says "Snap 5 mm" (or
+        // 1 mm, from its menu) and has to mean it: stepping the multiplier by a quarter moved a 40 mm
         // block in 10 mm jumps and a 42 mm one in 10.5 mm jumps, always
         // landing somewhere past the size that was wanted. Snapping the
         // dimension the handle is pulling puts it on the same millimetre grid
@@ -366,7 +380,7 @@ export default function BoxGizmo() {
         // no one dimension to snap.
         if (snap && d.items.length === 1 && d.primary >= 0) {
           const from = d.extent[d.primary]
-          ratio = Math.max(SNAP.move, snapTo(from * ratio, SNAP.move)) / from
+          ratio = Math.max(snap, snapTo(from * ratio, snap)) / from
         }
 
         for (const item of d.items) {

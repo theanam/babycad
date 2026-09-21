@@ -300,6 +300,7 @@ export default function PropertiesPanel() {
   const objects = useScene((s) => s.objects)
   const selectedIds = useScene((s) => s.selectedIds)
   const transformSelection = useScene((s) => s.transformSelection)
+  const snapStep = useScene((s) => s.snapStep)
   const setColor = useScene((s) => s.setColor)
   const setHole = useScene((s) => s.setHole)
   const duplicate = useScene((s) => s.duplicate)
@@ -531,11 +532,11 @@ export default function PropertiesPanel() {
             <NumField
               key={a.label}
               label={a.label}
-              step={SNAP.move}
+              step={snapStep}
               hint={
                 a.slot === UP
                   ? `How far ${multi ? 'the lowest block' : 'its underside'} is above the plate — 0 is resting on it`
-                  : `Move ${multi ? 'the group' : 'it'} along ${a.label} — arrow keys step by ${SNAP.move}`
+                  : `Move ${multi ? 'the group' : 'it'} along ${a.label} — arrow keys step by ${snapStep}`
               }
               value={
                 a.slot === UP ? shownUnderside : (multi ? centroid[a.slot] : position[a.slot]) * a.sign

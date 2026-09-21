@@ -1,6 +1,9 @@
+import { useEffect, useRef, useState } from 'react'
 import { useScene } from '../scene/sceneStore'
-import { SNAP } from '../constants'
-import { AlignIcon, SnapIcon } from './icons'
+import { AlignIcon, ChevronUpIcon, SnapIcon } from './icons'
+
+/** The grids on offer. Anything finer than a millimetre is typed, not dragged. */
+const STEPS = [5, 1]
 
 /**
  * The scene-wide switches, in a strip at the top of the right rail: grid
@@ -13,8 +16,33 @@ import { AlignIcon, SnapIcon } from './icons'
  */
 export default function ViewTools() {
   const snapEnabled = useScene((s) => s.snapEnabled)
+  const snapStep = useScene((s) => s.snapStep)
   const toggleSnap = useScene((s) => s.toggleSnap)
+  const setSnapStep = useScene((s) => s.setSnapStep)
   const freeMove = useScene((s) => s.freeMove)
+
+  // The step menu: right-click the switch, or press the arrow beside it for
+  // anyone without a right button. Light dismiss on a tap anywhere else or
+  // on Escape.
+  const [menu, setMenu] = useState(false)
+  const wrap = useRef(null)
+  useEffect(() => {
+    if (!menu) return
+    const onDown = (e) => {
+      if (!wrap.current?.contains(e.target)) setMenu(false)
+    }
+    const onKey = (e) => e.key === 'Escape' && setMenu(false)
+    document.addEventListener('pointerdown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [menu])
+  const pick = (step) => {
+    setSnapStep(step)
+    setMenu(false)
+  }
   const aligning = useScene((s) => s.aligning)
   const toggleAlign = useScene((s) => s.toggleAlign)
   const multi = useScene((s) => s.selectedIds.length > 1)
@@ -24,15 +52,55 @@ export default function ViewTools() {
   return (
     <div className="tools" role="group" aria-label="Tools">
       <div className="tools-row">
-        <button
-          className={`tools-btn${snapping ? ' on' : ''}`}
-          onClick={toggleSnap}
-          aria-pressed={snapEnabled}
-          title="Snap to the grid while dragging (hold Alt to suspend)"
-        >
-          <SnapIcon size={20} stroke={snapping ? '#fff' : '#8A93A5'} />
-          {snapping ? `Snap ${SNAP.move} mm` : 'Free move'}
-        </button>
+        <div className="tools-snap" ref={wrap}>
+          <button
+            className={`tools-btn${snapping ? ' on' : ''}`}
+            onClick={toggleSnap}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              setMenu((m) => !m)
+            }}
+            aria-pressed={snapEnabled}
+            title="Snap to the grid while dragging — right-click for the grid size (hold Alt to suspend)"
+          >
+            <SnapIcon size={20} stroke={snapping ? '#fff' : '#8A93A5'} />
+            {snapping ? `Snap ${snapStep} mm` : 'Free move'}
+          </button>
+          <button
+            className={`tools-chevron${snapping ? ' on' : ''}`}
+            onClick={() => setMenu((m) => !m)}
+            aria-haspopup="menu"
+            aria-expanded={menu}
+            aria-label="Choose the snap grid"
+            title="Choose the snap grid"
+          >
+            <ChevronUpIcon size={16} stroke={snapping ? '#fff' : '#8A93A5'} style={{ transform: 'rotate(180deg)' }} />
+          </button>
+
+          {menu && (
+            <div className="tools-menu" role="menu" aria-label="Snap grid">
+              {STEPS.map((step) => (
+                <button
+                  key={step}
+                  role="menuitemradio"
+                  className={snapEnabled && snapStep === step ? 'on' : ''}
+                  aria-checked={snapEnabled && snapStep === step}
+                  onClick={() => pick(step)}
+                >
+                  Snap {step} mm
+                </button>
+              ))}
+              <button
+                role="menuitemradio"
+                className={!snapEnabled ? 'on' : ''}
+                aria-checked={!snapEnabled}
+                onClick={() => pick(0)}
+              >
+                Free move
+              </button>
+            </div>
+          )}
+        </div>
 
         {multi && (
           <button
