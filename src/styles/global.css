@@ -219,45 +219,41 @@ button:disabled { cursor: default; }
 
 /* ---------------------------------------------------- floating overlays -- */
 
-/* A bar the full width of the stage, between the shape rail and the
-   properties rail and level with their tops. Sized to its contents it read as
-   a stray button floating in space most of the time, since most of the time
-   the only thing in it is the snap switch. */
-.mode-switch {
+/* The right rail: the tool strip and the panel stack in it, the panel taking
+   whatever height the strip leaves. */
+.rail {
   position: absolute;
-  left: 120px; right: 328px; top: 14px;
-  display: flex; align-items: center; gap: 6px;
-  background: #12151ce6;
-  border: 1px solid var(--line-raised);
-  border-radius: var(--r-panel);
-  padding: 6px;
-  backdrop-filter: blur(8px);
+  right: 14px; top: 14px; bottom: 14px;
+  width: 300px;
+  display: flex; flex-direction: column; gap: 10px;
 }
-.mode-btn {
-  width: 112px; height: var(--tap-lg);
-  border-radius: 11px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+
+.tools {
+  flex: none;
+  border-radius: var(--r-panel);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 8px;
+  animation: fade var(--fade);
+}
+.tools-row { display: flex; gap: 6px; }
+.tools-btn {
+  flex: 1; height: var(--tap);
+  border-radius: var(--r-control);
+  background: var(--control);
+  display: flex; align-items: center; justify-content: center; gap: 8px;
   font-size: 13px; font-weight: 700; color: var(--muted);
   transition: background var(--fade), color var(--fade);
 }
-.mode-btn.on {
-  background: var(--accent); color: #fff; font-weight: 800;
-  box-shadow: 0 8px 20px -10px var(--accent);
-}
-.mode-btn.wide { width: 126px; }
-.mode-sep { width: 1px; height: 40px; background: var(--line-soft); align-self: center; margin: 0 4px; }
-
-/* The align key: fills the rest of the bar, to the right of the switches. */
-.align-legend {
-  margin-left: auto;
-  display: flex; flex-direction: column; gap: 3px;
-  padding: 0 12px 0 16px;
-  border-left: 1px solid var(--line-soft);
+.tools-btn.on { background: var(--accent); color: #fff; font-weight: 800; }
+.tools-legend {
+  margin-top: 8px; padding: 10px 6px 4px;
+  border-top: 1px solid var(--line-soft);
   font-size: 12.5px; font-weight: 700; color: var(--muted);
-  text-align: right; text-wrap: pretty;
+  line-height: 1.5; text-wrap: pretty;
 }
-.align-legend b { color: var(--ink-dim); font-weight: 800; }
-.align-legend i { font-style: normal; font-weight: 900; }
+.tools-legend b { color: var(--ink-dim); font-weight: 800; }
+.tools-legend i { font-style: normal; font-weight: 900; }
 
 /* Labels that ride along with the align targets in the scene. */
 .align-axis {
@@ -482,10 +478,6 @@ button:disabled { cursor: default; }
 .fallback p { font-size: 16px; font-weight: 700; color: var(--muted); max-width: 440px; margin: 0; line-height: 1.55; }
 
 /* Tablet-and-up is the target; below that the chrome simply tightens up. */
-@media (max-width: 860px) {
-  .mode-btn { width: 88px; }
-  .mode-btn.wide { width: 104px; }
-}
 
 /* --------------------------------------------------------- export menu -- */
 
@@ -512,9 +504,7 @@ button:disabled { cursor: default; }
    header (what's picked), scrolling body (arrange, color, numbers), then the
    actions pinned to the bottom where they can't scroll out of reach. */
 .props {
-  position: absolute;
-  right: 14px; top: 14px; bottom: 14px;
-  width: 300px;
+  flex: 1; min-height: 0;
   display: flex; flex-direction: column;
   border-radius: var(--r-panel);
   background: var(--panel);
@@ -917,8 +907,7 @@ button:disabled { cursor: default; }
 
 /* Below this the inspector tightens rather than crowding the scene. */
 @media (max-width: 1100px) {
-  .props { width: 252px; }
-  .mode-switch { right: 280px; }
+  .rail { width: 252px; }
   .color-grid { grid-template-columns: repeat(3, 1fr); }
 }
 

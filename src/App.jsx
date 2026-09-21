@@ -186,12 +186,16 @@ export default function App() {
         {!objects.length && <div className="empty-hint">pick a shape to start</div>}
 
         <ShapeTray />
-        {objects.length > 0 && <ViewTools />}
-        {showVariables ? (
-          <VariablesPanel onClose={() => setShowVariables(false)} />
-        ) : (
-          <PropertiesPanel />
-        )}
+        {/* The right rail: the scene-wide switches (snapping, aligning) in a
+            strip of their own, then whichever panel is showing beneath. */}
+        <div className="rail">
+          {objects.length > 0 && <ViewTools />}
+          {showVariables ? (
+            <VariablesPanel onClose={() => setShowVariables(false)} />
+          ) : (
+            <PropertiesPanel />
+          )}
+        </div>
         <ViewCube />
       </div>
 
