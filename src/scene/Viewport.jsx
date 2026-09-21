@@ -64,9 +64,22 @@ function BuildPlate() {
 
   return (
     <group>
+      {/* Translucent, and lit on both faces. Opaque, it swallowed anything
+          that went below it — a block dragged under the floor simply stopped
+          being there, with nothing to say where it had gone. Now it shows
+          through, tinted by the plate, which is exactly the "this is under
+          the floor" the solid version couldn't say. Still single-sided, so
+          looking up from underneath the model is not seen through a sheet of
+          grey — the plate is simply not there from below, as before. */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.08, 0]} receiveShadow>
         <planeGeometry args={[PLATE, PLATE]} />
-        <meshStandardMaterial color="#12161e" roughness={1} metalness={0} />
+        <meshStandardMaterial
+          color="#12161e"
+          roughness={1}
+          metalness={0}
+          transparent
+          opacity={0.62}
+        />
       </mesh>
 
       <Grid

@@ -821,14 +821,19 @@ button:disabled { cursor: default; }
 }
 
 /* the full palette, inline — four across keeps every cell a comfy tap */
-.color-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+/* One row of twelve. Three rows of tap-sized swatches pushed the shape's own
+   numbers below the fold, and picking a colour is a thing you do once per
+   block while the numbers are what you come back to. Square-ish cells sized
+   by the rail's width, so they stay as large as one line allows. */
+.color-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; }
 .color-cell {
-  height: var(--tap); border-radius: 11px;
-  box-shadow: inset 0 -4px 0 #00000038;
-  outline: 3px solid transparent; outline-offset: 2px;
-  transition: outline-color var(--fade);
+  aspect-ratio: 1; min-width: 0;
+  border-radius: 5px;
+  box-shadow: inset 0 -2px 0 #00000038;
+  outline: 2px solid transparent; outline-offset: 2px;
+  transition: outline-color var(--fade), transform var(--fade);
 }
-.color-cell.on { outline-color: #fff; }
+.color-cell.on { outline-color: #fff; transform: scale(1.18); }
 
 /* combine / split */
 .props-btns { display: flex; flex-direction: column; gap: 8px; }
@@ -908,7 +913,7 @@ button:disabled { cursor: default; }
 /* Below this the inspector tightens rather than crowding the scene. */
 @media (max-width: 1100px) {
   .rail { width: 252px; }
-  .color-grid { grid-template-columns: repeat(3, 1fr); }
+  .color-grid { gap: 3px; }
 }
 
 /* ------------------------------------------------------- viewport mover -- */

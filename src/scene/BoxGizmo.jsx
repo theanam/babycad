@@ -258,7 +258,22 @@ export default function BoxGizmo() {
     const grabT = distanceAlongLine(event.ray, anchor, dir)
     if (grabT === null) return
 
-    begin('scale', { anchor, dir, length, grabT, mask: def.mask, quat: f.quat.clone() }, event)
+    // The box's full extent along each axis, so the drag can snap the size in
+    // millimetres rather than the multiplier in quarters. `primary` is the
+    // masked axis the snapping follows: the longest one, since that is the
+    // dimension the handle most visibly controls, and for a corner the other
+    // axis rides along with it to keep the footprint's shape.
+    const extent = [f.half.x * 2, f.half.y * 2, f.half.z * 2]
+    let primary = -1
+    for (let i = 0; i < 3; i++) {
+      if (def.mask[i] && extent[i] > 1e-6 && (primary < 0 || extent[i] > extent[primary])) primary = i
+    }
+
+    begin(
+      'scale',
+      { anchor, dir, length, grabT, extent, primary, mask: def.mask, quat: f.quat.clone() },
+      event
+    )
   }
 
   const startTurn = (def, event) => {
@@ -328,8 +343,20 @@ export default function BoxGizmo() {
         // pixels across — so mapping the aim straight onto the size jumped
         // the block a whole snap step before the drag had begun, and the
         // block ended up bigger than it was ever dragged to.
-        const ratio = Math.max(0.02, (d.length + (t - d.grabT)) / d.length)
+        let ratio = Math.max(0.02, (d.length + (t - d.grabT)) / d.length)
         if (!Number.isFinite(ratio)) return
+
+        // Snap the size, not the multiplier. The switch says "Snap 5 mm" and
+        // has to mean it: stepping the multiplier by a quarter moved a 40 mm
+        // block in 10 mm jumps and a 42 mm one in 10.5 mm jumps, always
+        // landing somewhere past the size that was wanted. Snapping the
+        // dimension the handle is pulling puts it on the same millimetre grid
+        // as everything else. Only for a single block — a multi-selection has
+        // no one dimension to snap.
+        if (snap && d.items.length === 1 && d.primary >= 0) {
+          const from = d.extent[d.primary]
+          ratio = Math.max(SNAP.move, snapTo(from * ratio, SNAP.move)) / from
+        }
 
         for (const item of d.items) {
           const scale = new THREE.Vector3(
@@ -337,15 +364,8 @@ export default function BoxGizmo() {
             THREE.MathUtils.clamp(item.scale.y * (d.mask[1] ? ratio : 1), MIN_SCALE, MAX_SCALE),
             THREE.MathUtils.clamp(item.scale.z * (d.mask[2] ? ratio : 1), MIN_SCALE, MAX_SCALE)
           )
-          if (snap && d.items.length === 1) {
-            scale.set(
-              Math.max(SNAP.scale, snapTo(scale.x, SNAP.scale)),
-              Math.max(SNAP.scale, snapTo(scale.y, SNAP.scale)),
-              Math.max(SNAP.scale, snapTo(scale.z, SNAP.scale))
-            )
-          }
-          // Re-derive the ratio from the clamped/snapped scale so the anchor
-          // corner stays exactly where it was.
+          // Re-derive the ratio from the clamped scale so the anchor corner
+          // stays exactly where it was.
           const applied = vec.set(
             item.scale.x ? scale.x / item.scale.x : 1,
             item.scale.y ? scale.y / item.scale.y : 1,
