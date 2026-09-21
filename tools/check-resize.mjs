@@ -19,7 +19,7 @@ register('./resolve-extensionless.mjs', import.meta.url)
 
 const { SHAPE_DEFS, defaultParams } = await import('../src/shapes/index.js')
 const { buildGeometry } = await import('../src/shapes/geometryCache.js')
-const { AXIS_PARAMS, resizeToParams } = await import('../src/shapes/resize.js')
+const { AXIS_PARAMS, resizeToParams, coupledMask } = await import('../src/shapes/resize.js')
 
 const extent = (type, params) => {
   const g = buildGeometry(type, params)
@@ -102,6 +102,33 @@ for (const [type, axes] of Object.entries(AXIS_PARAMS)) {
   const uniform = resizeToParams(object(type, { [key]: 'some-variable' }), [2, 2, 2])
   if (!result?.blocked && !uniform?.blocked) {
     fail(`${type} let a resize through while ${key} follows a variable`)
+  }
+}
+
+console.log('\na handle pulls every axis the shape ties to it…')
+{
+  const cases = [
+    ['cube', [1, 0, 0], [1, 0, 0]],
+    ['cube', [1, 0, 1], [1, 0, 1]],
+    ['cylinder', [1, 0, 0], [1, 0, 1]],
+    ['cylinder', [0, 1, 0], [0, 1, 0]],
+    ['cone', [0, 0, 1], [1, 0, 1]],
+    ['gear', [1, 0, 0], [1, 0, 1]],
+    ['sphere', [0, 1, 0], [1, 1, 1]],
+    ['sphere', [1, 0, 1], [1, 1, 1]],
+    ['torus', [1, 0, 0], [1, 1, 1]],
+  ]
+  for (const [type, mask, want] of cases) {
+    const got = coupledMask(type, mask)
+    if (got.join() !== want.join()) fail(`${type} mask ${mask} widened to ${got}, expected ${want}`)
+  }
+  // And the widened pull is always something the shape can then express.
+  for (const type of Object.keys(AXIS_PARAMS)) {
+    for (const mask of [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 0, 1]]) {
+      const m = coupledMask(type, mask)
+      const ratio = m.map((on) => (on ? 1.5 : 1))
+      if (!resizeToParams(object(type), ratio)?.params) fail(`${type}: a ${mask} handle, widened to ${m}, still cannot be baked`)
+    }
   }
 }
 

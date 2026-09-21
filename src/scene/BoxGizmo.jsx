@@ -7,6 +7,7 @@ import { meshes } from './meshRegistry'
 import { dragBus } from './dragBus'
 import { beginDrag, endDrag, setLive } from './liveStore'
 import { SNAP } from '../constants'
+import { coupledMask } from '../shapes/resize'
 import { toast } from '../ui/Toast'
 import {
   angleInPlane,
@@ -247,6 +248,15 @@ export default function BoxGizmo() {
     const local = (signs) =>
       new THREE.Vector3(signs[0] * f.half.x, signs[1] * f.half.y, signs[2] * f.half.z)
 
+    // A handle may only pull what the shape can say. One block: widen the
+    // mask to the axes its shape ties together, so a side pull on a tube
+    // grows the radius — x and z at once, on screen, as it happens — and the
+    // bake lands in the radius rather than in a stretch. Several blocks: the
+    // frame is world-aligned and the shapes differ, so the mask stays as
+    // drawn and each block bakes what it can.
+    const selected = useScene.getState().selectedObjects()
+    const mask = selected.length === 1 ? coupledMask(selected[0].type, def.mask) : def.mask
+
     const anchor = local(def.anchor).applyQuaternion(f.quat).add(f.center)
     const handleWorld = local(def.handle).applyQuaternion(f.quat).add(f.center)
 
@@ -266,14 +276,10 @@ export default function BoxGizmo() {
     const extent = [f.half.x * 2, f.half.y * 2, f.half.z * 2]
     let primary = -1
     for (let i = 0; i < 3; i++) {
-      if (def.mask[i] && extent[i] > 1e-6 && (primary < 0 || extent[i] > extent[primary])) primary = i
+      if (mask[i] && extent[i] > 1e-6 && (primary < 0 || extent[i] > extent[primary])) primary = i
     }
 
-    begin(
-      'scale',
-      { anchor, dir, length, grabT, extent, primary, mask: def.mask, quat: f.quat.clone() },
-      event
-    )
+    begin('scale', { anchor, dir, length, grabT, extent, primary, mask, quat: f.quat.clone() }, event)
   }
 
   const startTurn = (def, event) => {

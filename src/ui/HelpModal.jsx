@@ -155,9 +155,11 @@ export default function HelpModal({ onClose, onShowWelcome }) {
               the block and its numbers can never disagree, because there is only one of them.
             </p>
             <p>
-              A few resizes have no number to land in: squash a ball along one axis and there is no
-              radius that describes the result. Those are the ones that show up under{' '}
-              <strong>Stretch</strong>, which is a plain multiplier and normally reads 1.00.
+              A handle only pulls what the shape can say. A tube&apos;s radius is its width and its
+              depth at once, so pulling one side of a tube makes a fatter tube rather than an oval;
+              any handle on a ball makes a bigger ball. <strong>Stretch</strong>, further down, is a
+              plain multiplier for the few things that have no number to land in — resizing several
+              different shapes at once, mostly — and normally reads 1.00.
             </p>
           </section>
 

@@ -57,6 +57,40 @@ export const AXIS_PARAMS = {
 const near = (a, b) => Math.abs(a - b) < 1e-4
 
 /**
+ * Widen a handle's mask to every axis the shape ties to the ones it pulls.
+ *
+ * A cylinder's radius is its x and its z at once, so a handle that pulls x
+ * alone is asking for something the shape has no number for. Rather than
+ * leave the pull in a stretch multiplier — a second answer to how big the
+ * block is — the drag takes z along with it, and a side pull on a tube makes
+ * a fatter tube. A ball goes further: every axis is the radius, so any handle
+ * makes a bigger ball. A cube ties nothing to anything and is untouched.
+ *
+ * Transitive, so a shape that ties x to y and y to z pulls all three.
+ */
+export function coupledMask(type, mask) {
+  const map = AXIS_PARAMS[type]
+  if (!map) return mask
+  const out = [...mask]
+  let grew = true
+  while (grew) {
+    grew = false
+    for (let i = 0; i < 3; i++) {
+      if (!out[i]) continue
+      for (let j = 0; j < 3; j++) {
+        if (out[j] || i === j) continue
+        const shared = (map[AXES[i]] ?? []).some((k) => (map[AXES[j]] ?? []).includes(k))
+        if (shared) {
+          out[j] = 1
+          grew = true
+        }
+      }
+    }
+  }
+  return out
+}
+
+/**
  * Turn a per-axis resize ratio into new shape parameters.
  *
  * @param object  the block being resized
