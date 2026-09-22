@@ -117,6 +117,21 @@ const READOUT_MS = 90
 // Kept small: zoomed out, a scene is mostly gizmo otherwise.
 const HANDLE_SCREEN = 0.017
 
+/**
+ * How close to the plate a block has to get before the plate takes it, in
+ * millimetres.
+ *
+ * Lower something toward the floor and within this band it seats itself flat
+ * rather than hovering a fraction above or sinking a fraction below — a thing
+ * you can see at a glance but not place by hand, and a gap that would print
+ * or not print depending on which side of nothing it landed on. Wider than
+ * the snap grid on purpose: the grid makes 0 reachable, this makes it easy.
+ *
+ * Only for dragging. A number typed into the rail or onto the box is somebody
+ * saying exactly what they want, and is left exactly there.
+ */
+const FLOOR_GRAB = 3
+
 // How often the "can I actually reach this handle" test runs. Every frame
 // would be wasted work: it only changes when the camera or the block moves.
 const OCCLUDE_MS = 70
@@ -407,8 +422,18 @@ export default function BoxGizmo() {
     const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(vec, f.center)
     const grab = new THREE.Vector3()
     if (!event.ray.intersectPlane(plane, grab)) return
-    const lead = useScene.getState().selectedObjects()[0]
-    begin('move-y', { plane, grab, handle: 'lift', leadBottom: lead ? bottomOf(lead) : 0 }, event)
+    // Where the lowest underside in the selection is now, and the lead's own
+    // height, so a lift can be measured and seated by what is actually
+    // closest to the plate rather than by whichever block happens to be first.
+    const selected = useScene.getState().selectedObjects()
+    const seat = selected.length
+      ? Math.min(...selected.map((o) => o.position[1] + bottomOf(o)))
+      : 0
+    begin(
+      'move-y',
+      { plane, grab, handle: 'lift', seat, leadY: selected[0]?.position[1] ?? 0 },
+      event
+    )
   }
 
   const startScale = (def, event) => {
@@ -517,13 +542,23 @@ export default function BoxGizmo() {
           // the centre that lands on the grid, the way blocks are placed;
           // vertically it is the underside, the way the rail reports Z.
           const lead = d.items[0]
-          const seat = d.kind === 'move-y' ? d.leadBottom : 0
-          const to = vec.copy(lead.position).add(delta)
-          delta.set(
-            d.kind === 'move-xz' ? snapTo(to.x, snap) - lead.position.x : 0,
-            d.kind === 'move-y' ? snapTo(to.y + seat, snap) - seat - lead.position.y : 0,
-            d.kind === 'move-xz' ? snapTo(to.z, snap) - lead.position.z : 0
-          )
+          if (d.kind === 'move-xz') {
+            delta.set(
+              snapTo(lead.position.x + delta.x, snap) - lead.position.x,
+              0,
+              snapTo(lead.position.z + delta.z, snap) - lead.position.z
+            )
+          } else {
+            delta.set(0, snapTo(d.seat + delta.y, snap) - d.seat, 0)
+          }
+
+          // And within a few millimetres of the plate, the plate wins: the
+          // block sits flat on it rather than near it. Suspended along with
+          // everything else while Alt is held or snapping is off, so there is
+          // still a way to hold something a hair above the floor by hand.
+          if (d.kind === 'move-y' && Math.abs(d.seat + delta.y) <= FLOOR_GRAB) {
+            delta.set(0, -d.seat, 0)
+          }
         }
         for (const item of d.items) paint(item.id, vec.copy(item.position).add(delta), null, null)
       } else if (d.kind === 'scale') {
@@ -844,7 +879,11 @@ export default function BoxGizmo() {
           // from you, and Z the underside's height off the plate.
           note(
             d.kind === 'move-y'
-              ? `Z ${fixed1(smooth('z', mesh.position.y + (d.leadBottom ?? 0)))} mm`
+              ? (() => {
+                  const up = (d.seat ?? 0) + (mesh.position.y - (d.leadY ?? mesh.position.y))
+                  const shown = smooth('z', up)
+                  return `Z ${fixed1(shown)} mm${Math.abs(up) < 1e-6 ? ' · on the plate' : ''}`
+                })()
               : `X ${fixed1(smooth('x', mesh.position.x))} · Y ${fixed1(smooth('y', -mesh.position.z))} mm`
           )
         }

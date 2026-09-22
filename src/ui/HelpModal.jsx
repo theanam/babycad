@@ -121,6 +121,13 @@ export default function HelpModal({ onClose, onShowWelcome }) {
               Hold <strong>Alt</strong> to suspend it for as long as you need.
             </p>
             <p>
+              The plate pulls, too. Lower a block toward the floor and within a few millimetres it
+              seats itself flat on it, rather than hovering a fraction above or sinking a fraction
+              below — a gap too small to see and big enough to matter to a printer. That is for
+              dragging only: a number you type into the rail or onto the box is left exactly where
+              you put it.
+            </p>
+            <p>
               While you drag, the measurement rides along beside the block — the size on the edge
               it belongs to, the angle or the position just above it — so you don&apos;t have to
               watch the rail out of the corner of your eye.
