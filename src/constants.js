@@ -50,16 +50,29 @@ export const COLOR_NAME = {
 // the grid so a nudge is a nudge rather than a jump to the next line.
 export const SNAP = {
   move: 5,
-  rotate: Math.PI / 12, // 15°
   scale: 0.25,
 }
 
 // The build plate is a bounded 200x200 mm yard rather than an endless grid, so
 // the scene reads at a definite size and blocks always land somewhere
 // meaningful. Ten shape footprints across.
-// The grids the snap switch offers, finest first, and the one it starts on.
-export const SNAP_STEPS = [0.5, 1, 5]
+/**
+ * The grids the snap switch offers, finest first, and the one it starts on.
+ *
+ * Each carries the turn that goes with it. Rotation used to snap to a flat
+ * 15° whatever you were doing, which is a big jump when the lengths beside it
+ * are moving half a millimetre at a time; the switch now sets how fine the
+ * work is in both senses at once.
+ */
+export const SNAP_STEPS = [
+  { mm: 0.5, deg: 1 },
+  { mm: 1, deg: 5 },
+  { mm: 5, deg: 15 },
+]
 export const SNAP_DEFAULT = 0.5
+
+/** The turn that goes with a length grid. */
+export const angleStepFor = (mm) => SNAP_STEPS.find((s) => s.mm === mm)?.deg ?? 15
 
 export const PLATE = 200
 export const PLATE_HALF = PLATE / 2

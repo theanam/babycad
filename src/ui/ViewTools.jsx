@@ -59,7 +59,7 @@ export default function ViewTools() {
               setMenu((m) => !m)
             }}
             aria-pressed={snapEnabled}
-            title="Snap to the grid while dragging — right-click for the grid size (hold Alt to suspend)"
+            title="Snap to the grid while dragging — right-click for the grid, which sets the turn step too (hold Alt to suspend)"
           >
             <SnapIcon size={20} stroke={snapping ? '#fff' : '#8A93A5'} />
             {snapping ? `Snap ${snapStep} mm` : 'Free move'}
@@ -77,15 +77,15 @@ export default function ViewTools() {
 
           {menu && (
             <div className="tools-menu" role="menu" aria-label="Snap grid">
-              {SNAP_STEPS.map((step) => (
+              {SNAP_STEPS.map(({ mm, deg }) => (
                 <button
-                  key={step}
+                  key={mm}
                   role="menuitemradio"
-                  className={snapEnabled && snapStep === step ? 'on' : ''}
-                  aria-checked={snapEnabled && snapStep === step}
-                  onClick={() => pick(step)}
+                  className={snapEnabled && snapStep === mm ? 'on' : ''}
+                  aria-checked={snapEnabled && snapStep === mm}
+                  onClick={() => pick(mm)}
                 >
-                  Snap {step} mm
+                  Snap {mm} mm <em>· {deg}°</em>
                 </button>
               ))}
               <button

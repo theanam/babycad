@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { PLATE, SNAP, SNAP_DEFAULT, SNAP_STEPS } from '../constants'
+import { angleStepFor, PLATE, SNAP, SNAP_DEFAULT, SNAP_STEPS } from '../constants'
 import { FEEDBACK_EMAIL, FEEDBACK_MAILTO, ISSUES_URL, REPO_URL } from '../links'
 import { BugIcon, CloseIcon, ExternalIcon, GithubIcon, MailIcon } from './icons'
 
@@ -114,10 +114,16 @@ export default function HelpModal({ onClose, onShowWelcome }) {
               </li>
             </ul>
             <p>
-              Dragging snaps to {SNAP_DEFAULT} mm to begin with. The <strong>Snap</strong>{' '}
-              switch&apos;s menu — right-click it, or press the arrow beside it — offers{' '}
-              {SNAP_STEPS.join(' mm, ')} mm, or no snapping at all. Turns snap to 15° either way.
-              Hold <strong>Alt</strong> to suspend snapping for as long as you need.
+              Dragging snaps to {SNAP_DEFAULT} mm to begin with, and turning to{' '}
+              {angleStepFor(SNAP_DEFAULT)}°. The <strong>Snap</strong> switch&apos;s menu —
+              right-click it, or press the arrow beside it — offers{' '}
+              {SNAP_STEPS.map((s) => `${s.mm} mm / ${s.deg}°`).join(', ')}, or no snapping at all.
+              Hold <strong>Alt</strong> to suspend it for as long as you need.
+            </p>
+            <p>
+              While you drag, the measurement rides along beside the block — the size on the edge
+              it belongs to, the angle or the position just above it — so you don&apos;t have to
+              watch the rail out of the corner of your eye.
             </p>
           </section>
 

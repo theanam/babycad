@@ -336,6 +336,9 @@ button:disabled { cursor: default; }
 }
 .tools-btn.on { background: var(--accent); color: #fff; font-weight: 800; }
 
+.tools-menu button em { font-style: normal; color: var(--muted-deep); font-weight: 700; }
+.tools-menu button.on em { color: var(--accent-ink); }
+
 /* The snap switch and its grid menu. The arrow is a second, narrower button
    glued to the switch's right edge, for choosing the grid without a right
    mouse button; the menu drops down beneath both. */
@@ -398,23 +401,22 @@ button:disabled { cursor: default; }
 }
 .align-tip em { font-style: normal; color: var(--accent-ink); }
 
-.readout {
-  position: absolute;
-  right: 18px; top: 18px;
-  display: flex; flex-direction: column; gap: 8px; align-items: flex-end;
-  pointer-events: none;
-}
-.chip {
-  display: flex; align-items: center; gap: 10px;
-  background: #12151ce6;
+/* The live readout during a drag: measurements on the thing being changed,
+   so nobody has to watch the rail out of the corner of an eye. */
+.live-dim, .live-note {
+  font-family: var(--mono); font-size: 13px; font-weight: 700;
+  padding: 4px 8px; border-radius: 7px;
+  background: #0f1218f2;
   border: 1px solid var(--line-raised);
-  border-radius: var(--r-control-lg);
-  padding: 10px 14px;
-  font-family: var(--mono); font-size: 13px; color: var(--ink-dim);
-  backdrop-filter: blur(8px);
+  box-shadow: 0 6px 18px -10px #000;
+  white-space: nowrap; pointer-events: none;
+  transform: translate(-50%, -50%);
 }
-.chip i { width: 9px; height: 9px; border-radius: 2px; background: var(--accent); flex: none; }
-.chip.stack { display: block; color: var(--muted); line-height: 1.6; text-align: right; }
+.live-note {
+  font-size: 14px; color: var(--ink);
+  border-color: var(--accent-edge);
+  padding: 5px 10px;
+}
 
 .empty-hint {
   position: absolute;

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { bottomOf, useScene } from '../scene/sceneStore'
 import { AXES } from '../scene/axes'
 import { useLive } from '../scene/liveStore'
-import { COLOR_NAME, PALETTE, SNAP } from '../constants'
+import { angleStepFor, COLOR_NAME, PALETTE, SNAP } from '../constants'
 import { getShapeDef, SHAPE_LABEL } from '../shapes'
 import { ColorDot, CombineIcon, CopyIcon, ResetIcon, SplitIcon, TrashIcon } from './icons'
 import ParamMenu from './ParamMenu'
@@ -551,9 +551,13 @@ export default function PropertiesPanel() {
             <NumField
               key={a.label}
               label={a.label}
-              step={15}
+              step={angleStepFor(snapStep)}
               suffix="°"
-              hint={multi ? 'Pick a single block to type a turn in' : `Turn it around ${a.label} — arrow keys step by 15°`}
+              hint={
+                multi
+                  ? 'Pick a single block to type a turn in'
+                  : `Turn it around ${a.label} — arrow keys step by ${angleStepFor(snapStep)}°`
+              }
               value={
                 multi && !allSame((o) => o.rotation[a.slot])
                   ? null

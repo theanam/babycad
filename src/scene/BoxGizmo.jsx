@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame, useThree } from '@react-three/fiber'
+import { Html } from '@react-three/drei'
 import { bottomOf, useScene } from './sceneStore'
-import { axisColor } from './axes'
+import { AXES, axisColor } from './axes'
 import { meshes } from './meshRegistry'
 import { dragBus } from './dragBus'
-import { beginDrag, endDrag, setLive } from './liveStore'
-import { SNAP, SNAP_DEFAULT } from '../constants'
+import { beginDrag, endDrag, setLive, useLive } from './liveStore'
+import { angleStepFor, SNAP, SNAP_DEFAULT } from '../constants'
 import { coupledMask } from '../shapes/resize'
 import { toast } from '../ui/Toast'
 import {
@@ -68,7 +69,21 @@ const TURN_HANDLES = [
   { key: 'turn-up', color: axisColor(1), axis: [0, 1, 0], rotation: [0, 0, -Math.PI / 2], along: 'x' },
   { key: 'turn-across', color: axisColor(0), axis: [1, 0, 0], rotation: [Math.PI / 2, 0, 0], along: 'z' },
   { key: 'turn-depth', color: axisColor(2), axis: [0, 0, 1], rotation: [0, 0, Math.PI / 2], along: 'x' },
-]
+].map((h) => ({ ...h, slot: h.axis.indexOf(1) }))
+
+/**
+ * The four edges of the box running along each internal axis, as signs of the
+ * box's half-extents. A dimension is written beside whichever of the four is
+ * nearest the camera, so the number is never round the back.
+ */
+const EDGES_ALONG = {
+  0: [[0, -1, -1], [0, -1, 1], [0, 1, -1], [0, 1, 1]],
+  1: [[-1, 0, -1], [-1, 0, 1], [1, 0, -1], [1, 0, 1]],
+  2: [[-1, -1, 0], [-1, 1, 0], [1, -1, 0], [1, 1, 0]],
+}
+
+const axisOf = (slot) => AXES.find((a) => a.slot === slot)
+const round1 = (v) => Math.round(v * 10) / 10
 
 const MIN_SCALE = 0.1
 const MAX_SCALE = 40
@@ -88,6 +103,8 @@ const vec = new THREE.Vector3()
 const vec2 = new THREE.Vector3()
 const reachPoint = new THREE.Vector3()
 const reachDir = new THREE.Vector3()
+const tagPoint = new THREE.Vector3()
+const tagOut = new THREE.Vector3()
 
 /**
  * The selection's bounding box, and every way to transform it.
@@ -117,9 +134,10 @@ export default function BoxGizmo() {
   const ndc = useMemo(() => new THREE.Vector2(), [])
 
   /**
-   * The turning dial: a circle plus radial ticks every 15 degrees — the same
-   * step rotation snaps to — with a longer mark each quarter turn, so how far
-   * the block has swung is readable at a glance.
+   * The turning dial: a circle plus radial ticks every 15 degrees, with a
+   * longer mark each quarter turn, so how far the block has swung is readable
+   * at a glance. A scale to read the turn against rather than a picture of
+   * the snap, which is finer than this and set from the snap switch.
    *
    * Drawn as lines rather than a torus so it stays a constant hairline: a
    * torus tube scales with the ring, which would be invisible around a small
@@ -145,6 +163,13 @@ export default function BoxGizmo() {
     g.setAttribute('position', new THREE.Float32BufferAttribute(points, 3))
     return g
   }, [])
+
+  // Mounting the readout needs React; keeping its text current must not, or
+  // it would re-render the whole gizmo sixty times a second. So the labels go
+  // up once when a drag starts and are written to by hand each frame.
+  const dragging = useLive((s) => s.dragging)
+  const tagGroups = useRef({})
+  const tagDivs = useRef({})
 
   const reachRay = useMemo(() => new THREE.Raycaster(), [])
   const occludeAt = useRef(0)
@@ -360,6 +385,8 @@ export default function BoxGizmo() {
         startAngle: angleInPlane(hit, f.center, u, v),
         dialRadius: radius,
         handle: def.key,
+        slot: def.slot,
+        angleStep: THREE.MathUtils.degToRad(angleStepFor(useScene.getState().snapStep)),
       },
       event
     )
@@ -446,7 +473,7 @@ export default function BoxGizmo() {
       } else if (d.kind === 'rotate') {
         if (!ray.intersectPlane(d.plane, vec)) return
         let delta = angleInPlane(vec, d.center, d.u, d.v) - d.startAngle
-        if (snap) delta = snapTo(delta, SNAP.rotate)
+        if (snap) delta = snapTo(delta, d.angleStep)
         const dq = quat.setFromAxisAngle(d.axis, delta)
         for (const item of d.items) {
           const position = vec2.copy(item.position).sub(d.center).applyQuaternion(dq).add(d.center)
@@ -600,6 +627,82 @@ export default function BoxGizmo() {
       }
     }
 
+    /* ------------------------------------------------ the live readout -- */
+
+    const divs = tagDivs.current
+    if (divs.dim0 || divs.note) {
+      for (const key of ['dim0', 'dim1', 'dim2', 'note']) {
+        if (divs[key]) divs[key].style.display = 'none'
+      }
+      const d = drag.current
+
+      /** Beside whichever edge along `slot` is nearest the camera. */
+      const beside = (slot, out) => {
+        let best = null
+        let nearest = Infinity
+        for (const sign of EDGES_ALONG[slot]) {
+          tagPoint
+            .set(sign[0] * f.half.x, sign[1] * f.half.y, sign[2] * f.half.z)
+            .applyQuaternion(f.quat)
+            .add(f.center)
+          const away = camera.position.distanceTo(tagPoint)
+          if (away < nearest) {
+            nearest = away
+            best = sign
+            out.copy(tagPoint)
+          }
+        }
+        // Clear of the edge, straight out from the box.
+        tagOut.set(best[0], best[1], best[2]).applyQuaternion(f.quat).normalize()
+        return out.addScaledVector(tagOut, k * 2)
+      }
+
+      const note = (text) => {
+        if (!divs.note) return
+        divs.note.textContent = text
+        divs.note.style.display = ''
+        const g = tagGroups.current.note
+        if (g) g.position.set(f.center.x, f.center.y + topY + k * 3.4, f.center.z)
+      }
+
+      if (d?.kind === 'scale') {
+        // The size along each axis the drag is allowed to touch. Read off the
+        // box, so it is what the block measures rather than what it was asked
+        // for, and it keeps up with snapping.
+        const size = [f.half.x * 2, f.half.y * 2, f.half.z * 2]
+        for (let i = 0; i < 3; i++) {
+          const div = divs[`dim${i}`]
+          if (!div || !d.mask[i]) continue
+          const axis = axisOf(i)
+          div.textContent = `${axis.label} ${round1(size[i])} mm`
+          div.style.color = axis.color
+          div.style.display = ''
+          const g = tagGroups.current[`dim${i}`]
+          if (g) g.position.copy(beside(i, tagPoint))
+        }
+      } else if (d?.kind === 'rotate') {
+        const mesh = meshes.get(d.items[0].id)
+        const axis = axisOf(d.slot)
+        if (mesh && axis) {
+          const turned = THREE.MathUtils.radToDeg(mesh.rotation.toArray()[d.slot]) * axis.sign
+          note(`${axis.label} ${round1(turned)}°`)
+          if (divs.note) divs.note.style.color = axis.color
+        }
+      } else if (d?.kind === 'move-xz' || d?.kind === 'move-y') {
+        const mesh = meshes.get(d.items[0].id)
+        if (mesh) {
+          if (divs.note) divs.note.style.color = ''
+          // The rail's names and the rail's idea of height: X across, Y away
+          // from you, and Z the underside's height off the plate.
+          note(
+            d.kind === 'move-y'
+              ? `Z ${round1(mesh.position.y + (d.leadBottom ?? 0))} mm`
+              : `X ${round1(mesh.position.x)} · Y ${round1(-mesh.position.z)} mm`
+          )
+        }
+      }
+    }
+
     /*
      * Take away the handles the block is standing in front of.
      *
@@ -716,6 +819,30 @@ export default function BoxGizmo() {
           </group>
         ))}
       </group>
+
+      {/* The live readout, on the thing being changed rather than off in the
+          rail: while a drag is in flight the numbers are where the eyes
+          already are. Mounted on drag start and written to by hand each
+          frame — see the useFrame above. */}
+      {dragging &&
+        ['dim0', 'dim1', 'dim2', 'note'].map((key) => (
+          <group
+            key={key}
+            ref={(g) => {
+              tagGroups.current[key] = g
+            }}
+          >
+            <Html zIndexRange={[25, 15]} style={{ pointerEvents: 'none' }}>
+              <div
+                className={key === 'note' ? 'live-note' : 'live-dim'}
+                ref={(el) => {
+                  tagDivs.current[key] = el
+                }}
+                style={{ display: 'none' }}
+              />
+            </Html>
+          </group>
+        ))}
 
       {/* world-aligned: lifting is always along world up, and the turning
           dial has to hold still while the lever swings around it */}
