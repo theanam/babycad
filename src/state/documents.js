@@ -122,7 +122,11 @@ export const useDocs = create((set, get) => ({
     restoreSession(next.session)
   },
 
-  /** Close a tab. Closing the last one leaves a fresh empty build behind. */
+  /**
+   * Close a tab. Closing the last one leaves nothing open, which is the state
+   * the welcome screen exists for — a blank build conjured in its place would
+   * be answering a question nobody asked.
+   */
   close(id) {
     const { docs, activeId } = get()
     const at = docs.findIndex((d) => d.id === id)
@@ -130,9 +134,8 @@ export const useDocs = create((set, get) => ({
     const rest = docs.filter((d) => d.id !== id)
 
     if (!rest.length) {
-      const doc = makeDoc([], {})
-      set({ docs: [doc], activeId: doc.id })
-      restoreSession(doc.session)
+      set({ docs: [], activeId: null })
+      restoreSession(emptySession())
       return
     }
     if (id !== activeId) {

@@ -13,7 +13,6 @@ import { getShapeDef, normalizeParams } from '../shapes'
 import { resolvePatches, sanitizeVariables } from '../scene/variables'
 
 const SESSION_KEY = 'babycad.session.v1'
-const WELCOMED_KEY = 'babycad.welcomed.v1'
 
 // Where builds used to be kept, back when the app had a library of its own.
 // Read once, to hand them back as tabs, and then left alone.
@@ -92,29 +91,6 @@ export function takeLegacyProjects() {
 export function takeLegacyAutosave() {
   const scene = readJSON(LEGACY_AUTOSAVE_KEY, null)
   return scene ? migrate(scene) : null
-}
-
-/* ------------------------------------------------------------- welcome -- */
-
-/**
- * Whether the welcome screen has had its turn. It shows once, on a browser
- * that has never opened BabyCAD before, and never again — coming back to a
- * build only to be asked what you would like to start is worse than no
- * welcome at all. Help has a link for anyone who wants to see it again.
- *
- * Storage being blocked reads as "already welcomed": somewhere the flag can't
- * be written is somewhere it would show on every single load.
- */
-export function hasBeenWelcomed() {
-  try {
-    return localStorage.getItem(WELCOMED_KEY) !== null
-  } catch {
-    return true
-  }
-}
-
-export function markWelcomed() {
-  writeJSON(WELCOMED_KEY, new Date().toISOString())
 }
 
 /**

@@ -18,9 +18,7 @@ import { buildExample, getExample } from './examples'
 import { isDirty, useDocs } from './state/documents'
 import { canUseFileSystem, openFromDisk, saveToDisk } from './io/files'
 import {
-  hasBeenWelcomed,
   isStorageAvailable,
-  markWelcomed,
   migrate,
   readSession,
   takeLegacyAutosave,
@@ -41,11 +39,13 @@ export default function App() {
   // Variables aren't a sheet: they take over the right rail, so the build they
   // are reshaping stays in full view while a value is dragged.
   const [showVariables, setShowVariables] = useState(false)
-  // The welcome is a first-run screen and nothing else. Whether this is a
-  // first run is decided in the startup effect below, which is the only place
-  // that knows whether there was anything to come back to; nothing after
-  // startup turns it back on except asking for it from Help.
-  const [welcoming, setWelcoming] = useState(false)
+  // The welcome screen is simply what no open builds looks like — on a first
+  // visit, and again when the last tab is closed. Nothing has to remember
+  // whether it has been shown before, which is one fewer flag to get wrong:
+  // if there is something open you are working, and if there isn't you are
+  // choosing what to work on. Help can also ask for it over open work.
+  const [welcomeAsked, setWelcomeAsked] = useState(false)
+  const welcoming = docs.length === 0 || welcomeAsked
 
   /* ----------------------------------------------------------- startup -- */
 
@@ -79,18 +79,8 @@ export default function App() {
         'warn'
       )
     }
-    if (!restored) store.open({})
-
-    // Never been here before, and nothing to come back to: show the way in.
-    if (!hasBeenWelcomed() && !restored) setWelcoming(true)
-
-    // And then remember that they have been here, whether or not they were
-    // shown the way in. Marking this only when the welcome was dismissed left
-    // it unwritten forever for anyone whose tabs come back every time — so the
-    // first load where the session couldn't be read, from a cleared cache or
-    // a private window or a bad write, dropped them on the welcome screen
-    // instead of on their work.
-    markWelcomed()
+    // Nothing came back: leave it empty, and the welcome screen takes the
+    // floor of its own accord.
 
     if (!isStorageAvailable()) {
       toast("This browser won't remember your open tabs — save to a file as you go", 'warn')
@@ -268,12 +258,12 @@ export default function App() {
 
   /* ----------------------------------------------------------- welcome -- */
 
-  const dismissWelcome = useCallback(() => setWelcoming(false), [])
-
+  /** Leaving the welcome screen: there has to be something open behind it. */
   const startBlank = useCallback(() => {
-    dismissWelcome()
+    if (!useDocs.getState().docs.length) useDocs.getState().open({})
+    setWelcomeAsked(false)
     setSheet(null)
-  }, [dismissWelcome])
+  }, [])
 
   const startExample = useCallback(
     (id) => {
@@ -284,23 +274,27 @@ export default function App() {
       // Into whichever tab is showing if it is still empty, otherwise a new
       // one: opening an example should never tip out work in progress.
       const store = useDocs.getState()
-      if (useScene.getState().objects.length) store.open({ name: example.name, scene })
-      else {
+      if (!store.activeId || useScene.getState().objects.length) {
+        store.open({ name: example.name, scene })
+      } else {
         useScene.getState().loadScene(scene, `open ${example.name}`)
         store.rename(store.activeId, example.name)
       }
-      dismissWelcome()
+      setWelcomeAsked(false)
       // Frame it once the meshes exist; the scene has only just been written.
       requestAnimationFrame(() => viewport.fit())
       toast(`Opened the ${example.name.toLowerCase()} — it's yours to take apart`)
     },
-    [dismissWelcome]
+    []
   )
 
-  const onOpenFile = useCallback(() => {
-    dismissWelcome()
-    onOpen()
-  }, [dismissWelcome, onOpen])
+  // Opening a file leaves the welcome up until one actually opens — backing
+  // out of the file dialog should put you back where you were, not on an
+  // empty plate you didn't ask for.
+  const onOpenFile = useCallback(async () => {
+    await onOpen()
+    if (useDocs.getState().docs.length) setWelcomeAsked(false)
+  }, [onOpen])
 
   saveRef.current = (shift) => save(Boolean(shift))
   openRef.current = onOpen
@@ -345,7 +339,7 @@ export default function App() {
           onClose={() => setSheet(null)}
           onShowWelcome={() => {
             setSheet(null)
-            setWelcoming(true)
+            setWelcomeAsked(true)
           }}
         />
       )}
@@ -368,10 +362,7 @@ export default function App() {
           onBlank={startBlank}
           onExample={startExample}
           onOpenFile={onOpenFile}
-          onHelp={() => {
-            dismissWelcome()
-            setSheet('help')
-          }}
+          onHelp={() => setSheet('help')}
         />
       )}
 

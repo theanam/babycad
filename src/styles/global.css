@@ -1011,7 +1011,9 @@ button:disabled { cursor: default; }
    visitor meets and there is nothing behind it worth reaching. */
 .welcome {
   position: fixed; inset: 0;
-  z-index: 50;
+  /* Over the app's own chrome, under the sheets: Help can be opened from the
+     welcome screen and has to land in front of it, not behind. */
+  z-index: 35;
   overflow-y: auto;
   background:
     radial-gradient(120% 90% at 50% -10%, #1b1733 0%, #0e1014 62%),
