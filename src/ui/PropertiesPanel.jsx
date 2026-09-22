@@ -147,6 +147,45 @@ function ParamField({
     )
   }
 
+  if (spec.kind === 'text') {
+    return (
+      <div className="param">
+        <div className="param-top">
+          <span className="param-name">{spec.label}</span>
+          {menu}
+        </div>
+        {/* Committed on blur and on Enter rather than on every keystroke: each
+            commit rebuilds the solid and lands on the undo stack, and a word
+            typed letter by letter would leave eight rebuilds and eight steps
+            to undo. Escape puts back what was there and gives up focus. */}
+        <input
+          className="param-text"
+          type="text"
+          defaultValue={mixed ? '' : value}
+          key={mixed ? 'mixed' : value}
+          maxLength={spec.maxLength}
+          placeholder={mixed ? 'Mixed' : spec.default}
+          aria-label={spec.label}
+          spellCheck={false}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur()
+            else if (e.key === 'Escape') {
+              e.currentTarget.value = mixed ? '' : value
+              e.currentTarget.blur()
+            }
+            // The viewport listens for Delete and Ctrl+A on the window; without
+            // this, backspacing a letter would delete the block being renamed.
+            e.stopPropagation()
+          }}
+          onBlur={(e) => {
+            const next = e.target.value
+            if (next !== value) onCommit(next)
+          }}
+        />
+      </div>
+    )
+  }
+
   if (spec.kind === 'bool') {
     return (
       <div className="param">
@@ -197,6 +236,7 @@ function ParamField({
 }
 
 const formatValue = (spec, value) => {
+  if (spec.kind === 'text') return value
   if (spec.kind === 'bool') return value ? 'on' : 'off'
   if (spec.kind === 'choice') return spec.options.find((o) => o.value === value)?.label ?? value
   return round(value, 3)

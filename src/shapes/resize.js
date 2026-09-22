@@ -34,6 +34,11 @@ const AXES = ['x', 'y', 'z']
 
 export const AXIS_PARAMS = {
   cube: { x: ['width'], y: ['height'], z: ['depth'] },
+  // How wide a word is comes out of the word itself, so there is no parameter
+  // on x alone. `size` sets the letter height, which grows the run along x and
+  // z together — pull those two by the same ratio and it can be written; pull
+  // one on its own and the multiplier is the only honest answer.
+  text: { x: ['size'], y: ['thickness'], z: ['size'] },
   wedge: { x: ['width'], y: ['height'], z: ['depth'] },
   sphere: { x: ['radius'], y: ['radius'], z: ['radius'] },
   cone: { x: ['radius'], y: ['height'], z: ['radius'] },

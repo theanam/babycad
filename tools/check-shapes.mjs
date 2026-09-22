@@ -85,7 +85,11 @@ for (const def of SHAPE_DEFS) {
         ? spec.options.map((o) => o.value)
         : spec.kind === 'bool'
           ? [true, false]
-          : [spec.min, (spec.min + spec.max) / 2, spec.max]
+          : spec.kind === 'text'
+            ? // A single glyph, a run with a counter and a descender, digits,
+              // and one over the length cap so the trim is exercised too.
+              ['I', 'Bag', '2026', 'x'.repeat((spec.maxLength ?? 48) + 10)]
+            : [spec.min, (spec.min + spec.max) / 2, spec.max]
     for (const value of values) {
       const params = { ...defaultParams(def.type), [spec.key]: value }
       try {

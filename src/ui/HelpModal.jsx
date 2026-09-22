@@ -90,8 +90,15 @@ export default function HelpModal({ onClose, onShowWelcome }) {
               The rail down the left is the shapes. Tap one and it lands on the plate in front of
               the camera. The top group is the plain solids you size — a cube, a ball, a ramp. The
               bottom group are generators: a gear with real involute teeth, a screw with a metric
-              thread, a coil, a knot. Those you specify rather than size, and two gears with the
-              same tooth size genuinely mesh.
+              thread, a coil, a knot, and words. Those you specify rather than size, and two gears
+              with the same tooth size genuinely mesh.
+            </p>
+            <p>
+              <b>Text</b> is a generator too. Type into <b>Words</b> in the rail and the letters are
+              rebuilt as one solid, lying face up on the plate with their thickness going straight
+              up — the way a nameplate is printed. <b>Letter height</b> and <b>Thickness</b> are the
+              two sizes; how wide it comes out is up to the word. Dragging a corner sets the letter
+              height, and dragging the top sets the thickness.
             </p>
           </section>
 

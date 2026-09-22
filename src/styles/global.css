@@ -1257,3 +1257,25 @@ a.foot-btn, a.icon-btn { text-decoration: none; }
   background: rgba(124, 77, 255, 0.14);
   border-radius: 2px;
 }
+
+/* The Words field on a text block. Full width rather than sharing the top row
+   with its label, because a word needs far more room than a number does. */
+.param-text {
+  width: 100%;
+  margin-top: 6px;
+  padding: 7px 9px;
+  border: 1px solid #2A3142;
+  border-radius: 7px;
+  background: #11141C;
+  color: #E7EAF2;
+  font: 600 13px/1.3 Nunito, system-ui, sans-serif;
+}
+.param-text::placeholder {
+  color: #59627A;
+  font-weight: 500;
+}
+.param-text:focus {
+  outline: none;
+  border-color: #7C4DFF;
+  background: #141826;
+}

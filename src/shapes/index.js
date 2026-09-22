@@ -17,7 +17,7 @@
  * fresh shape drops with a 20 mm footprint, the size of the yard's grid
  * squares, so anything placed sits on the grid like a building block.
  */
-import { choice, deg, defaultsOf, int, normalize, num, paramsKey } from './params'
+import { choice, deg, defaultsOf, int, normalize, num, paramsKey, text } from './params'
 import {
   buildCone,
   buildCube,
@@ -32,6 +32,7 @@ import {
 import { buildGear } from './builders/gear'
 import { buildThread } from './builders/thread'
 import { buildKnot, buildSpring } from './builders/spring'
+import { buildText, DEFAULT_TEXT, FONT_OPTIONS } from './builders/text'
 
 /**
  * A length, in millimetres. `length: true` is what the v3 -> v4 migration
@@ -48,6 +49,20 @@ const HAND = [
 ]
 
 export const SHAPE_DEFS = [
+  {
+    type: 'text',
+    label: 'Text',
+    family: 'generator',
+    color: '#35C46B',
+    params: [
+      text('text', 'Words', DEFAULT_TEXT),
+      size('size', 'Letter height', 20),
+      size('thickness', 'Thickness', 5),
+      choice('font', 'Weight', 'bold', FONT_OPTIONS),
+      int('curve', 'Smoothness', 6, { min: 1, max: 12 }),
+    ],
+    build: buildText,
+  },
   {
     type: 'cube',
     label: 'Cube',

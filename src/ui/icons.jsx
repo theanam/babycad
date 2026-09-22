@@ -300,6 +300,24 @@ const GLYPHS = {
       ))}
     </Glyph>
   ),
+  text: (size) => (
+    <Glyph size={size}>
+      <rect x="2" y="13" width="20" height="5" rx="1.2" fill="#1F7A47" />
+      <path d="M3.4 13 L5.4 11 H23.4 L21.4 13 Z" fill="#4FDD8B" />
+      <path d="M21.4 13 L23.4 11 V16 L21.4 18 Z" fill="#35C46B" />
+      <text
+        x="11.6"
+        y="10.2"
+        textAnchor="middle"
+        fontSize="9.5"
+        fontWeight="900"
+        fontFamily="Nunito, system-ui, sans-serif"
+        fill="#35C46B"
+      >
+        Ab
+      </text>
+    </Glyph>
+  ),
   spring: (size) => (
     <Glyph size={size}>
       {[0, 1, 2, 3].map((i) => (
