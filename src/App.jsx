@@ -41,9 +41,11 @@ export default function App() {
   // Variables aren't a sheet: they take over the right rail, so the build they
   // are reshaping stays in full view while a value is dragged.
   const [showVariables, setShowVariables] = useState(false)
-  // Decided once, before the first paint, so the welcome screen can't flash up
-  // over the tabs that are about to come back.
-  const [welcoming, setWelcoming] = useState(() => !hasBeenWelcomed() && !readSession())
+  // The welcome is a first-run screen and nothing else. Whether this is a
+  // first run is decided in the startup effect below, which is the only place
+  // that knows whether there was anything to come back to; nothing after
+  // startup turns it back on except asking for it from Help.
+  const [welcoming, setWelcoming] = useState(false)
 
   /* ----------------------------------------------------------- startup -- */
 
@@ -57,13 +59,14 @@ export default function App() {
     started.current = true
 
     const store = useDocs.getState()
-    let restored = store.restore(readSession() ?? {})
+    const session = readSession()
+    let restored = store.restore(session ?? {})
 
     // First run since builds stopped living in the browser: whatever was in
     // the old library opens as tabs, so nothing is stranded somewhere the app
     // no longer looks. They arrive unsaved, because they are not files yet.
     const rescued = takeLegacyProjects()
-    const strays = restored ? rescued : [...rescued]
+    const strays = [...rescued]
     if (!restored) {
       const carried = takeLegacyAutosave()
       if (carried?.objects?.length) strays.unshift({ name: 'Untitled', scene: carried })
@@ -77,6 +80,17 @@ export default function App() {
       )
     }
     if (!restored) store.open({})
+
+    // Never been here before, and nothing to come back to: show the way in.
+    if (!hasBeenWelcomed() && !restored) setWelcoming(true)
+
+    // And then remember that they have been here, whether or not they were
+    // shown the way in. Marking this only when the welcome was dismissed left
+    // it unwritten forever for anyone whose tabs come back every time — so the
+    // first load where the session couldn't be read, from a cleared cache or
+    // a private window or a bad write, dropped them on the welcome screen
+    // instead of on their work.
+    markWelcomed()
 
     if (!isStorageAvailable()) {
       toast("This browser won't remember your open tabs — save to a file as you go", 'warn')
@@ -254,10 +268,7 @@ export default function App() {
 
   /* ----------------------------------------------------------- welcome -- */
 
-  const dismissWelcome = useCallback(() => {
-    markWelcomed()
-    setWelcoming(false)
-  }, [])
+  const dismissWelcome = useCallback(() => setWelcoming(false), [])
 
   const startBlank = useCallback(() => {
     dismissWelcome()
