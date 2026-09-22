@@ -118,6 +118,26 @@ const READOUT_MS = 90
 const HANDLE_SCREEN = 0.017
 
 /**
+ * Handles are sized for a finger only where a finger is what's pointing.
+ *
+ * A fingertip covers a good deal more screen than a cursor does, so on a
+ * tablet the grips have to stay chunky to be hittable at all. With a mouse
+ * that same bulk is just a blot sitting over the block being built, and the
+ * pointer can hit something far daintier. `pointer: coarse` asks about the
+ * primary input rather than whether a touch API happens to exist, so a laptop
+ * with a touchscreen but a mouse in hand reads as fine, which is right.
+ *
+ * The list is read live each frame rather than latched at load, so a convertible
+ * folded into a tablet — or a mouse unplugged — resizes the grips on the spot.
+ */
+const COARSE_POINTER =
+  typeof window !== 'undefined' && window.matchMedia
+    ? window.matchMedia('(pointer: coarse)')
+    : null
+/** Multiplier on every grabbable handle: full size for fingers, trimmed for a cursor. */
+const grabScale = () => (COARSE_POINTER?.matches ? 1 : 0.62)
+
+/**
  * How close to the plate a block has to get before the plate takes it, in
  * millimetres.
  *
@@ -127,10 +147,14 @@ const HANDLE_SCREEN = 0.017
  * or not print depending on which side of nothing it landed on. Wider than
  * the snap grid on purpose: the grid makes 0 reachable, this makes it easy.
  *
+ * Set to the coarse move grid, because at 3 mm the plate let go too readily:
+ * a block lowered by hand came to rest a whisker off it as often as on it.
+ *
  * Only for dragging. A number typed into the rail or onto the box is somebody
- * saying exactly what they want, and is left exactly there.
+ * saying exactly what they want, and is left exactly there. It catches a turn
+ * as well as a lift — see the rotate branch of the drag handler.
  */
-const FLOOR_GRAB = 3
+const FLOOR_GRAB = 5
 
 // How often the "can I actually reach this handle" test runs. Every frame
 // would be wasted work: it only changes when the camera or the block moves.
@@ -372,6 +396,9 @@ export default function BoxGizmo() {
       liveCut: useScene.getState().objects.some((o) => o.hole),
       items: selected.map((o) => ({
         id: o.id,
+        // The store object itself, for `bottomOf`: a turn has to ask the shape
+        // where its lowest corner has swung to, which needs type and params.
+        object: o,
         position: new THREE.Vector3(...o.position),
         quaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(...o.rotation)),
         scale: new THREE.Vector3(...o.scale),
@@ -585,8 +612,26 @@ export default function BoxGizmo() {
           ratio = Math.max(snap, snapTo(from * ratio, snap)) / from
         }
 
-        for (const item of d.items) {
-          const scale = new THREE.Vector3(
+        // Same two passes as a turn, for the same reason: every block is sized
+        // first, so the one lift that puts the lowest underside back on the
+        // plate can be found before any of it is painted.
+        d.sized ??= d.items.map((item) => ({
+          position: new THREE.Vector3(),
+          scale: new THREE.Vector3(),
+          // A stand-in for `bottomOf` with only the scale moving — a resize
+          // leaves the block's rotation alone.
+          probe: {
+            type: item.object.type,
+            params: item.object.params,
+            rotation: item.object.rotation,
+            scale: [1, 1, 1],
+          },
+        }))
+
+        for (let i = 0; i < d.items.length; i++) {
+          const item = d.items[i]
+          const sz = d.sized[i]
+          sz.scale.set(
             THREE.MathUtils.clamp(item.scale.x * (d.mask[0] ? ratio : 1), MIN_SCALE, MAX_SCALE),
             THREE.MathUtils.clamp(item.scale.y * (d.mask[1] ? ratio : 1), MIN_SCALE, MAX_SCALE),
             THREE.MathUtils.clamp(item.scale.z * (d.mask[2] ? ratio : 1), MIN_SCALE, MAX_SCALE)
@@ -594,27 +639,94 @@ export default function BoxGizmo() {
           // Re-derive the ratio from the clamped scale so the anchor corner
           // stays exactly where it was.
           const applied = vec.set(
-            item.scale.x ? scale.x / item.scale.x : 1,
-            item.scale.y ? scale.y / item.scale.y : 1,
-            item.scale.z ? scale.z / item.scale.z : 1
+            item.scale.x ? sz.scale.x / item.scale.x : 1,
+            item.scale.y ? sz.scale.y / item.scale.y : 1,
+            item.scale.z ? sz.scale.z / item.scale.z : 1
           )
-          const offset = new THREE.Vector3()
+          sz.position
             .copy(item.position)
             .sub(d.anchor)
             .applyQuaternion(quat.copy(d.quat).invert())
             .multiply(applied)
             .applyQuaternion(d.quat)
-          paint(item.id, offset.add(d.anchor), null, scale)
+            .add(d.anchor)
+        }
+
+        // A resize moves the underside as surely as a lift does: the far face
+        // is pinned, so pulling the bottom handle down a shade leaves the block
+        // hanging a shade through the floor. The plate catches it back.
+        if (snap) {
+          let seat = Infinity
+          for (const sz of d.sized) {
+            sz.probe.scale[0] = sz.scale.x
+            sz.probe.scale[1] = sz.scale.y
+            sz.probe.scale[2] = sz.scale.z
+            seat = Math.min(seat, sz.position.y + bottomOf(sz.probe))
+          }
+          if (Number.isFinite(seat) && Math.abs(seat) <= FLOOR_GRAB) {
+            for (const sz of d.sized) sz.position.y -= seat
+          }
+        }
+
+        for (let i = 0; i < d.items.length; i++) {
+          paint(d.items[i].id, d.sized[i].position, null, d.sized[i].scale)
         }
       } else if (d.kind === 'rotate') {
         if (!ray.intersectPlane(d.plane, vec)) return
         let delta = angleInPlane(vec, d.center, d.u, d.v) - d.startAngle
         if (snap) delta = snapTo(delta, d.angleStep)
         const dq = quat.setFromAxisAngle(d.axis, delta)
-        for (const item of d.items) {
-          const position = vec2.copy(item.position).sub(d.center).applyQuaternion(dq).add(d.center)
-          euler.setFromQuaternion(new THREE.Quaternion().copy(dq).multiply(item.quaternion))
-          paint(item.id, position, euler, null)
+
+        // Work the whole selection out before painting any of it. A turn swings
+        // the corners, so the lift that puts the lowest underside back on the
+        // plate can only be known once every block has been turned — and it has
+        // to be one lift applied to all of them, or the selection shears apart.
+        //
+        // Scratch is built once per drag and written over each frame: this runs
+        // on every pointer move, and the turn itself already allocates enough.
+        d.turned ??= d.items.map((item) => ({
+          position: new THREE.Vector3(),
+          rotation: new THREE.Euler(),
+          quaternion: new THREE.Quaternion(),
+          // A stand-in for `bottomOf`, carrying the shape's own measurements
+          // with only the rotation moving. Scale is untouched by a turn.
+          probe: {
+            type: item.object.type,
+            params: item.object.params,
+            scale: item.object.scale,
+            rotation: [0, 0, 0],
+          },
+        }))
+
+        for (let i = 0; i < d.items.length; i++) {
+          const item = d.items[i]
+          const t = d.turned[i]
+          t.position.copy(item.position).sub(d.center).applyQuaternion(dq).add(d.center)
+          t.rotation.setFromQuaternion(t.quaternion.copy(dq).multiply(item.quaternion))
+        }
+
+        // Turning a block moves its underside, so what sat flat on the plate
+        // almost never still does — spin a cube on its corner and it sinks
+        // halfway through the floor. Within the same band that catches a lift,
+        // the plate takes it back, so a turn leaves the build sitting on the
+        // plate rather than a fraction through it. Suspended with every other
+        // snap while Alt is held, which is still the way to turn something in
+        // free air.
+        if (snap) {
+          let seat = Infinity
+          for (const t of d.turned) {
+            t.probe.rotation[0] = t.rotation.x
+            t.probe.rotation[1] = t.rotation.y
+            t.probe.rotation[2] = t.rotation.z
+            seat = Math.min(seat, t.position.y + bottomOf(t.probe))
+          }
+          if (Number.isFinite(seat) && Math.abs(seat) <= FLOOR_GRAB) {
+            for (const t of d.turned) t.position.y -= seat
+          }
+        }
+
+        for (let i = 0; i < d.items.length; i++) {
+          paint(d.items[i].id, d.turned[i].position, d.turned[i].rotation, null)
         }
       }
 
@@ -727,6 +839,7 @@ export default function BoxGizmo() {
     // the one you meant to grab is not always the one you got.
     const active = drag.current?.handle ?? null
     const dragging = Boolean(drag.current)
+    const grab = grabScale()
     const quiet = (on) => (on ? 1 : dragging ? 0.22 : null) // null: leave the resting opacity
 
     for (const [key, node] of Object.entries(handles.current)) {
@@ -735,7 +848,7 @@ export default function BoxGizmo() {
       const on = key === active
       if (sign) {
         node.position.set(sign[0] * f.half.x, sign[1] * f.half.y, sign[2] * f.half.z)
-        node.scale.setScalar(k * (on ? 1.45 : 1))
+        node.scale.setScalar(k * (on ? 1.45 : 1) * grab)
         node.material.color.set(on ? '#7C4DFF' : '#EDEFF4')
         node.material.opacity = quiet(on) ?? 0.72
       } else if (lift) {
@@ -750,9 +863,16 @@ export default function BoxGizmo() {
         const [stick, ball, target] = node.children
         stick.scale.set(k * (on ? 0.12 : 0.085), end - start, k * (on ? 0.12 : 0.085))
         stick.position.y = (start + end) / 2
-        ball.scale.setScalar(k * (on ? 1.15 : 0.85))
+        // One radius drives the ball and its hit target, so what can be
+        // grabbed is exactly the ball that can be seen — never a halo of dead
+        // space around it. The target's coarse sphere inscribes the drawn one,
+        // so it always sits a shade inside the silhouette. It may follow the
+        // ball as it grows, because by then the turn is already under way and
+        // riding on window pointer events; this mesh is not raycast again.
+        const ballR = k * (on ? 0.85 : 0.6) * grab
+        ball.scale.setScalar(ballR)
         ball.position.y = end
-        target.scale.setScalar(k * 2.4)
+        target.scale.setScalar(ballR)
         target.position.y = end
         // The lever keeps its axis colour and goes white-hot at the ball when
         // it is the one turning; its colour is what says which axis, so it
@@ -998,7 +1118,7 @@ export default function BoxGizmo() {
                 toneMapped={false}
               />
             </mesh>
-            {/* generous invisible target, so it's grabbable on a tablet */}
+            {/* the grab target, kept to the ball's own radius */}
             <mesh>
               <sphereGeometry args={[1, 8, 6]} />
               <meshBasicMaterial visible={false} />
