@@ -101,7 +101,7 @@ function SceneObject({ object, selected, onSelect, holes, castShadow = true }) {
           depthWrite={false}
         />
       ) : (
-        <meshStandardMaterial key="solid" color={object.color} roughness={0.55} metalness={0} />
+        <meshStandardMaterial key="solid" color={object.color} roughness={0.62} metalness={0.04} />
       )}
       {/* 4px accent outline, no pulse — per the design's selection note.
           Note: drei's `screenspace` flag means *object-space* offset, which

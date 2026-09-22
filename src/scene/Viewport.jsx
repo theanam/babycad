@@ -164,23 +164,32 @@ function Lighting() {
   const heavy = count > HEAVY_SCENE
   return (
     <>
-      <ambientLight intensity={0.85} />
-      <hemisphereLight args={['#dfe6ff', '#1b2030', 0.55]} />
+      {/* Lifted from betterScad's viewport, whose reasoning applies here word
+          for word: enough ambient and every face receives the same light,
+          which is exactly the information a CAD preview exists to show — the
+          model turns into a flat silhouette of its own colour and a chamfer
+          becomes indistinguishable from a painted line.
+
+          Three keys, deliberately not attached to the camera: fixed lighting
+          makes it far easier to judge a shape's form while orbiting round it.
+          All three are white, so a block comes back the colour its swatch
+          says. Directions are betterScad's unit vectors scaled to this scene's
+          millimetres — only the direction matters to the shading, the distance
+          is there to put the key outside the build for its shadow camera. */}
+      <ambientLight intensity={0.55} />
       <directionalLight
-        position={[120, 240, 160]}
-        intensity={1.5}
+        position={[200, 120, 280]}
+        intensity={2}
         castShadow={!heavy}
         shadow-mapSize={heavy ? [512, 512] : [2048, 2048]}
         shadow-bias={-0.0005}
       >
-        <orthographicCamera attach="shadow-camera" args={[-320, 320, 320, -320, 2, 800]} />
+        <orthographicCamera attach="shadow-camera" args={[-320, 320, 320, -320, 2, 900]} />
       </directionalLight>
-      {/* Cool rim light so the dark side of a block never goes fully flat. */}
-      <directionalLight position={[-160, 100, -120]} intensity={0.35} color="#9fb4ff" />
-      {/* A fill from underneath, so a build seen from below is a build and not
-          a silhouette. Every other light is above the plate. No shadows: it is
-          there to be seen by, not to cast anything. */}
-      <directionalLight position={[60, -200, 80]} intensity={1.2} color="#c9d2e6" />
+      {/* Slightly below the plate, which is also what keeps a build seen from
+          underneath a build rather than a silhouette. */}
+      <directionalLight position={[-240, -80, 120]} intensity={0.55} />
+      <directionalLight position={[0, 200, -200]} intensity={0.45} />
     </>
   )
 }
@@ -203,6 +212,14 @@ export default function Viewport() {
       shadows
       dpr={[1, 2]}
       // preserveDrawingBuffer lets us grab a thumbnail when a build is saved.
+      // `flat` is NoToneMapping. The ACES filmic curve R3F defaults to is built
+      // for photographic footage: it rolls highlights off into a shoulder, and
+      // with a palette of flat bright colours under a bright rig every face sat
+      // up on that shoulder, where the curve is nearly horizontal. Differences
+      // between faces were squashed and the swatches came back desaturated —
+      // a #FFC93D cube rendering as rgb(214,184,73). Linear keeps the colours
+      // the palette actually names and lets the key light separate the faces.
+      flat
       gl={{ antialias: true, preserveDrawingBuffer: true }}
       camera={{ position: HOME_CAMERA.position, fov: 40, near: 2, far: 4000 }}
       // Only a real click clears the selection — not the end of a camera swing.
