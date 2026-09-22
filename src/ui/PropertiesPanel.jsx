@@ -6,6 +6,7 @@ import { angleStepFor, COLOR_NAME, PALETTE, SNAP } from '../constants'
 import { getShapeDef, SHAPE_LABEL } from '../shapes'
 import { ColorDot, CombineIcon, CopyIcon, ResetIcon, SplitIcon, TrashIcon } from './icons'
 import ParamMenu from './ParamMenu'
+import { useUI } from '../state/ui'
 import { toast } from './Toast'
 
 const DEG = 180 / Math.PI
@@ -106,9 +107,13 @@ function ParamField({
       <div className="param linked">
         <div className="param-top">
           <span className="param-name">{spec.label}</span>
-          <div className="param-chip" title={`Follows the variable "${variable.name}"`}>
+          <button
+            className="param-chip"
+            onClick={() => useUI.getState().revealVariable(variable.id)}
+            title={`Follows "${variable.name}" — open it in Variables`}
+          >
             {variable.name}
-          </div>
+          </button>
           {menu}
         </div>
         <div className="param-readout">

@@ -1,5 +1,6 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useScene } from '../scene/sceneStore'
+import { useUI } from '../state/ui'
 import { KIND_LABEL, usageCounts } from '../scene/variables'
 import { CheckIcon, PlusIcon, TrashIcon, VariableIcon } from './icons'
 
@@ -50,10 +51,11 @@ const fromTicks = (ticks, span) => {
 }
 
 /** A text field that keeps its draft while focused, so typing "1.7" survives. */
-function ValueField({ value, onCommit, label }) {
+function ValueField({ value, onCommit, label, focusRef }) {
   const [draft, setDraft] = useState(null)
   return (
     <input
+      ref={focusRef}
       className="var-value"
       inputMode="decimal"
       aria-label={label}
@@ -76,7 +78,7 @@ function ValueField({ value, onCommit, label }) {
 }
 
 /** One row. Rename, retype the value, drag it, or throw it away. */
-function VariableRow({ variable, used }) {
+function VariableRow({ variable, used, wanted }) {
   const setVariableValue = useScene((s) => s.setVariableValue)
   const stageVariableValue = useScene((s) => s.stageVariableValue)
   const commitVariableDrag = useScene((s) => s.commitVariableDrag)
@@ -84,6 +86,23 @@ function VariableRow({ variable, used }) {
   const renameVariable = useScene((s) => s.renameVariable)
   const deleteVariable = useScene((s) => s.deleteVariable)
   const [name, setName] = useState(null)
+
+  /**
+   * Somebody asked for this variable by name — from its chip in the rail, or
+   * from the size label on the box that it drives. Bring the row into view
+   * and put the cursor in its value, so the thing they went looking for is
+   * the thing under their hands.
+   */
+  const row = useRef(null)
+  const value = useRef(null)
+  const clearFocus = useUI((s) => s.clearFocus)
+  useEffect(() => {
+    if (!wanted) return
+    row.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    value.current?.focus()
+    value.current?.select()
+    clearFocus()
+  }, [wanted, clearFocus])
   const [held, setHeld] = useState(null)
   const snapshot = useRef(null)
 
@@ -105,7 +124,7 @@ function VariableRow({ variable, used }) {
   }
 
   return (
-    <div className="var-row">
+    <div className="var-row" ref={row}>
       <div className="var-row-top">
         <input
           className="var-name"
@@ -140,6 +159,7 @@ function VariableRow({ variable, used }) {
         {variable.kind === 'number' && (
           <>
             <ValueField
+              focusRef={value}
               value={variable.value}
               label={`${variable.name} value`}
               onCommit={(v) => setVariableValue(variable.id, v)}
@@ -208,6 +228,7 @@ function VariableRow({ variable, used }) {
  * to the shape settings.
  */
 export default function VariablesPanel({ onClose }) {
+  const focusVariable = useUI((s) => s.focusVariable)
   const variables = useScene((s) => s.variables)
   const objects = useScene((s) => s.objects)
   const addVariable = useScene((s) => s.addVariable)
@@ -269,7 +290,12 @@ export default function VariablesPanel({ onClose }) {
           <>
             <div className="vars-list">
               {sorted.map((v) => (
-                <VariableRow key={v.id} variable={v} used={used.get(v.id) ?? 0} />
+                <VariableRow
+                  key={v.id}
+                  variable={v}
+                  used={used.get(v.id) ?? 0}
+                  wanted={v.id === focusVariable}
+                />
               ))}
             </div>
             <p className="props-note vars-note">

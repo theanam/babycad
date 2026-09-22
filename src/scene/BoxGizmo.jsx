@@ -9,6 +9,7 @@ import { dragBus } from './dragBus'
 import { beginDrag, endDrag, setLive, useLive } from './liveStore'
 import { angleStepFor, SNAP, SNAP_DEFAULT } from '../constants'
 import { SHAPE_LABEL } from '../shapes'
+import { useUI } from '../state/ui'
 import { AXIS_PARAMS, coupledMask, resizeToParams } from '../shapes/resize'
 import { toast } from '../ui/Toast'
 import {
@@ -217,10 +218,18 @@ export default function BoxGizmo() {
     if (!map || !o.bindings) return '||'
     return AXIS_KEYS.map((axis) => {
       const key = (map[axis] ?? []).find((k) => o.bindings[k])
-      return (key && s.variables.find((v) => v.id === o.bindings[key])?.name) || ''
+      const variable = key && s.variables.find((v) => v.id === o.bindings[key])
+      return variable ? `${variable.name}\u0000${variable.id}` : ''
     }).join('|')
   })
-  const boundNames = useMemo(() => boundKey.split('|'), [boundKey])
+  const bound = useMemo(
+    () => boundKey.split('|').map((part) => {
+      const [name = '', id = ''] = part.split('\u0000')
+      return { name, id }
+    }),
+    [boundKey]
+  )
+  const boundNames = useMemo(() => bound.map((b) => b.name), [bound])
 
   // A different block is a different box; let its labels find their own edges,
   // and never leave an editor open over a block that is no longer there.
@@ -992,7 +1001,7 @@ export default function BoxGizmo() {
                 }}
                 title={
                   boundNames[slot]
-                    ? `This side follows ${boundNames[slot]} — change it in Variables`
+                    ? `Follows "${boundNames[slot]}" — open it in Variables`
                     : multi
                       ? 'Pick a single block to type a size in'
                       : 'Click to type a size'
@@ -1000,8 +1009,10 @@ export default function BoxGizmo() {
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={() => {
                   if (multi) return
-                  if (boundNames[slot]) {
-                    toast(`This side follows ${boundNames[slot]} — change it in Variables`, 'warn')
+                  // A side driven by a variable can't be typed into here, so
+                  // the click goes where the number actually lives.
+                  if (bound[slot].id) {
+                    useUI.getState().revealVariable(bound[slot].id)
                     return
                   }
                   setEditing(slot)

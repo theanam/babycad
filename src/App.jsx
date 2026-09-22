@@ -16,6 +16,7 @@ import TabStrip from './ui/TabStrip'
 import Toasts, { toast } from './ui/Toast'
 import { buildExample, getExample } from './examples'
 import { isDirty, useDocs } from './state/documents'
+import { useUI } from './state/ui'
 import { canUseFileSystem, openFromDisk, saveToDisk } from './io/files'
 import {
   isStorageAvailable,
@@ -37,8 +38,12 @@ export default function App() {
   const [sheet, setSheet] = useState(null) // 'export' | 'help' | null
   const [closing, setClosing] = useState(null) // a tab with unsaved changes
   // Variables aren't a sheet: they take over the right rail, so the build they
-  // are reshaping stays in full view while a value is dragged.
-  const [showVariables, setShowVariables] = useState(false)
+  // are reshaping stays in full view while a value is dragged. The state is in
+  // the UI store because a variable's name is clickable from inside the canvas
+  // as well as from the rail — see state/ui.
+  const showVariables = useUI((s) => s.variablesOpen)
+  const toggleVariables = useUI((s) => s.toggleVariables)
+  const closeVariables = useUI((s) => s.closeVariables)
   // The welcome screen is simply what no open builds looks like — on a first
   // visit, and again when the last tab is closed. Nothing has to remember
   // whether it has been shown before, which is one fewer flag to get wrong:
@@ -307,7 +312,7 @@ export default function App() {
         onSaveAs={onSaveAs}
         onOpen={onOpen}
         onExport={() => setSheet('export')}
-        onVariables={() => setShowVariables((on) => !on)}
+        onVariables={toggleVariables}
         onHelp={() => setSheet('help')}
         variablesOpen={showVariables}
       />
@@ -325,7 +330,7 @@ export default function App() {
         <div className="rail">
           {objects.length > 0 && <ViewTools />}
           {showVariables ? (
-            <VariablesPanel onClose={() => setShowVariables(false)} />
+            <VariablesPanel onClose={closeVariables} />
           ) : (
             <PropertiesPanel />
           )}
