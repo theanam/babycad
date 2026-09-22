@@ -11,6 +11,7 @@ import { HOME_CAMERA, viewport } from './viewportApi'
 import { HEAVY_SCENE, PLATE, PLATE_HALF, SNAP } from '../constants'
 import { cuttersByObject } from '../shapes/csg'
 import { gesture } from './gesture'
+import MarqueeSelect from './MarqueeSelect'
 
 /**
  * Owns the camera: builds the OrbitCamera over the canvas, publishes it (and
@@ -220,6 +221,7 @@ export default function Viewport() {
 
       <Blocks />
       <Handles />
+      <MarqueeSelect />
     </Canvas>
   )
 }

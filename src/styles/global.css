@@ -1244,3 +1244,16 @@ a.foot-btn, a.icon-btn { text-decoration: none; }
   .help-keys > div { grid-template-columns: 1fr; gap: 4px; }
   .help-keys dt { justify-self: start; }
 }
+
+/* The left-drag selection box. Fixed to the viewport so it needs no positioned
+   ancestor, and kept under the rails at z-index 6 so a drag that runs out over
+   a panel slides beneath it rather than floating on top. */
+.marquee {
+  position: fixed;
+  z-index: 6;
+  display: none;
+  pointer-events: none;
+  border: 1px solid #7c4dff;
+  background: rgba(124, 77, 255, 0.14);
+  border-radius: 2px;
+}

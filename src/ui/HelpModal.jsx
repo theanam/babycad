@@ -13,7 +13,9 @@ const SHORTCUTS = [
   ['Delete or Backspace', 'Remove what’s selected'],
   ['Esc', 'Deselect'],
   ['Shift + click', 'Add a block to the selection'],
-  ['Shift + drag', 'Slide the view (or right-drag)'],
+  ['Drag on empty space', 'Draw a box to pick several blocks'],
+  ['Right-drag', 'Turn the view'],
+  ['Middle-drag', 'Slide the view (or Shift + right-drag)'],
   ['L', 'Line up everything you’ve picked'],
   ['Hold Alt', 'Move without snapping to the grid'],
   ['Arrow keys', 'Step the number field you’re in'],
@@ -69,10 +71,11 @@ export default function HelpModal({ onClose, onShowWelcome }) {
             <h3>Looking around</h3>
             <ul className="help-list">
               <li>
-                <b>Drag on empty space</b> to turn the view round the build.
+                <b>Right-drag</b> to turn the view round the build.
               </li>
               <li>
-                <b>Right-drag, middle-drag or Shift-drag</b> to slide the view sideways.
+                <b>Middle-drag</b> to slide the view sideways — or <b>Shift + right-drag</b>, if
+                your mouse or trackpad has no middle button.
               </li>
               <li>
                 <b>Scroll</b> to zoom. On a touchscreen, one finger turns, two fingers pinch and
@@ -153,7 +156,8 @@ export default function HelpModal({ onClose, onShowWelcome }) {
           <section>
             <h3>Lining things up</h3>
             <p>
-              Pick more than one block — hold <strong>Shift</strong> while you click, or press{' '}
+              Pick more than one block — hold <strong>Shift</strong> while you click, drag a box
+              across empty plate to catch everything it touches, or press{' '}
               <strong>Ctrl / ⌘ + A</strong> for the lot — and an <strong>Align</strong> switch
               appears over the scene. Turn it on and nine dots surround the selection: three along
               the front edge, three down the left, three going up the near corner.

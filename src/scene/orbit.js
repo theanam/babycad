@@ -16,10 +16,14 @@
  * no roll in the parameterisation to accumulate.
  *
  * Input, as in every CAD tool people will already have used:
- *   - left-drag on empty space orbits (a block drag is the gizmo's, not ours)
- *   - right-drag, middle-drag or shift-drag pans
+ *   - right-drag turns the view, shift-right-drag slides it
+ *   - middle-drag slides the view
  *   - wheel zooms, toward the target
  *   - one finger orbits, two fingers pinch to zoom and slide to pan
+ *
+ * The left button is deliberately not the camera's: it picks blocks and drags
+ * a selection box over them (see scene/MarqueeSelect). That is the one place
+ * this differs from the port it came from, and it is why `#modeFor` exists.
  */
 import * as THREE from 'three'
 import { gesture } from './gesture'
@@ -33,8 +37,10 @@ const POLAR_MAX = Math.PI - POLAR_MIN
 const ROTATE_SPEED = 0.0045 // radians per pixel
 const ZOOM_SPEED = 0.0015
 const FLIGHT_MS = 280
-// Movement past this is a drag, not a click.
-const CLICK_SLOP = 4
+// Movement past this is a drag, not a click. Exported because the selection
+// box has to draw the same line between the two, and two different slops would
+// give a band of movement that is a drag to one and a click to the other.
+export const CLICK_SLOP = 4
 
 const UP = new THREE.Vector3(0, 1, 0)
 
@@ -205,14 +211,32 @@ export class OrbitCamera {
 
     if (this.#pointers.size === 1) {
       this.#lastSingle.set(event.clientX, event.clientY)
-      // Middle and right drag pan, as in every other CAD tool; shift-drag too,
-      // for a trackpad with no middle button.
-      this.#mode = event.button === 0 && !event.shiftKey ? 'orbit' : 'pan'
+      this.#mode = this.#modeFor(event)
     } else if (this.#pointers.size === 2) {
       this.#mode = 'touch'
       this.#lastPinch = this.#pinchDistance()
       this.#centroid(this.#lastCentroid)
     }
+  }
+
+  /**
+   * Which camera move a press begins, or 'none' to leave the pointer alone.
+   *
+   * With a mouse the right button turns the view and the middle button slides
+   * it, which is the arrangement most CAD tools use and leaves the left button
+   * free to pick and to drag a selection box. Shift with the right button
+   * slides as well, so a trackpad that can right-click but has no middle button
+   * can still pan.
+   *
+   * Touch and pen are untouched: there are no buttons to hold, and one finger
+   * dragging the view round is what every 3D app on a tablet already does. Two
+   * fingers are picked up by the caller before this is reached.
+   */
+  #modeFor(event) {
+    if (event.pointerType !== 'mouse') return 'orbit'
+    if (event.button === 2) return event.shiftKey ? 'pan' : 'orbit'
+    if (event.button === 1) return 'pan'
+    return 'none'
   }
 
   #onPointerMove = (event) => {
@@ -254,6 +278,8 @@ export class OrbitCamera {
     const dx = event.clientX - this.#lastSingle.x
     const dy = event.clientY - this.#lastSingle.y
     this.#lastSingle.set(event.clientX, event.clientY)
+    // 'none' is the left button: armed, so the miss handler knows this was a
+    // drag and does not clear the selection, but the camera stays put.
     if (this.#mode === 'orbit') this.orbitBy(dx, dy)
     else if (this.#mode === 'pan') this.panBy(dx, dy)
   }
