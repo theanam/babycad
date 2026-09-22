@@ -2,32 +2,40 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 /**
- * Google Analytics, on the published site and nowhere else.
+ * Google Analytics, for whoever is doing the publishing — and nobody else.
  *
- * The tag is not in `index.html`, because that file is what `npm run dev`
- * serves and what anyone building this themselves gets: a tag sitting there
- * would count every local reload and would follow any fork that never asked
- * for it. Instead it is injected into the built HTML only when `ANALYTICS=1`,
- * which the Pages workflow sets on its build step and nothing else does.
+ * No measurement ID appears anywhere in this repository. The ID is handed in
+ * through `ANALYTICS_ID` at build time, and with nothing in that variable this
+ * plugin does nothing at all. That is what keeps the arrangement fair to
+ * everyone downstream:
  *
- * `apply: 'build'` is the second lock: even with the variable exported in a
- * shell, the dev server will not inject it.
+ *   - `npm run dev` and a plain `npm run build` are untagged, so nobody's local
+ *     pottering is counted.
+ *   - Someone who downloads the source gets no tag, because there is no ID here
+ *     to find.
+ *   - A fork that turns Pages on builds its own untagged site: the workflow
+ *     only supplies an ID when it is running on the original repository, so a
+ *     fork's visitors can never be counted into somebody else's property.
+ *   - Anyone who wants their own analytics sets their own ID, in their own
+ *     workflow. This file needs no editing to do it.
+ *
+ * `apply: 'build'` is a second lock on the first of those: even with the
+ * variable exported in a shell, the dev server will not inject anything.
  */
-const GA_ID = 'G-3830NKM98L'
-
 const analytics = () => ({
   name: 'babycad-analytics',
   apply: 'build',
   transformIndexHtml: {
     order: 'pre',
     handler: (html) => {
-      if (process.env.ANALYTICS !== '1') return html
+      const id = (process.env.ANALYTICS_ID ?? '').trim()
+      if (!id) return html
       return {
         html,
         tags: [
           {
             tag: 'script',
-            attrs: { async: true, src: `https://www.googletagmanager.com/gtag/js?id=${GA_ID}` },
+            attrs: { async: true, src: `https://www.googletagmanager.com/gtag/js?id=${id}` },
             injectTo: 'head',
           },
           {
@@ -36,7 +44,7 @@ const analytics = () => ({
               'window.dataLayer = window.dataLayer || [];',
               'function gtag(){dataLayer.push(arguments);}',
               "gtag('js', new Date());",
-              `gtag('config', '${GA_ID}');`,
+              `gtag('config', '${id}');`,
             ].join('\n'),
             injectTo: 'head',
           },

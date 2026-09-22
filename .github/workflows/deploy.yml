@@ -41,12 +41,15 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      # The only place the Google Analytics tag is switched on. See the
-      # `analytics` plugin in vite.config.js: a local `npm run build` and the
-      # dev server both stay untagged.
+      # The one place the Google Analytics ID lives, and it is only handed over
+      # when this is running on the original repository. A fork that turns Pages
+      # on gets an empty string here and builds an untagged site, so its
+      # visitors are never counted into somebody else's property. Anyone who
+      # wants their own analytics puts their own ID in this expression.
+      # See the `analytics` plugin in vite.config.js.
       - run: npm run build
         env:
-          ANALYTICS: '1'
+          ANALYTICS_ID: ${{ github.repository == 'theanam/babycad' && 'G-3830NKM98L' || '' }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
