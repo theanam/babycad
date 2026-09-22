@@ -55,6 +55,25 @@ function buildExportScene(objects, groups) {
   return { root, done: () => borrowed.forEach(releaseShape) }
 }
 
+/**
+ * Internal Y-up -> Z-up, for formats whose readers expect Z-up.
+ *
+ * `scene/axes` sets out the split: the scene graph is three.js-native Y-up,
+ * while every axis the user is *shown* is named CAD-style Z-up. That naming
+ * layer used to stop at the file, which is why a block sitting flat on the
+ * plate arrived in the slicer standing on its edge.
+ *
+ * A +90 degree turn about X sends internal (x, y, z) to (x, -z, y) — exactly
+ * the mapping AXES already describes: displayed X is internal x, displayed Y
+ * is internal -z, displayed Z is internal y. So the file now agrees with the
+ * numbers in the properties rail, rather than with the scene graph underneath.
+ *
+ * Only STL gets this. STL's own spec names no up axis, but every slicer ever
+ * written treats +Z as up. glTF is the opposite case: its spec *mandates*
+ * Y-up, so the internal frame is already right and turning it would be the bug.
+ */
+const Z_UP_X_ROTATION = Math.PI / 2
+
 function download(blob, filename) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -71,7 +90,11 @@ const safeName = (name) =>
   (name || 'babycad-build').trim().replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '') ||
   'babycad-build'
 
-/** Primary export: binary glTF, which preserves colors and the scene graph. */
+/**
+ * Primary export: binary glTF, which preserves colors and the scene graph.
+ * Left in the internal Y-up frame on purpose — that is what the glTF spec asks
+ * for. See `Z_UP_X_ROTATION`.
+ */
 export function exportGLB(objects, groups, name) {
   const { root, done } = buildExportScene(objects, groups)
   return new Promise((resolve, reject) => {
@@ -87,10 +110,15 @@ export function exportGLB(objects, groups, name) {
   }).finally(done)
 }
 
-/** Secondary export for 3D printing. STL carries geometry only, no color. */
+/**
+ * Secondary export for 3D printing. STL carries geometry only, no color, and
+ * is turned Z-up on the way out so it lands on the slicer's plate the way it
+ * sat on the plate here. See `Z_UP_X_ROTATION`.
+ */
 export function exportSTL(objects, groups, name) {
   const { root, done } = buildExportScene(objects, groups)
   try {
+    root.rotation.x = Z_UP_X_ROTATION
     root.updateMatrixWorld(true)
     const stl = new STLExporter().parse(root, { binary: true })
     download(new Blob([stl], { type: 'model/stl' }), `${safeName(name)}.stl`)
