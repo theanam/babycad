@@ -83,7 +83,27 @@ const EDGES_ALONG = {
 }
 
 const axisOf = (slot) => AXES.find((a) => a.slot === slot)
-const round1 = (v) => Math.round(v * 10) / 10
+
+/**
+ * Always one decimal, so the label keeps its width. A number alternating
+ * between "56" and "55.5" reflows the chip under it on every other frame,
+ * which reads as a twitch even when the value is behaving.
+ */
+const fixed1 = (v) => v.toFixed(1)
+
+/**
+ * How quickly the shown number catches up with the real one, in seconds.
+ *
+ * The readout used to be written straight from the live geometry, sixty times
+ * a second. Snapping meant it stepped half a millimetre at a time and, dragged
+ * at any speed, several steps a second — which flickers rather than reads. It
+ * is eased instead: it always moves toward the truth, never away, and settles
+ * on it within a couple of frames of the pointer stopping, so what is on
+ * screen when you let go is exact.
+ */
+const EASE_SECONDS = 0.07
+// Close enough to be the number rather than approaching it.
+const EASE_SETTLED = 0.02
 
 const MIN_SCALE = 0.1
 const MAX_SCALE = 40
@@ -170,6 +190,7 @@ export default function BoxGizmo() {
   const dragging = useLive((s) => s.dragging)
   const tagGroups = useRef({})
   const tagDivs = useRef({})
+  const eased = useRef({})
 
   const reachRay = useMemo(() => new THREE.Raycaster(), [])
   const occludeAt = useRef(0)
@@ -264,6 +285,7 @@ export default function BoxGizmo() {
       })),
     }
     lastReadout.current = 0
+    eased.current = {}
     beginDrag()
     event?.stopPropagation?.()
   }
@@ -553,7 +575,7 @@ export default function BoxGizmo() {
 
   // Recompute the box from the live meshes every frame so it tracks a drag,
   // and keep the handles a constant size on screen.
-  useFrame(() => {
+  useFrame((_, delta) => {
     if (!boxGroup.current || !selectedIds.length) return
     const f = frameFromMeshes(selectedIds, meshes, frame.current)
     if (!f) return
@@ -631,29 +653,55 @@ export default function BoxGizmo() {
 
     const divs = tagDivs.current
     if (divs.dim0 || divs.note) {
+      /** The shown value, easing toward the real one. */
+      const smooth = (key, target) => {
+        const store = eased.current
+        const from = store[key]
+        if (!Number.isFinite(from)) {
+          store[key] = target
+          return target
+        }
+        // Time-based, so the ease feels the same on a slow frame as a fast one.
+        const next = from + (target - from) * (1 - Math.exp(-delta / EASE_SECONDS))
+        store[key] = Math.abs(target - next) < EASE_SETTLED ? target : next
+        return store[key]
+      }
+
       for (const key of ['dim0', 'dim1', 'dim2', 'note']) {
         if (divs[key]) divs[key].style.display = 'none'
       }
       const d = drag.current
 
-      /** Beside whichever edge along `slot` is nearest the camera. */
+      /**
+       * Beside whichever edge along `slot` was nearest the camera when the
+       * drag began — and that one for the rest of it. Re-picking every frame
+       * made the label hop from one edge of the box to another as the box
+       * grew or turned past the halfway point, which is a bigger jump than
+       * any number it was showing.
+       */
       const beside = (slot, out) => {
-        let best = null
-        let nearest = Infinity
-        for (const sign of EDGES_ALONG[slot]) {
-          tagPoint
-            .set(sign[0] * f.half.x, sign[1] * f.half.y, sign[2] * f.half.z)
-            .applyQuaternion(f.quat)
-            .add(f.center)
-          const away = camera.position.distanceTo(tagPoint)
-          if (away < nearest) {
-            nearest = away
-            best = sign
-            out.copy(tagPoint)
-          }
+        const chosen = (d.labelEdge ??= {})
+        if (chosen[slot] === undefined) {
+          let nearest = Infinity
+          EDGES_ALONG[slot].forEach((sign, i) => {
+            tagPoint
+              .set(sign[0] * f.half.x, sign[1] * f.half.y, sign[2] * f.half.z)
+              .applyQuaternion(f.quat)
+              .add(f.center)
+            const away = camera.position.distanceTo(tagPoint)
+            if (away < nearest) {
+              nearest = away
+              chosen[slot] = i
+            }
+          })
         }
+        const sign = EDGES_ALONG[slot][chosen[slot]]
+        out
+          .set(sign[0] * f.half.x, sign[1] * f.half.y, sign[2] * f.half.z)
+          .applyQuaternion(f.quat)
+          .add(f.center)
         // Clear of the edge, straight out from the box.
-        tagOut.set(best[0], best[1], best[2]).applyQuaternion(f.quat).normalize()
+        tagOut.set(sign[0], sign[1], sign[2]).applyQuaternion(f.quat).normalize()
         return out.addScaledVector(tagOut, k * 2)
       }
 
@@ -662,7 +710,9 @@ export default function BoxGizmo() {
         divs.note.textContent = text
         divs.note.style.display = ''
         const g = tagGroups.current.note
-        if (g) g.position.set(f.center.x, f.center.y + topY + k * 3.4, f.center.z)
+        if (g) {
+          g.position.set(f.center.x, smooth('noteY', f.center.y + topY + k * 3.4), f.center.z)
+        }
       }
 
       if (d?.kind === 'scale') {
@@ -674,7 +724,7 @@ export default function BoxGizmo() {
           const div = divs[`dim${i}`]
           if (!div || !d.mask[i]) continue
           const axis = axisOf(i)
-          div.textContent = `${axis.label} ${round1(size[i])} mm`
+          div.textContent = `${axis.label} ${fixed1(smooth(`dim${i}`, size[i]))} mm`
           div.style.color = axis.color
           div.style.display = ''
           const g = tagGroups.current[`dim${i}`]
@@ -685,7 +735,7 @@ export default function BoxGizmo() {
         const axis = axisOf(d.slot)
         if (mesh && axis) {
           const turned = THREE.MathUtils.radToDeg(mesh.rotation.toArray()[d.slot]) * axis.sign
-          note(`${axis.label} ${round1(turned)}°`)
+          note(`${axis.label} ${fixed1(smooth('turn', turned))}°`)
           if (divs.note) divs.note.style.color = axis.color
         }
       } else if (d?.kind === 'move-xz' || d?.kind === 'move-y') {
@@ -696,8 +746,8 @@ export default function BoxGizmo() {
           // from you, and Z the underside's height off the plate.
           note(
             d.kind === 'move-y'
-              ? `Z ${round1(mesh.position.y + (d.leadBottom ?? 0))} mm`
-              : `X ${round1(mesh.position.x)} · Y ${round1(-mesh.position.z)} mm`
+              ? `Z ${fixed1(smooth('z', mesh.position.y + (d.leadBottom ?? 0)))} mm`
+              : `X ${fixed1(smooth('x', mesh.position.x))} · Y ${fixed1(smooth('y', -mesh.position.z))} mm`
           )
         }
       }

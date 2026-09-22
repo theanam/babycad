@@ -405,6 +405,7 @@ button:disabled { cursor: default; }
    so nobody has to watch the rail out of the corner of an eye. */
 .live-dim, .live-note {
   font-family: var(--mono); font-size: 13px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
   padding: 4px 8px; border-radius: 7px;
   background: #0f1218f2;
   border: 1px solid var(--line-raised);
