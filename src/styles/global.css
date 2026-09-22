@@ -401,22 +401,60 @@ button:disabled { cursor: default; }
 }
 .align-tip em { font-style: normal; color: var(--accent-ink); }
 
-/* The live readout during a drag: measurements on the thing being changed,
-   so nobody has to watch the rail out of the corner of an eye. */
+/* Measurements on the block itself, so nobody has to watch the rail out of
+   the corner of an eye. The sizes sit on the bounding box at all times, in
+   the box's own colour and quiet enough to ignore; whichever a drag is
+   pulling steps forward into that axis's colour. */
 .live-dim, .live-note {
-  font-family: var(--mono); font-size: 13px; font-weight: 700;
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap; pointer-events: none;
+  transform: translate(-50%, -50%);
+  border-radius: 6px;
+}
+.live-dim {
+  font-size: 10.5px; font-weight: 700;
+  color: #7c4dff;
+  padding: 2px 5px;
+  background: #0b0d11b8;
+  display: flex; align-items: center; gap: 5px;
+  /* A number you can type into has to be reachable, so this one chip takes
+     pointer events back off the layer around it. */
+  pointer-events: auto; cursor: text;
+  transition: background var(--fade), box-shadow var(--fade);
+}
+.live-dim:hover { background: #12151ceb; box-shadow: inset 0 0 0 1px var(--accent-edge); }
+.live-dim.bound { cursor: default; }
+
+/* The variable a side follows, beside the number it sets. */
+.live-var { color: var(--accent-ink); font-weight: 800; }
+.live-var:empty { display: none; }
+
+.live-dim-input {
+  width: 74px; height: 22px;
+  font-family: var(--mono); font-size: 12px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink); text-align: center;
+  background: #0f1218;
+  border: 1px solid var(--accent); border-radius: 6px;
+  padding: 0 4px;
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+}
+.live-dim-input:focus { outline: none; }
+.live-dim.on {
+  font-size: 13px;
   padding: 4px 8px; border-radius: 7px;
   background: #0f1218f2;
   border: 1px solid var(--line-raised);
   box-shadow: 0 6px 18px -10px #000;
-  white-space: nowrap; pointer-events: none;
-  transform: translate(-50%, -50%);
 }
 .live-note {
-  font-size: 14px; color: var(--ink);
-  border-color: var(--accent-edge);
-  padding: 5px 10px;
+  font-size: 14px; font-weight: 700; color: var(--ink);
+  padding: 5px 10px; border-radius: 7px;
+  background: #0f1218f2;
+  border: 1px solid var(--accent-edge);
+  box-shadow: 0 6px 18px -10px #000;
 }
 
 .empty-hint {

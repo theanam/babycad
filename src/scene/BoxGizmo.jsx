@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { useFrame, useThree } from '@react-three/fiber'
 import { Html } from '@react-three/drei'
@@ -8,7 +8,8 @@ import { meshes } from './meshRegistry'
 import { dragBus } from './dragBus'
 import { beginDrag, endDrag, setLive, useLive } from './liveStore'
 import { angleStepFor, SNAP, SNAP_DEFAULT } from '../constants'
-import { coupledMask } from '../shapes/resize'
+import { SHAPE_LABEL } from '../shapes'
+import { AXIS_PARAMS, coupledMask, resizeToParams } from '../shapes/resize'
 import { toast } from '../ui/Toast'
 import {
   angleInPlane,
@@ -83,6 +84,9 @@ const EDGES_ALONG = {
 }
 
 const axisOf = (slot) => AXES.find((a) => a.slot === slot)
+const AXIS_KEYS = ['x', 'y', 'z']
+/** A resize that touches one axis, before the shape has its say. */
+const AXIS_MASKS = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
 
 /**
  * Always one decimal, so the label keeps its width. A number alternating
@@ -191,6 +195,72 @@ export default function BoxGizmo() {
   const tagGroups = useRef({})
   const tagDivs = useRef({})
   const eased = useRef({})
+  // Which of the four edges along each axis the label is sitting on. Kept
+  // across frames so it can be held steady; see `beside` below.
+  const edgeChoice = useRef({})
+  // The box's size along each axis as of the last frame, so a typed number
+  // has something to be measured against.
+  const liveSize = useRef([0, 0, 0])
+  const [editing, setEditing] = useState(null)
+
+  /**
+   * The variable driving each axis, by name, or '' where nothing does.
+   *
+   * Returned as one string and split, rather than as an array: a selector
+   * that builds a new array every call never compares equal, and would
+   * re-render the gizmo on every store change.
+   */
+  const boundKey = useScene((s) => {
+    if (s.selectedIds.length !== 1) return '||'
+    const o = s.objects.find((x) => x.id === s.selectedIds[0])
+    const map = o && AXIS_PARAMS[o.type]
+    if (!map || !o.bindings) return '||'
+    return AXIS_KEYS.map((axis) => {
+      const key = (map[axis] ?? []).find((k) => o.bindings[k])
+      return (key && s.variables.find((v) => v.id === o.bindings[key])?.name) || ''
+    }).join('|')
+  })
+  const boundNames = useMemo(() => boundKey.split('|'), [boundKey])
+
+  // A different block is a different box; let its labels find their own edges,
+  // and never leave an editor open over a block that is no longer there.
+  useEffect(() => {
+    edgeChoice.current = {}
+    setEditing(null)
+  }, [selectedIds])
+
+  /**
+   * Type a size straight onto the box.
+   *
+   * Goes the same way the rail's own numbers go — the shape's parameters via
+   * `setParams` — rather than through a scale multiplier, so a typed height
+   * keeps the block's underside on the plate exactly as typing it in the rail
+   * does. The shape decides what one axis really means: ask a tube for a
+   * wider X and it is the radius that changes, both ways at once.
+   */
+  const applyDim = useCallback((slot, typed) => {
+    setEditing(null)
+    const target = Number(typed)
+    const from = liveSize.current[slot]
+    if (!Number.isFinite(target) || target <= 0 || !(from > 0)) return
+    if (Math.abs(target - from) < 1e-6) return
+
+    const sel = useScene.getState().selectedObjects()
+    if (sel.length !== 1) return
+    const object = sel[0]
+    const ratio = target / from
+    const mask = coupledMask(object.type, AXIS_MASKS[slot])
+    const resize = resizeToParams(object, mask.map((on) => (on ? ratio : 1)))
+
+    if (resize?.blocked) {
+      return toast(`${resize.blocked} follows a variable — change it in Variables`, 'warn')
+    }
+    if (!resize?.params) {
+      const what = (SHAPE_LABEL[object.type] ?? 'shape').toLowerCase()
+      return toast(`A ${what} has no single number for that side`, 'warn')
+    }
+    useScene.getState().setParams({ [object.id]: resize.params }, 'resize')
+  }, [])
 
   const reachRay = useMemo(() => new THREE.Raycaster(), [])
   const occludeAt = useRef(0)
@@ -667,35 +737,36 @@ export default function BoxGizmo() {
         return store[key]
       }
 
-      for (const key of ['dim0', 'dim1', 'dim2', 'note']) {
-        if (divs[key]) divs[key].style.display = 'none'
-      }
+      if (divs.note) divs.note.style.display = 'none'
       const d = drag.current
 
       /**
-       * Beside whichever edge along `slot` was nearest the camera when the
-       * drag began — and that one for the rest of it. Re-picking every frame
-       * made the label hop from one edge of the box to another as the box
-       * grew or turned past the halfway point, which is a bigger jump than
+       * Beside whichever of the four edges along `slot` faces the camera.
+       *
+       * Held rather than recomputed outright: the label keeps the edge it is
+       * on until another is clearly nearer, and doesn't reconsider at all
+       * while a drag is in flight. Picking the nearest every frame made the
+       * label hop from one edge of the box to another as the camera crossed
+       * the halfway point or the box grew past it — a far bigger jump than
        * any number it was showing.
        */
       const beside = (slot, out) => {
-        const chosen = (d.labelEdge ??= {})
-        if (chosen[slot] === undefined) {
-          let nearest = Infinity
-          EDGES_ALONG[slot].forEach((sign, i) => {
-            tagPoint
-              .set(sign[0] * f.half.x, sign[1] * f.half.y, sign[2] * f.half.z)
-              .applyQuaternion(f.quat)
-              .add(f.center)
-            const away = camera.position.distanceTo(tagPoint)
-            if (away < nearest) {
-              nearest = away
-              chosen[slot] = i
-            }
-          })
+        const chosen = edgeChoice.current
+        if (!d || chosen[slot] === undefined) {
+          const away = EDGES_ALONG[slot].map((sign) =>
+            camera.position.distanceTo(
+              tagPoint
+                .set(sign[0] * f.half.x, sign[1] * f.half.y, sign[2] * f.half.z)
+                .applyQuaternion(f.quat)
+                .add(f.center)
+            )
+          )
+          let best = 0
+          for (let i = 1; i < away.length; i++) if (away[i] < away[best]) best = i
+          const held = chosen[slot]
+          if (held === undefined || away[best] < away[held] * 0.9) chosen[slot] = best
         }
-        const sign = EDGES_ALONG[slot][chosen[slot]]
+        const sign = EDGES_ALONG[slot][chosen[slot] ?? 0]
         out
           .set(sign[0] * f.half.x, sign[1] * f.half.y, sign[2] * f.half.z)
           .applyQuaternion(f.quat)
@@ -715,22 +786,40 @@ export default function BoxGizmo() {
         }
       }
 
-      if (d?.kind === 'scale') {
-        // The size along each axis the drag is allowed to touch. Read off the
-        // box, so it is what the block measures rather than what it was asked
-        // for, and it keeps up with snapping.
-        const size = [f.half.x * 2, f.half.y * 2, f.half.z * 2]
-        for (let i = 0; i < 3; i++) {
-          const div = divs[`dim${i}`]
-          if (!div || !d.mask[i]) continue
-          const axis = axisOf(i)
-          div.textContent = `${axis.label} ${fixed1(smooth(`dim${i}`, size[i]))} mm`
-          div.style.color = axis.color
-          div.style.display = ''
-          const g = tagGroups.current[`dim${i}`]
-          if (g) g.position.copy(beside(i, tagPoint))
-        }
-      } else if (d?.kind === 'rotate') {
+      /*
+       * How big the block is, always, along every axis — small and in the
+       * colour of the box it labels, so it is there to glance at rather than
+       * something to go and find. Read off the box itself, so it is what the
+       * block measures rather than what it was asked for.
+       *
+       * An axis a resize is currently pulling steps forward: it takes that
+       * axis's own colour, the one the rail and the turn levers use, and a
+       * heavier chip. The rest stay as they were.
+       */
+      const size = [f.half.x * 2, f.half.y * 2, f.half.z * 2]
+      liveSize.current = size
+      const scaling = d?.kind === 'scale'
+      for (let i = 0; i < 3; i++) {
+        const g = tagGroups.current[`dim${i}`]
+        if (g) g.position.copy(beside(i, tagPoint))
+
+        const div = divs[`dim${i}`]
+        if (!div) continue // being typed into: React owns it this frame
+        const axis = axisOf(i)
+        const lit = scaling && d.mask[i]
+        const [valueEl, varEl] = div.children
+        const text = `${axis.label} ${fixed1(smooth(`dim${i}`, size[i]))} mm`
+        // Only touch the DOM when something actually changed; these run every
+        // frame for as long as anything is selected.
+        if (valueEl && valueEl.textContent !== text) valueEl.textContent = text
+        if (varEl && varEl.textContent !== boundNames[i]) varEl.textContent = boundNames[i]
+        const className = `live-dim${lit ? ' on' : ''}${boundNames[i] ? ' bound' : ''}`
+        if (div.className !== className) div.className = className
+        const color = lit ? axis.color : ''
+        if (div.style.color !== color) div.style.color = color
+      }
+
+      if (d?.kind === 'rotate') {
         const mesh = meshes.get(d.items[0].id)
         const axis = axisOf(d.slot)
         if (mesh && axis) {
@@ -874,25 +963,75 @@ export default function BoxGizmo() {
           rail: while a drag is in flight the numbers are where the eyes
           already are. Mounted on drag start and written to by hand each
           frame — see the useFrame above. */}
-      {dragging &&
-        ['dim0', 'dim1', 'dim2', 'note'].map((key) => (
-          <group
-            key={key}
-            ref={(g) => {
-              tagGroups.current[key] = g
-            }}
-          >
-            <Html zIndexRange={[25, 15]} style={{ pointerEvents: 'none' }}>
-              <div
-                className={key === 'note' ? 'live-note' : 'live-dim'}
-                ref={(el) => {
-                  tagDivs.current[key] = el
+      {[0, 1, 2].map((slot) => (
+        <group
+          key={slot}
+          ref={(g) => {
+            tagGroups.current[`dim${slot}`] = g
+          }}
+        >
+          <Html zIndexRange={[25, 15]} style={{ pointerEvents: 'none' }}>
+            {editing === slot ? (
+              <input
+                className="live-dim-input"
+                defaultValue={fixed1(liveSize.current[slot])}
+                autoFocus
+                onFocus={(e) => e.target.select()}
+                onBlur={(e) => applyDim(slot, e.target.value)}
+                onKeyDown={(e) => {
+                  e.stopPropagation()
+                  if (e.key === 'Enter') applyDim(slot, e.currentTarget.value)
+                  if (e.key === 'Escape') setEditing(null)
                 }}
-                style={{ display: 'none' }}
               />
-            </Html>
-          </group>
-        ))}
+            ) : (
+              <div
+                className="live-dim"
+                ref={(el) => {
+                  tagDivs.current[`dim${slot}`] = el
+                }}
+                title={
+                  boundNames[slot]
+                    ? `This side follows ${boundNames[slot]} — change it in Variables`
+                    : multi
+                      ? 'Pick a single block to type a size in'
+                      : 'Click to type a size'
+                }
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => {
+                  if (multi) return
+                  if (boundNames[slot]) {
+                    toast(`This side follows ${boundNames[slot]} — change it in Variables`, 'warn')
+                    return
+                  }
+                  setEditing(slot)
+                }}
+              >
+                <span />
+                <span className="live-var" />
+              </div>
+            )}
+          </Html>
+        </group>
+      ))}
+
+      {dragging && (
+        <group
+          ref={(g) => {
+            tagGroups.current.note = g
+          }}
+        >
+          <Html zIndexRange={[25, 15]} style={{ pointerEvents: 'none' }}>
+            <div
+              className="live-note"
+              ref={(el) => {
+                tagDivs.current.note = el
+              }}
+              style={{ display: 'none' }}
+            />
+          </Html>
+        </group>
+      )}
 
       {/* world-aligned: lifting is always along world up, and the turning
           dial has to hold still while the lever swings around it */}
