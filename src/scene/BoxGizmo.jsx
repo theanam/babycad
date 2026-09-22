@@ -821,8 +821,16 @@ export default function BoxGizmo() {
     const topY =
       Math.abs(me[1]) * f.half.x + Math.abs(me[5]) * f.half.y + Math.abs(me[9]) * f.half.z
 
+    // The wire box is pushed a hair proud of the block on every side. It now
+    // depth-tests (see the material), and a box sitting exactly on the surface
+    // would fight the surface for the same depth and stitch along every edge.
+    // The margin is a fraction of `k`, so it is the same hair's breadth on
+    // screen at any zoom rather than a gap that opens up as you come closer.
     const shell = handles.current.shell
-    if (shell) shell.scale.set(f.half.x * 2, f.half.y * 2, f.half.z * 2)
+    if (shell) {
+      const m = k * 0.15
+      shell.scale.set(f.half.x * 2 + m, f.half.y * 2 + m, f.half.z * 2 + m)
+    }
 
     // The turning dial, only while a lever is actually being swung.
     const dial = handles.current.dial
@@ -1069,7 +1077,13 @@ export default function BoxGizmo() {
       <group ref={boxGroup}>
         <lineSegments ref={bind('shell', {})} raycast={() => null}>
           <edgesGeometry args={[new THREE.BoxGeometry(1, 1, 1)]} />
-          <lineBasicMaterial color="#7C4DFF" transparent opacity={0.62} depthTest={false} />
+          {/* Depth-tested on purpose. Drawn without it, all twelve edges came
+              through, so the three hidden behind the block were painted across
+              its front faces — a cube picked up a Y-shaped crease from its own
+              back corner and looked folded where it is perfectly flat. The
+              block occludes its own far edges now, the way it occludes
+              everything else. */}
+          <lineBasicMaterial color="#7C4DFF" transparent opacity={0.62} />
         </lineSegments>
 
         {scaleHandles.map((def) => (
