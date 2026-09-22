@@ -41,7 +41,12 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      # The only place the Google Analytics tag is switched on. See the
+      # `analytics` plugin in vite.config.js: a local `npm run build` and the
+      # dev server both stay untagged.
       - run: npm run build
+        env:
+          ANALYTICS: '1'
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
