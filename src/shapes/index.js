@@ -64,7 +64,25 @@ const EDGE_STYLES = [
 const edge = (max = 30) =>
   num('edge', 'Edge', 0, { min: 0, max, step: 0.5, unit: 'mm', length: true })
 const edgeStyle = () => choice('edgeStyle', 'Edge shape', 'round', EDGE_STYLES)
-const sweep = () => deg('sweep', 'Sweep', 360, { min: 10, max: 360, step: 15 })
+/**
+ * How far round a round shape goes, in degrees. A full turn is the whole
+ * thing; anything less and it is a wedge cut out of it, which is what makes a
+ * tube look like a pac-man.
+ *
+ * Every round shape uses this one, under this one name. The ball used to call
+ * it "Slice" and everything else "Sweep", which is two names for one idea —
+ * and the ball's was a different key, so the two could not be bound to the
+ * same variable.
+ *
+ * The floor is ten degrees rather than zero: at zero there is no shape left to
+ * build, and a slider that can be dragged to nothing is a slider that can make
+ * a block disappear.
+ *
+ * The step has to divide what is left of the range, or the slider cannot reach
+ * a whole turn: stepping by fifteen from ten lands on 355 and then overshoots,
+ * so once a shape had been cut there was no dragging it back to round.
+ */
+const sweep = () => deg('sweep', 'Sweep', 360, { min: 10, max: 360, step: 10 })
 const HAND = [
   { value: 'right', label: 'Right' },
   { value: 'left', label: 'Left' },
@@ -121,7 +139,7 @@ export const SHAPE_DEFS = [
       size('radius', 'Radius', 10),
       smoothness(32),
       int('rings', 'Rings', 24, { min: 2, max: 64 }),
-      deg('slice', 'Slice', 360, { min: 10, max: 360, step: 15 }),
+      sweep(),
     ],
     build: buildSphere,
   },

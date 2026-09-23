@@ -9,17 +9,29 @@
 import * as THREE from 'three'
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js'
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js'
-import { acquireShape, cuttersByObject, releaseShape } from '../shapes/csg'
+import { acquireShape, cuttersByObject, relativeCutters, releaseShape } from '../shapes/csg'
+import { cutForExport } from './solidCut'
 
 /**
  * Build the export scene, plus the function that hands its geometries back.
  * Geometry is reference counted now, so an export has to let go of what it
  * borrowed — otherwise every export pins another copy of every shape.
+ *
+ * Anything with a hole in it is cut again on the way out. The cut the viewport
+ * is drawing is the right shape but is not a properly joined solid, and a
+ * slicer will not take it; `io/solidCut` explains why and what is done about
+ * it. That is the one thing here that has to wait for something, which is what
+ * makes this async.
  */
-function buildExportScene(objects, groups) {
+async function buildExportScene(objects, groups) {
   const root = new THREE.Group()
   root.name = 'BabyCAD'
   const borrowed = []
+  const owned = []
+  // Parts that had to fall back to the viewport's cut, which is the right
+  // shape but not a solid a slicer will take. Counted so the person is told,
+  // rather than being handed a file that quietly will not print.
+  let rough = 0
 
   const groupNodes = new Map()
   for (const g of groups ?? []) {
@@ -42,8 +54,19 @@ function buildExportScene(objects, groups) {
       roughness: 0.55,
       metalness: 0,
     })
-    const geometry = acquireShape(o, cutters.get(o.id) ?? null)
-    borrowed.push(geometry)
+    const holes = cutters.get(o.id) ?? null
+    let geometry = holes?.length
+      ? await cutForExport(o.type, o.params, relativeCutters(o, holes))
+      : null
+    if (geometry) owned.push(geometry)
+    else {
+      // Either nothing cuts this block, or rebuilding it properly did not come
+      // off. Writing the viewport's own cut is what every earlier version did,
+      // and is far better than leaving the part out of the file.
+      geometry = acquireShape(o, holes)
+      borrowed.push(geometry)
+      if (holes?.length) rough++
+    }
     const mesh = new THREE.Mesh(geometry, material)
     mesh.name = o.type
     mesh.position.fromArray(o.position)
@@ -52,7 +75,14 @@ function buildExportScene(objects, groups) {
     const parent = o.parentGroupId ? groupNodes.get(o.parentGroupId) : null
     ;(parent ?? root).add(mesh)
   }
-  return { root, done: () => borrowed.forEach(releaseShape) }
+  return {
+    root,
+    rough,
+    done: () => {
+      borrowed.forEach(releaseShape)
+      owned.forEach((g) => g.dispose())
+    },
+  }
 }
 
 /**
@@ -95,14 +125,14 @@ const safeName = (name) =>
  * Left in the internal Y-up frame on purpose — that is what the glTF spec asks
  * for. See `Z_UP_X_ROTATION`.
  */
-export function exportGLB(objects, groups, name) {
-  const { root, done } = buildExportScene(objects, groups)
+export async function exportGLB(objects, groups, name) {
+  const { root, rough, done } = await buildExportScene(objects, groups)
   return new Promise((resolve, reject) => {
     new GLTFExporter().parse(
       root,
       (result) => {
         download(new Blob([result], { type: 'model/gltf-binary' }), `${safeName(name)}.glb`)
-        resolve()
+        resolve({ rough })
       },
       reject,
       { binary: true }
@@ -115,13 +145,14 @@ export function exportGLB(objects, groups, name) {
  * is turned Z-up on the way out so it lands on the slicer's plate the way it
  * sat on the plate here. See `Z_UP_X_ROTATION`.
  */
-export function exportSTL(objects, groups, name) {
-  const { root, done } = buildExportScene(objects, groups)
+export async function exportSTL(objects, groups, name) {
+  const { root, rough, done } = await buildExportScene(objects, groups)
   try {
     root.rotation.x = Z_UP_X_ROTATION
     root.updateMatrixWorld(true)
     const stl = new STLExporter().parse(root, { binary: true })
     download(new Blob([stl], { type: 'model/stl' }), `${safeName(name)}.stl`)
+    return { rough }
   } finally {
     done()
   }

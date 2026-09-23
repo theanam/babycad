@@ -109,6 +109,20 @@ export function takeLegacyAutosave() {
  * exactly the plain numbers already stored, so a half-edited file degrades to
  * unlinked values rather than to a crash.
  */
+/**
+ * Parameters that have been renamed, carried across.
+ *
+ * `normalizeParams` keeps only the keys a shape declares now, so a rename is
+ * silent data loss: the old value is dropped and the new key comes back as its
+ * default. A ball saved as a three-quarter ball would have quietly become a
+ * whole one.
+ */
+function renamed(type, params) {
+  if (type !== 'sphere' || !params || typeof params !== 'object') return params
+  if (params.sweep !== undefined || params.slice === undefined) return params
+  return { ...params, sweep: params.slice }
+}
+
 export function migrate(scene) {
   if (!scene || typeof scene !== 'object') return null
   // Imported models travel inside the file (v6 and up). They go back into the
@@ -134,7 +148,7 @@ export function migrate(scene) {
     .map((o) => ({
       id: o.id,
       type: o.type,
-      params: normalizeParams(o.type, legacy ? paramsToMm(o.type, o.params) : o.params),
+      params: normalizeParams(o.type, renamed(o.type, legacy ? paramsToMm(o.type, o.params) : o.params)),
       bindings: bindingsOf(o.bindings, known),
       position: scaleTriple(triple(o.position, [0, 0.5 * MM, 0]), legacy ? MM : 1),
       rotation: triple(o.rotation, [0, 0, 0]),

@@ -13,12 +13,14 @@
     "check:align": "node tools/check-align.mjs",
     "check:holes": "node tools/check-holes.mjs",
     "check:reseat": "node tools/check-reseat.mjs",
-    "check": "npm run check:shapes && npm run check:resize && npm run check:examples && npm run check:align && npm run check:holes && npm run check:reseat",
-    "shots": "node tools/render-examples.mjs"
+    "check": "npm run check:shapes && npm run check:resize && npm run check:examples && npm run check:align && npm run check:holes && npm run check:reseat && npm run check:export",
+    "shots": "node tools/render-examples.mjs",
+    "check:export": "node tools/check-export.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.17.10",
+    "manifold-3d": "^3.5.3",
     "opentype.js": "^2.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

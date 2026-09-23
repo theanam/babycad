@@ -32,9 +32,20 @@ export default function ExportMenu({ onClose }) {
   const run = async (id) => {
     try {
       const file = name || 'babycad-build'
-      if (id === 'glb') await exportGLB(objects, groups, file)
-      else exportSTL(objects, groups, file)
-      toast(`Downloaded your ${id.toUpperCase()}`)
+      const result =
+        id === 'glb'
+          ? await exportGLB(objects, groups, file)
+          : await exportSTL(objects, groups, file)
+      // A part with a hole in it is rebuilt as a proper solid on the way out.
+      // If that could not be done the file is still worth having, but a
+      // printer may refuse it, and it is better to say so than to let it be
+      // discovered at the printer.
+      if (result?.rough)
+        toast(
+          `Downloaded your ${id.toUpperCase()} — but ${result.rough} cut ${result.rough === 1 ? 'piece' : 'pieces'} may not print cleanly`,
+          'warn'
+        )
+      else toast(`Downloaded your ${id.toUpperCase()}`)
       onClose()
     } catch {
       toast("That export didn't work — try again", 'warn')

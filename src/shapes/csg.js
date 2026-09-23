@@ -84,6 +84,20 @@ function cutKey(object, holes) {
   return key
 }
 
+/**
+ * Each hole with the transform that puts it where it sits relative to the
+ * solid — the frame a cut is worked out in, since the solid's own geometry is
+ * built at the origin. `io/solidCut` cuts the same holes a second time for the
+ * exported file, and has to place them exactly where these are placed.
+ */
+export function relativeCutters(object, holes) {
+  const inverse = matrixOf(object, _a).clone().invert()
+  return (holes ?? []).map((hole) => ({
+    hole,
+    matrix: inverse.clone().multiply(matrixOf(hole, _b)),
+  }))
+}
+
 function buildCut(object, holes) {
   const inverse = matrixOf(object, _a).clone().invert()
   let result = null

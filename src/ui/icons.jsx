@@ -277,6 +277,26 @@ const GLYPHS = {
       <path d="M3 19 L19 19 L21 17 L5 17 Z" fill="#0B6E6E" />
     </Glyph>
   ),
+  torus: (size) => (
+    <Glyph size={size}>
+      {/* The tube has to have a thickness, or the whole thing reads as a
+          washer: a flat ring lying down with a hole punched through it, which
+          is what a squashed CSS circle gave. Two ellipses a little apart make
+          the underside show beneath the top; the hole gets the same treatment
+          in reverse, so the far inner wall is visible through it. */}
+      <ellipse cx="12" cy="14.2" rx="10.2" ry="6.6" fill="#8E2557" />
+      <ellipse cx="12" cy="12.6" rx="10.2" ry="6.6" fill="#C23C77" />
+      <ellipse cx="12" cy="11.4" rx="10.2" ry="6.6" fill="#FF5FA2" />
+      <ellipse cx="12" cy="10.4" rx="3.6" ry="2.2" fill="#C23C77" />
+      <ellipse cx="12" cy="11.6" rx="3.6" ry="2.2" fill="#12141A" />
+      {/* A highlight along the near top of the ring, where the light lands. */}
+      <path
+        d="M4.6 8.6a10.2 6.6 0 0 1 14.8 0 7.4 4.2 0 0 0-14.8 0Z"
+        fill="#FF8FBF"
+        opacity="0.55"
+      />
+    </Glyph>
+  ),
   pipe: (size) => (
     <Glyph size={size}>
       <path d="M3 7 L3 17 A9 4 0 0 0 21 17 L21 7 Z" fill="#6A3FE0" />
@@ -439,20 +459,7 @@ export function ShapeIcon({ type, size = 34 }) {
     )
   }
 
-  // torus
-  return (
-    <div
-      aria-hidden="true"
-      style={{
-        ...box,
-        borderRadius: '50%',
-        border: `${Math.round(size * 0.29)}px solid #FF5FA2`,
-        boxSizing: 'border-box',
-        transform: 'rotateX(58deg)',
-        boxShadow: 'inset 0 0 0 1px #C23C77',
-      }}
-    />
-  )
+  return null
 }
 
 /** Flat colored proxy used in the panel when the selection is recolored. */

@@ -4,6 +4,7 @@
  * Both are a tube swept along a curve, so the only real work is the curve.
  */
 import * as THREE from 'three'
+import { capRims } from '../edges'
 
 const TAU = Math.PI * 2
 const SEGMENTS_PER_TURN = 28
@@ -29,7 +30,11 @@ class HelixCurve extends THREE.Curve {
 export function buildSpring({ radius, wire, turns, height, sides, hand }) {
   const curve = new HelixCurve(radius, height, turns, hand)
   const steps = Math.max(8, Math.min(2000, Math.round(turns * SEGMENTS_PER_TURN)))
-  return new THREE.TubeGeometry(curve, steps, wire / 2, Math.max(3, Math.round(sides)), false)
+  // A tube is a length of wall with nothing across either end — you can see
+  // straight down it, and an exported one is not a solid. Both rims are flat
+  // circles, so they can simply be filled in.
+  const g = new THREE.TubeGeometry(curve, steps, wire / 2, Math.max(3, Math.round(sides)), false)
+  return capRims(g)
 }
 
 export function buildKnot({ radius, tube, p, q, sides }) {

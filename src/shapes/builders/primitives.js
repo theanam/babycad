@@ -8,7 +8,7 @@
 import * as THREE from 'three'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import { arcPoints, extrudeProfile, windContours } from '../extrude'
-import { dirTo, edgeFor, softCorner } from '../edges'
+import { dirTo, dropDegenerate, edgeFor, softCorner, SPIN, sweepFaces } from '../edges'
 
 /**
  * Turn a profile into a solid by spinning it about the up axis.
@@ -32,9 +32,11 @@ function revolve(profile, sides, style) {
     const flat = g.toNonIndexed()
     flat.computeVertexNormals()
     g.dispose()
-    return flat
+    return dropDegenerate(flat)
   }
-  return g
+  // Where the profile meets the axis the lathe leaves a ring of slivers with
+  // no area at all, which an exported file is faulted for carrying.
+  return dropDegenerate(g)
 }
 
 const rad = THREE.MathUtils.degToRad
@@ -49,8 +51,20 @@ export function buildCube({ width, height, depth, edge, edgeStyle }) {
   return new RoundedBoxGeometry(width, height, depth, edgeStyle === 'bevel' ? 1 : 4, e)
 }
 
-export function buildSphere({ radius, segments, rings, slice }) {
-  return new THREE.SphereGeometry(radius, segments, rings, 0, rad(slice))
+export function buildSphere({ radius, sides, rings, sweep }) {
+  // `sides` and `sweep`, not `segments` and `slice`: the first pair are what
+  // the shape actually declares. Reading the wrong names meant the ball's
+  // Smoothness slider moved nothing at all — every ball was three's default 32
+  // segments however far the slider went.
+  const g = new THREE.SphereGeometry(radius, sides, rings, 0, rad(sweep))
+  // A sliced ball is left open along the cut. Its profile is the half circle
+  // it was spun from, drawn top to bottom the way three walks it.
+  const half = []
+  for (let k = 0; k <= rings; k++) {
+    const a = (Math.PI * k) / rings
+    half.push([radius * Math.sin(a), radius * Math.cos(a)])
+  }
+  return sweepFaces(g, half, sweep, SPIN.ball)
 }
 
 export function buildCone({ radius, height, sides, sweep, edge, edgeStyle }) {
@@ -58,9 +72,12 @@ export function buildCone({ radius, height, sides, sweep, edge, edgeStyle }) {
   // and a cut edge is sharp by definition — rounding it would be describing
   // something the slice did not do.
   const e = sweep >= 359.5 ? edgeFor(edge, radius, height) : 0
-  if (!e) return new THREE.ConeGeometry(radius, height, sides, 1, false, 0, rad(sweep))
-
   const hh = height / 2
+  if (!e) {
+    const g = new THREE.ConeGeometry(radius, height, sides, 1, false, 0, rad(sweep))
+    return sweepFaces(g, [[0, -hh], [radius, -hh], [0, hh]], sweep)
+  }
+
   const base = [radius, -hh]
   const apex = [0, hh]
   return revolve(
@@ -71,15 +88,18 @@ export function buildCone({ radius, height, sides, sweep, edge, edgeStyle }) {
 }
 
 export function buildCylinder({ topRadius, bottomRadius, height, sides, sweep, edge, edgeStyle }) {
-  const plain = () =>
-    new THREE.CylinderGeometry(topRadius, bottomRadius, height, sides, 1, false, 0, rad(sweep))
+  const hh = height / 2
+  const plain = () => {
+    const g = new THREE.CylinderGeometry(topRadius, bottomRadius, height, sides, 1, false, 0, rad(sweep))
+    const side = [[0, -hh], [bottomRadius, -hh], [topRadius, hh], [0, hh]]
+    return sweepFaces(g, side, sweep)
+  }
   // A tube closed to a point at one end has no rim there to soften, so that
   // end's radius is left out of what limits the edge.
   const ends = [bottomRadius, topRadius].filter((r) => r > 1e-4)
   const e = sweep >= 359.5 ? edgeFor(edge, ...ends, height) : 0
   if (!e) return plain()
 
-  const hh = height / 2
   const low = [bottomRadius, -hh]
   const high = [topRadius, hh]
   const up = dirTo(low, high)
@@ -105,8 +125,17 @@ export function buildPyramid({ radius, height, sides }) {
 }
 
 export function buildTorus({ radius, tube, sides, segments, sweep }) {
-  // Lay the donut flat on the floor rather than standing it on edge.
-  const g = new THREE.TorusGeometry(radius, tube, sides, segments, rad(sweep))
+  // Lay the donut flat on the floor rather than standing it on edge. A cut
+  // donut is an open tube until its two ends are closed.
+  let g = new THREE.TorusGeometry(radius, tube, sides, segments, rad(sweep))
+  // Capped while it is still standing up, because that is the frame its own
+  // profile — the circle of the tube — is written in.
+  const tubeRing = []
+  for (let k = 0; k < sides; k++) {
+    const a = (Math.PI * 2 * k) / sides
+    tubeRing.push([radius + tube * Math.cos(a), tube * Math.sin(a)])
+  }
+  g = sweepFaces(g, tubeRing, sweep, SPIN.ring)
   g.rotateX(-Math.PI / 2)
   return g
 }
