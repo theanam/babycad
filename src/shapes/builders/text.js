@@ -43,7 +43,11 @@ export function buildText({ text, size, thickness, font, curve, edge, edgeStyle 
 
   const cut = (bevel) => {
     const shapes = shapesFor(font, content, EM)
-    if (!shapes.length) return new THREE.BufferGeometry()
+    // No outlines at all — a face with no glyph for what was typed, Japanese
+    // asked of a Latin face. A bare `BufferGeometry` would have no position
+    // attribute, and the next thing to read one would throw; the cache turns
+    // this into a proper empty block.
+    if (!shapes.length) return null
     return new THREE.ExtrudeGeometry(shapes, {
       depth: EM,
       curveSegments: curve,
@@ -61,6 +65,7 @@ export function buildText({ text, size, thickness, font, curve, edge, edgeStyle 
   }
 
   let geometry = cut(null)
+  if (!geometry) return null
 
   // The letters are built at a fixed em and scaled to the millimetres asked
   // for, so an edge measured in millimetres has to be divided by the scale it
@@ -79,8 +84,12 @@ export function buildText({ text, size, thickness, font, curve, edge, edgeStyle 
         deep: (e * deep0) / thickness,
         segments: edgeStyle === 'bevel' ? 1 : 3,
       })
-      geometry.dispose()
-      geometry = bevelled
+      // A bevel wide enough to eat the strokes it is cutting leaves nothing
+      // behind; that is a reason to keep the plain letters, not to lose them.
+      if (bevelled) {
+        geometry.dispose()
+        geometry = bevelled
+      }
     }
   }
 

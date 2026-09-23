@@ -1,6 +1,8 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import AppCrash from './ui/AppCrash'
+import ErrorBoundary from './ui/ErrorBoundary'
 import './styles/global.css'
 
 /** WebGL2 is the one hard requirement; say so plainly if it's missing. */
@@ -18,7 +20,9 @@ const root = createRoot(document.getElementById('root'))
 root.render(
   <React.StrictMode>
     {hasWebGL() ? (
-      <App />
+      <ErrorBoundary what="the app" fallback={(error, retry) => <AppCrash onRetry={retry} />}>
+        <App />
+      </ErrorBoundary>
     ) : (
       <div className="fallback">
         <h1>BabyCAD needs 3D graphics</h1>

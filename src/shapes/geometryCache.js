@@ -12,6 +12,7 @@
  * undo or a slider nudged back where it was to reuse it, and is disposed once
  * it falls out of the pool.
  */
+import * as THREE from 'three'
 import { getShapeDef, keyOfParams, normalizeParams } from './index'
 import { onFaceLoaded } from './fontStore'
 
@@ -21,12 +22,61 @@ const entries = new Map() // key -> { key, geometry, refs }
 const byGeometry = new WeakMap() // geometry -> entry
 const idle = [] // keys with no holders, oldest first
 
-/** Build one, uncached and unowned. The caller disposes it. */
+/**
+ * A block with no shape to it: valid, measurable, and nothing to draw.
+ *
+ * Handed back when a builder cannot make anything — words in a face that has
+ * no glyph for them, or a builder that threw. It has a real position attribute
+ * with nothing in it and a box of zero size at the origin, so everything that
+ * measures a shape keeps working: the block still sits on the plate at height
+ * nought, still appears in the panel, and can still be selected, retyped or
+ * deleted. What it must not be is a geometry with no attributes at all, which
+ * is what an empty `BufferGeometry` is — the first thing to ask that for its
+ * vertex count brings the app down.
+ */
+function nothingToDraw() {
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3))
+  return geometry
+}
+
+/**
+ * Build one, uncached and unowned. The caller disposes it.
+ *
+ * A builder is the one place in this app where somebody else's data — a
+ * typeface off the internet, a model out of a file — meets code that runs
+ * inside a render. A throw here used to unmount everything: picking one of
+ * three particular Google fonts took the whole app down, because opentype.js
+ * throws on a substitution table it has not implemented. Shapes are
+ * independent of one another, so one that cannot be built is one bad block,
+ * not a bad session. The block comes back empty and the rest of the build is
+ * left alone.
+ */
 export function buildGeometry(type, params) {
   const def = getShapeDef(type)
-  const geometry = def.build(normalizeParams(def.type, params))
+  let geometry
+  try {
+    geometry = def.build(normalizeParams(def.type, params))
+    if (!geometry?.getAttribute?.('position')) {
+      geometry?.dispose?.()
+      geometry = nothingToDraw()
+    }
+  } catch (error) {
+    console.error(`BabyCAD could not build a ${type}:`, error)
+    geometry = nothingToDraw()
+  }
+
   geometry.computeBoundingBox()
   geometry.computeBoundingSphere()
+  // An empty geometry measures as a box from +infinity to -infinity, and that
+  // spreads: `restingHeight` reads it, the position becomes NaN, and a block
+  // with a NaN transform takes the renderer with it. Pin it to a point.
+  const box = geometry.boundingBox
+  if (!box || !Number.isFinite(box.min.x) || !Number.isFinite(box.max.x)) {
+    box?.min.set(0, 0, 0)
+    box?.max.set(0, 0, 0)
+    if (geometry.boundingSphere) geometry.boundingSphere.radius = 0
+  }
   return geometry
 }
 

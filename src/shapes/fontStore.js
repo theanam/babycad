@@ -121,6 +121,58 @@ export function warmFontsFor(objects) {
 /* ------------------------------------------------------------ outlines -- */
 
 /**
+ * The outline of a run of text, walked a glyph at a time.
+ *
+ * opentype's own `getPath` would be the obvious thing to call, and it is a
+ * trap. On the way to the glyphs it applies the font's OpenType features,
+ * which means reading its GSUB table, and it throws outright on lookup kinds
+ * it has not implemented — "substitutionType : 62 lookupType: 6 - substFormat:
+ * 2 is not yet supported". Three of the fourteen faces offered here trip it,
+ * on every string, including plain ABC: picking Nunito, Bangers or Roboto Slab
+ * did not fail to render, it threw out of the builder and took the app down.
+ *
+ * Going through `charToGlyph` asks for each character's glyph directly and
+ * never touches that table. What is lost is the typographic niceties those
+ * features provide — ligatures, contextual alternates — and for lettering that
+ * is about to be extruded into a solid and printed, that is no loss worth
+ * having a crash for. Kerning is kept, since it lives in its own table and is
+ * what stops AVA coming out gappy; measured against `getPath` on the faces
+ * where that works, the result is identical to the hundredth of a millimetre.
+ */
+function pathOf(face, text, size) {
+  const path = new opentype.Path()
+  const scale = size / (face.unitsPerEm || 1000)
+  let x = 0
+  let previous = null
+  // By code point, not by char: a surrogate pair is one character, and
+  // splitting it makes two glyphs out of nothing.
+  for (const character of text) {
+    let glyph = null
+    try {
+      glyph = face.charToGlyph(character)
+    } catch {
+      glyph = null
+    }
+    if (!glyph) continue
+    if (previous) {
+      try {
+        x += (face.getKerningValue(previous, glyph) || 0) * scale
+      } catch {
+        // A face with a kern table this cannot read still sets fine unkerned.
+      }
+    }
+    try {
+      path.extend(glyph.getPath(x, 0, size))
+    } catch {
+      // One glyph that will not draw should cost that glyph, not the word.
+    }
+    x += (glyph.advanceWidth ?? 0) * scale
+    previous = glyph
+  }
+  return path
+}
+
+/**
  * opentype gives a path in its own Y-down space, as move/line/quad/cubic
  * commands. `THREE.Shape` wants Y-up, and wants the holes in a glyph — the
  * middle of an O — declared as holes rather than as more outlines.
@@ -131,7 +183,7 @@ export function warmFontsFor(objects) {
  * other, so the sign of the signed area is the whole answer.
  */
 function shapesFromOpentype(face, text, size) {
-  const path = face.getPath(text, 0, 0, size)
+  const path = pathOf(face, text, size)
   const contours = []
   let current = null
   let last = new THREE.Vector2()
@@ -215,8 +267,24 @@ export function shapesFor(family, text, size) {
     ensureFont(family)
     entry = faces.get(BUNDLED)
   }
-  if (!entry) return []
-  return entry.kind === 'typeface'
-    ? entry.face.generateShapes(text, size)
-    : shapesFromOpentype(entry.face, text, size)
+
+  const outlines = (from) => {
+    if (!from) return []
+    try {
+      return from.kind === 'typeface'
+        ? from.face.generateShapes(text, size)
+        : shapesFromOpentype(from.face, text, size)
+    } catch {
+      // A face that cannot set this string is a disappointment, not a reason
+      // to stop; the caller is given nothing and falls back.
+      return []
+    }
+  }
+
+  const shapes = outlines(entry)
+  if (shapes.length) return shapes
+  // Nothing came out — usually a face that simply has no glyph for what was
+  // typed, a Latin one asked for Japanese. The bundled face is worth a try
+  // before giving up, and giving up returns an empty list rather than throwing.
+  return entry === faces.get(BUNDLED) ? [] : outlines(faces.get(BUNDLED))
 }

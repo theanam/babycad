@@ -12,6 +12,7 @@ import ExportMenu from './ui/ExportMenu'
 import VariablesPanel from './ui/VariablesPanel'
 import ConfirmDialog from './ui/ConfirmDialog'
 import WelcomeScreen from './ui/WelcomeScreen'
+import ErrorBoundary from './ui/ErrorBoundary'
 
 /**
  * Arrow key -> [how far away from the camera, how far to its right], before
@@ -462,7 +463,22 @@ export default function App() {
       <TabStrip onNew={onNew} onCloseRequest={onCloseRequest} />
 
       <div className="stage">
-        <Viewport />
+        {/* The plate and the panels fail apart from one another. Whichever of
+            the two stops, the other is still there to save the work with. */}
+        <ErrorBoundary
+          what="the 3D view"
+          fallback={(error, retry) => (
+            <div className="panel-crash stage-crash">
+              <b>The plate stopped drawing.</b>
+              <span>Your blocks are still here.</span>
+              <button className="crash-btn" onClick={retry}>
+                Try again
+              </button>
+            </div>
+          )}
+        >
+          <Viewport />
+        </ErrorBoundary>
 
         {!objects.length && <div className="empty-hint">pick a shape to start</div>}
 
@@ -471,11 +487,20 @@ export default function App() {
             strip of their own, then whichever panel is showing beneath. */}
         <div className="rail">
           {objects.length > 0 && <ViewTools />}
-          {showVariables ? (
-            <VariablesPanel onClose={closeVariables} />
-          ) : (
-            <PropertiesPanel />
-          )}
+          <ErrorBoundary
+            what="the panel"
+            fallback={(error, retry) => (
+              <div className="panel-crash">
+                <b>This panel stopped working.</b>
+                <span>The block itself is fine — try again, or pick something else.</span>
+                <button className="crash-btn" onClick={retry}>
+                  Try again
+                </button>
+              </div>
+            )}
+          >
+            {showVariables ? <VariablesPanel onClose={closeVariables} /> : <PropertiesPanel />}
+          </ErrorBoundary>
         </div>
         <ViewCube />
       </div>

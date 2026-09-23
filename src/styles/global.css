@@ -1381,3 +1381,25 @@ a.foot-btn, a.icon-btn { text-decoration: none; }
 
 /* Wider than a number needs: this one holds words. */
 .live-words-input { width: 180px; text-align: left; font-family: Nunito, system-ui, sans-serif; }
+
+/* ------------------------------------------------------- when it breaks -- */
+
+.crash-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 6px; }
+.crash-btn {
+  font: inherit; font-size: 15px; font-weight: 800;
+  padding: 10px 16px; border-radius: 12px; cursor: pointer;
+  color: var(--text); background: var(--panel-2); border: 1px solid var(--line);
+}
+.crash-btn:hover { background: var(--panel-3); }
+.crash-btn.primary { color: #12141A; background: var(--accent); border-color: transparent; }
+.crash-note { font-size: 14px !important; color: var(--warn) !important; }
+
+/* A panel that stopped, sitting where the panel was. */
+.panel-crash {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+  padding: 18px; border-radius: 16px;
+  background: var(--panel); border: 1px solid var(--line);
+}
+.panel-crash b { font-size: 15px; font-weight: 900; }
+.panel-crash span { font-size: 14px; font-weight: 700; color: var(--muted); line-height: 1.5; }
+.stage-crash { position: absolute; inset: 0; margin: auto; width: max-content; height: max-content; align-items: center; }

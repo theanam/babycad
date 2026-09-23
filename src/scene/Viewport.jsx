@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ContactShadows, Grid } from '@react-three/drei'
 import SceneObject from './SceneObject'
+import ErrorBoundary from '../ui/ErrorBoundary'
 import BoxGizmo from './BoxGizmo'
 import AlignGizmo from './AlignGizmo'
 import { OrbitCamera } from './orbit'
@@ -129,14 +130,18 @@ function Blocks() {
   return (
     <>
       {objects.map((o) => (
-        <SceneObject
-          key={o.id}
-          object={o}
-          selected={selected.has(o.id)}
-          onSelect={select}
-          holes={cutters.get(o.id) ?? null}
-          castShadow={shadows}
-        />
+        // One block that cannot be drawn is one block missing from the plate,
+        // not an empty screen. It keeps its row in the panel, so it can still
+        // be selected, changed back or deleted — which is usually the fix.
+        <ErrorBoundary key={o.id} what={`a ${o.type}`} fallback={() => null}>
+          <SceneObject
+            object={o}
+            selected={selected.has(o.id)}
+            onSelect={select}
+            holes={cutters.get(o.id) ?? null}
+            castShadow={shadows}
+          />
+        </ErrorBoundary>
       ))}
       {!objects.length && <StartPad />}
     </>
