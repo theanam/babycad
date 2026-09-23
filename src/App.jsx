@@ -264,8 +264,24 @@ export default function App() {
   /* ----------------------------------------------------------- welcome -- */
 
   /** Leaving the welcome screen: there has to be something open behind it. */
+  /**
+   * A blank build. Only ever reached from "Start with an empty plate" — making
+   * a document is something somebody asks for, never a side effect of getting
+   * out of the way of this screen.
+   */
   const startBlank = useCallback(() => {
     if (!useDocs.getState().docs.length) useDocs.getState().open({})
+    setWelcomeAsked(false)
+    setSheet(null)
+  }, [])
+
+  /**
+   * Put the welcome screen away without making anything. With a build already
+   * open this goes back to it; on a first visit `welcoming` is still true
+   * because there are no documents, so the screen stays and nothing happens —
+   * which is the right nothing, since there is nowhere to go back to.
+   */
+  const dismissWelcome = useCallback(() => {
     setWelcomeAsked(false)
     setSheet(null)
   }, [])
@@ -365,6 +381,7 @@ export default function App() {
       {welcoming && (
         <WelcomeScreen
           onBlank={startBlank}
+          onDismiss={dismissWelcome}
           onExample={startExample}
           onOpenFile={onOpenFile}
           onHelp={() => setSheet('help')}

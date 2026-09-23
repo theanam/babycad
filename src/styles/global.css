@@ -1072,9 +1072,9 @@ button:disabled { cursor: default; }
   animation: fade var(--fade);
 }
 
-.welcome-sheet { width: 880px; max-width: 100%; margin: auto; }
+.welcome-sheet { width: 960px; max-width: 100%; margin: auto; }
 
-.welcome-head { text-align: center; margin-bottom: 30px; }
+.welcome-head { text-align: center; margin-bottom: 26px; }
 .welcome-mark { width: 44px; height: 44px; margin: 0 auto 16px; }
 .welcome-head h1 {
   margin: 0 0 12px;
@@ -1112,9 +1112,16 @@ button:disabled { cursor: default; }
   font-style: normal; font-size: 14px; font-weight: 700; color: var(--muted);
 }
 
+/* Side by side rather than stacked: two full-width bars and a paragraph of
+   hero copy used up the whole first screen on a laptop before a single example
+   came into view. */
+.welcome-ways { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 640px) {
+  .welcome-ways { grid-template-columns: 1fr; }
+}
+
 /* The second way in is quieter than the first: same shape, no accent. */
 .welcome-open {
-  margin-top: 10px;
   background: var(--panel);
   border-color: var(--line);
 }
@@ -1125,7 +1132,7 @@ button:disabled { cursor: default; }
 /* A rule with the word sitting in the gap. */
 .welcome-or {
   display: flex; align-items: center; gap: 14px;
-  margin: 26px 0 16px;
+  margin: 22px 0 14px;
   font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em;
   text-transform: uppercase; color: var(--muted-deep);
 }
@@ -1147,10 +1154,44 @@ button:disabled { cursor: default; }
 .welcome-example:hover { border-color: var(--line-raised); background: var(--panel-raised); }
 .welcome-example:active { border-color: var(--accent); }
 
+/* A render, so it needs cropping rather than a viewBox. The build is centred
+   in the shot, so `cover` only ever trims empty plate off the top and bottom. */
 .example-art {
   display: block; width: 100%; height: 132px;
+  object-fit: cover;
   background: radial-gradient(120% 100% at 50% 8%, #222836 0%, #12161d 72%);
   border-bottom: 1px solid var(--line);
+}
+
+/* The shelf: picture and name, as many across as the sheet will take. Nineteen
+   of these read as a set of things to pick from rather than a list to get
+   through, and four rows of them fit where nineteen full cards took seven. */
+.welcome-things {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+.welcome-thing {
+  border-radius: var(--r-panel);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  transition: border-color var(--fade), background var(--fade), transform var(--fade);
+}
+.welcome-thing:hover {
+  border-color: var(--line-raised);
+  background: var(--panel-raised);
+  transform: translateY(-1px);
+}
+.welcome-thing:active { border-color: var(--accent); transform: none; }
+.welcome-thing .example-art { height: 92px; }
+.welcome-thing b {
+  display: block;
+  padding: 9px 10px 11px;
+  font-size: 13px; font-weight: 800; color: var(--ink);
+  text-align: left;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 .welcome-example-meta { display: block; padding: 14px; }
