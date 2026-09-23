@@ -13,7 +13,8 @@
     "check:align": "node tools/check-align.mjs",
     "check:holes": "node tools/check-holes.mjs",
     "check:reseat": "node tools/check-reseat.mjs",
-    "check": "npm run check:shapes && npm run check:resize && npm run check:examples && npm run check:align && npm run check:holes && npm run check:reseat"
+    "check": "npm run check:shapes && npm run check:resize && npm run check:examples && npm run check:align && npm run check:holes && npm run check:reseat",
+    "shots": "node tools/render-examples.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^9.122.0",
