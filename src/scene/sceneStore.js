@@ -21,14 +21,24 @@ const uid = () =>
     ? crypto.randomUUID()
     : 'id-' + Math.random().toString(36).slice(2) + Date.now().toString(36)
 
-export function makeObject(type, position = [0, 0, 0], color, params) {
+export function makeObject(type, position = [], color, params) {
   const shapeParams = params ? normalizeParams(type, params) : defaultParams(type)
   return {
     id: uid(),
     type,
     params: shapeParams,
     bindings: null, // { [paramKey]: variableId } once something is linked
-    position: [position[0], position[1] || restingHeight(type, shapeParams), position[2]],
+    // A height of nothing means "rest it on the plate"; a height of zero means
+    // zero. This was `||`, which cannot tell those apart — so a block asked for
+    // at exactly y = 0 was quietly lifted to its resting height instead, and
+    // the only way to place one there was to ask for 0.0001. It cost the
+    // underside of the dice its pips: six cutters meant to sit in the bottom
+    // face were stood up on the plate, cutting nothing.
+    position: [
+      position[0] ?? 0,
+      position[1] ?? restingHeight(type, shapeParams),
+      position[2] ?? 0,
+    ],
     rotation: [0, 0, 0],
     scale: [1, 1, 1],
     color: color ?? SHAPE_COLOR[type] ?? '#FFC93D',
