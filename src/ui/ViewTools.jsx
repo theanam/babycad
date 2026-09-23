@@ -17,6 +17,8 @@ export default function ViewTools() {
   const snapStep = useScene((s) => s.snapStep)
   const toggleSnap = useScene((s) => s.toggleSnap)
   const setSnapStep = useScene((s) => s.setSnapStep)
+  const floorSnap = useScene((s) => s.floorSnap)
+  const toggleFloorSnap = useScene((s) => s.toggleFloorSnap)
   const freeMove = useScene((s) => s.freeMove)
 
   // The step menu: right-click the switch, or press the arrow beside it for
@@ -95,6 +97,24 @@ export default function ViewTools() {
                 onClick={() => pick(0)}
               >
                 Free move
+              </button>
+
+              {/* Its own setting, under a rule, because it answers a different
+                  question from the grid: not how fine the work is, but whether
+                  the floor is sticky. Somebody laying parts a hair above the
+                  plate wants one without the other. */}
+              <div className="tools-menu-rule" role="separator" />
+              <button
+                role="menuitemcheckbox"
+                className={floorSnap ? 'on' : ''}
+                aria-checked={floorSnap}
+                // The menu stays open: this is the one item whose state is
+                // shown in the menu itself, so closing it would hide the very
+                // change that was just made.
+                onClick={toggleFloorSnap}
+                title="Let the plate take a block that is lowered close to it"
+              >
+                Snap to the plate <em>· {floorSnap ? 'on' : 'off'}</em>
               </button>
             </div>
           )}

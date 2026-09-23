@@ -3,6 +3,7 @@ import { Edges, Outlines } from '@react-three/drei'
 import { keyOfParams } from '../shapes'
 import { acquireShape, isFinished, releaseShape } from '../shapes/csg'
 import { registerMesh } from './meshRegistry'
+import { useFonts } from '../shapes/fontStore'
 import { dragBus } from './dragBus'
 
 // The outline shader offsets by this many *drawing-buffer* pixels, so scale it
@@ -24,6 +25,8 @@ const HOLE_COLOR = '#9AA3B4'
  */
 function SceneObject({ object, selected, onSelect, holes, castShadow = true }) {
   const meshRef = useRef()
+  /** When and where this block was last pressed, for spotting a double press. */
+  const lastPress = useRef(null)
   const bind = useCallback(
     (mesh) => {
       meshRef.current = mesh
@@ -52,7 +55,12 @@ function SceneObject({ object, selected, onSelect, holes, castShadow = true }) {
 
   // Holes go in by shape *and* by where they sit relative to this block, so
   // sliding the pair across the plate together doesn't rebuild the cut.
+  // A typeface that arrives after the words were first drawn has to redraw
+  // them. Nothing about the object changes when it lands, so the generation
+  // counter is what makes the key differ — see shapes/fontStore.
+  const fontGeneration = useFonts((s) => s.generation)
   const shapeKey =
+    (object.type === 'text' ? `f${fontGeneration}` : '') +
     keyOfParams(object.type, object.params) +
     (holes?.length
       ? `|${object.position}|${object.rotation}|${object.scale}` +
@@ -75,7 +83,33 @@ function SceneObject({ object, selected, onSelect, holes, castShadow = true }) {
       castShadow={castShadow && !object.hole}
       receiveShadow={!object.hole}
       onPointerDown={(e) => {
+        // The left button only. The right one turns the view and the middle
+        // one slides it (see scene/orbit), and a block happening to be under
+        // the pointer is no reason for either to pick it up and carry it —
+        // which is what this did, so turning the view while looking at
+        // something dragged it across the plate instead.
+        const button = e.button ?? e.nativeEvent?.button ?? 0
+        if (button !== 0) return
         e.stopPropagation()
+
+        // Two quick presses on the same spot open a text block for editing.
+        // Counted here rather than through R3F's own `onDoubleClick`, which
+        // never arrives: the native `dblclick` reaches the canvas, but the
+        // camera takes a pointer capture on the way past and the synthetic
+        // event does not survive it. Presses do arrive, so presses are what
+        // this counts.
+        const now = performance.now()
+        const px = e.nativeEvent?.clientX ?? e.clientX ?? 0
+        const py = e.nativeEvent?.clientY ?? e.clientY ?? 0
+        const last = lastPress.current
+        const near = last && now - last.at < 400 && Math.hypot(px - last.x, py - last.y) < 6
+        lastPress.current = { at: now, x: px, y: py }
+        if (near && object.type === 'text') {
+          lastPress.current = null
+          dragBus.editWords?.(object.id)
+          return
+        }
+
         onSelect(object.id, e.shiftKey || e.nativeEvent?.shiftKey)
         // Dragging a block's body slides it along the floor. A press that
         // never moves is just a selection click, which costs nothing.

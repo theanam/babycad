@@ -18,7 +18,9 @@ const SHORTCUTS = [
   ['Middle-drag', 'Slide the view (or Shift + right-drag)'],
   ['L', 'Line up everything you’ve picked'],
   ['Hold Alt', 'Move without snapping to the grid'],
-  ['Arrow keys', 'Step the number field you’re in'],
+  ['Arrow keys', 'Nudge what’s picked across the plate'],
+  ['Shift + arrows', 'Nudge it ten steps at a time'],
+  ['Arrow keys in a field', 'Step that number'],
 ]
 
 /**
@@ -94,7 +96,8 @@ export default function HelpModal({ onClose, onShowWelcome }) {
               with the same tooth size genuinely mesh.
             </p>
             <p>
-              <b>Text</b> is a generator too. Type into <b>Words</b> in the rail and the letters are
+              <b>Text</b> is a generator too. <b>Double-click the words on the plate</b> to change
+              them where they stand, or type into <b>Words</b> in the rail; the letters are
               rebuilt as one solid, lying face up on the plate with their thickness going straight
               up — the way a nameplate is printed. <b>Letter height</b> and <b>Thickness</b> are the
               two sizes; how wide it comes out is up to the word. Dragging a corner sets the letter
@@ -109,7 +112,10 @@ export default function HelpModal({ onClose, onShowWelcome }) {
             </p>
             <ul className="help-list">
               <li>
-                <b>Drag the block itself</b> to slide it across the floor.
+                <b>Drag the block itself</b> to slide it across the floor, or nudge it with the{' '}
+              <b>arrow keys</b> — which go by where you are standing, so up is always away from
+              you however the view is turned. Each press is one step of the snap grid, and Shift
+              takes ten.
               </li>
               <li>
                 <b>The four corners at the bottom</b> resize it, growing it up and away from the
@@ -128,14 +134,22 @@ export default function HelpModal({ onClose, onShowWelcome }) {
               {angleStepFor(SNAP_DEFAULT)}°. The <strong>Snap</strong> switch&apos;s menu —
               right-click it, or press the arrow beside it — offers{' '}
               {SNAP_STEPS.map((s) => `${s.mm} mm / ${s.deg}°`).join(', ')}, or no snapping at all.
-              Hold <strong>Alt</strong> to suspend it for as long as you need.
+              Hold <strong>Alt</strong> to suspend it for as long as you need. Whichever grid you
+              pick stays with that build — it is saved in the file, so a bracket that wants tenths
+              of a millimetre opens on tenths of a millimetre.
             </p>
             <p>
-              The plate pulls, too. Lower a block toward the floor and within a few millimetres it
-              seats itself flat on it, rather than hovering a fraction above or sinking a fraction
-              below — a gap too small to see and big enough to matter to a printer. That is for
-              dragging only: a number you type into the rail or onto the box is left exactly where
-              you put it.
+              The plate pulls, too. Let go of a block within a few millimetres of the floor and it
+              settles flat on it, rather than hovering a fraction above or sinking a fraction below
+              — a gap too small to see and big enough to matter to a printer. It settles when you
+              let go, never while you are still dragging, so the last millimetres of a lift are a
+              movement rather than a tug of war. <strong>Snap to the plate</strong> at the bottom
+              of the same menu turns it off on its own, for laying parts out deliberately just
+              above the floor.
+            </p>
+            <p>
+              Either way it is for dragging only: a number you type into the rail or onto the box
+              is left exactly where you put it.
             </p>
             <p>
               While you drag, the measurement rides along beside the block — the size on the edge
@@ -158,6 +172,25 @@ export default function HelpModal({ onClose, onShowWelcome }) {
               <strong>Split apart</strong> brings the hole back, still cutting, still yours to move
               or resize. Holes never end up in an exported file; they are the tool, not the part.
             </p>
+            <p>
+              Combining also makes the parts one colour: whichever of them covers the most plate
+              lends its colour to the rest. Six colours touching each other are six blocks; once
+              they are one thing they should look like one, and the biggest piece is the one
+              anybody would name if asked what colour it is. Holes get no say — they are drawn
+              grey whatever colour they carry.
+            </p>
+            <p>
+              Nothing is lost: <strong>Split apart</strong> hands every part its own colour back,
+              and so does undo. The colours travel inside the build, so a thing combined today
+              still comes apart into its own colours next week on another computer.
+            </p>
+            <p>
+              Combining has levels. Combine something that is already combined and it goes in
+              whole, as one part of the new thing, rather than being tipped back out into its
+              pieces — so a wheel made of a tyre and a hub stays a wheel when you combine it onto
+              a cart. <strong>Split apart</strong> takes the last step back off and leaves
+              everything underneath as it was; split again to go one level deeper.
+            </p>
           </section>
 
           <section>
@@ -178,6 +211,19 @@ export default function HelpModal({ onClose, onShowWelcome }) {
           </section>
 
           <section>
+            <h3>Typefaces</h3>
+            <p>
+              Words come in a <b>Typeface</b> of your choosing. Two ship with the app and are
+              always there; the rest are Google Fonts, fetched the first time you pick one, so
+              that one takes a moment and needs a connection. The list leans on rounded and heavy
+              faces on purpose — a hairline serif at 15 mm is a stroke a printer cannot lay down.
+            </p>
+            <p>
+              A build remembers the name of the face, not the face itself. Open one on a computer
+              that has never fetched it and the words wait in the standard face for a moment while
+              it arrives.
+            </p>
+
             <h3>Bringing a model in</h3>
             <p>
               <b>Import</b> in the top bar opens an <b>STL</b>, an <b>OBJ</b> or a <b>3MF</b> and

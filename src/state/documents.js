@@ -63,7 +63,11 @@ const restoreSession = (session) => {
  * remembered to clear and still says "changed" after a change and its undo.
  */
 export const fingerprint = (parts) =>
-  JSON.stringify([parts.objects ?? [], parts.groups ?? [], parts.variables ?? []])
+  JSON.stringify([
+    parts.objects ?? [],
+    parts.groups ?? [],
+    parts.variables ?? [],
+  ])
 
 const untitled = (docs) => {
   const taken = new Set(docs.map((d) => d.name))

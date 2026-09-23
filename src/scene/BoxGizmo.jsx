@@ -147,6 +147,15 @@ const grabScale = () => (COARSE_POINTER?.matches ? 1 : 0.62)
  * or not print depending on which side of nothing it landed on. Wider than
  * the snap grid on purpose: the grid makes 0 reachable, this makes it easy.
  *
+ * It settles the block when the drag ends, never while it is in flight. Pulling
+ * at it every frame turned the last few millimetres of a lift into a fight —
+ * the block snapping flat, being dragged off again, snapping back. A turn and a
+ * resize do not use this at all: they only stop a block sinking below the
+ * plate, since neither is a move and neither should quietly become one.
+ *
+ * The plate snap can be switched off on its own in the snap menu, separately
+ * from the grid.
+ *
  * Set to the coarse move grid, because at 3 mm the plate let go too readily:
  * a block lowered by hand came to rest a whisker off it as often as on it.
  *
@@ -282,6 +291,15 @@ export default function BoxGizmo() {
    * away, and changing what is selected clears it — a dial around a block you
    * are no longer holding is measuring nothing.
    */
+  /**
+   * The block whose words are being typed, if any.
+   *
+   * Its own state rather than another value of `editing`, because `editing` is
+   * cleared whenever the selection changes — and opening this involves pressing
+   * a block, which changes the selection. Sharing the flag meant the box was
+   * shut in the same breath it was opened.
+   */
+  const [wordsOpen, setWordsOpen] = useState(null)
   const heldDial = useRef(null)
   /** The turn currently on show, so typing starts from the number being read. */
   const liveTurn = useRef(0)
@@ -299,6 +317,10 @@ export default function BoxGizmo() {
     edgeChoice.current = {}
     setEditing(null)
     hold(null)
+    // The words box survives the selection being re-stamped with the same
+    // block — which is what a double press does — and closes only when its
+    // block is genuinely no longer picked.
+    setWordsOpen((open) => (open && selectedIds.includes(open) ? open : null))
   }, [selectedIds, hold])
 
   /**
@@ -510,10 +532,34 @@ export default function BoxGizmo() {
     [rayAt, controls]
   )
 
+  /**
+   * Type new words onto a block, from a double click on the plate.
+   *
+   * The same idea as typing a size onto the box: the thing being changed is
+   * under the pointer, so the box to change it in belongs there too rather
+   * than over in the rail.
+   */
+  const applyWords = useCallback((typed, id) => {
+    setWordsOpen(null)
+    const o = id && useScene.getState().objects.find((x) => x.id === id)
+    if (!o) return
+    const next = String(typed ?? '')
+    if (next === o.params.text) return
+    useScene.getState().setParams({ [o.id]: { ...o.params, text: next } }, 'words')
+  }, [])
+
   useEffect(() => {
     dragBus.startBodyMove = startBodyMove
+    dragBus.editWords = (id) => {
+      // Deliberately does not select: the first of the two presses already
+      // did. Selecting again would hand `selectedIds` a new array, and the
+      // effect watching it closes any open editor — so the box would be shut
+      // in the same breath it was opened.
+      setWordsOpen(id)
+    }
     return () => {
       dragBus.startBodyMove = null
+      dragBus.editWords = null
     }
   }, [startBodyMove])
 
@@ -659,13 +705,20 @@ export default function BoxGizmo() {
             delta.set(0, snapTo(d.seat + delta.y, snap) - d.seat, 0)
           }
 
-          // And within a few millimetres of the plate, the plate wins: the
-          // block sits flat on it rather than near it. Suspended along with
-          // everything else while Alt is held or snapping is off, so there is
-          // still a way to hold something a hair above the floor by hand.
-          if (d.kind === 'move-y' && Math.abs(d.seat + delta.y) <= FLOOR_GRAB) {
-            delta.set(0, -d.seat, 0)
-          }
+          // Within a few millimetres of the plate, on the way *down*, the
+          // plate wins: a block lowered onto it sits flat rather than near it.
+          //
+          // On the way up it lets go. Catching in both directions made it a
+          // magnet rather than a landing: a block on the plate could not be
+          // lifted to two millimetres at all, because every frame of the drag
+          // pulled it back to nothing until the pointer had gone past the whole
+          // band, and then it jumped. Which way the block is being taken is the
+          // difference between helping it land and refusing to let it leave.
+          // The plate does not grab mid-drag. It used to, and near the floor
+          // that made the block jump about: every frame it was inside the band
+          // it was yanked flat, so the last millimetres of a lift were a fight
+          // rather than a movement. The block now follows the pointer the whole
+          // way down and settles when it is let go — see `onUp`.
         }
         for (const item of d.items) paint(item.id, vec.copy(item.position).add(delta), null, null)
       } else if (d.kind === 'scale') {
@@ -732,9 +785,10 @@ export default function BoxGizmo() {
             .add(d.anchor)
         }
 
-        // A resize moves the underside as surely as a lift does: the far face
-        // is pinned, so pulling the bottom handle down a shade leaves the block
-        // hanging a shade through the floor. The plate catches it back.
+        // Same for a resize: the far face is pinned, so pulling the bottom
+        // handle down leaves the block hanging through the floor. Lifted back
+        // out, and no further — a block that was above the plate stays where
+        // it was put.
         if (snap) {
           let seat = Infinity
           for (const sz of d.sized) {
@@ -743,7 +797,7 @@ export default function BoxGizmo() {
             sz.probe.scale[2] = sz.scale.z
             seat = Math.min(seat, sz.position.y + bottomOf(sz.probe))
           }
-          if (Number.isFinite(seat) && Math.abs(seat) <= FLOOR_GRAB) {
+          if (Number.isFinite(seat) && seat < 0) {
             for (const sz of d.sized) sz.position.y -= seat
           }
         }
@@ -785,13 +839,12 @@ export default function BoxGizmo() {
           t.rotation.setFromQuaternion(t.quaternion.copy(dq).multiply(item.quaternion))
         }
 
-        // Turning a block moves its underside, so what sat flat on the plate
-        // almost never still does — spin a cube on its corner and it sinks
-        // halfway through the floor. Within the same band that catches a lift,
-        // the plate takes it back, so a turn leaves the build sitting on the
-        // plate rather than a fraction through it. Suspended with every other
-        // snap while Alt is held, which is still the way to turn something in
-        // free air.
+        // Turning a block swings its underside, so a cube spun on its corner
+        // ends up halfway through the floor. It is lifted back out — but only
+        // out. Pulling it *down* onto the plate as well made a turn reseat
+        // anything hovering near it, so a block deliberately held two
+        // millimetres up could not be turned without losing its height. A turn
+        // is not a move, and should not quietly become one.
         if (snap) {
           let seat = Infinity
           for (const t of d.turned) {
@@ -800,7 +853,7 @@ export default function BoxGizmo() {
             t.probe.rotation[2] = t.rotation.z
             seat = Math.min(seat, t.position.y + bottomOf(t.probe))
           }
-          if (Number.isFinite(seat) && Math.abs(seat) <= FLOOR_GRAB) {
+          if (Number.isFinite(seat) && seat < 0) {
             for (const t of d.turned) t.position.y -= seat
           }
         }
@@ -851,6 +904,27 @@ export default function BoxGizmo() {
         if (!patch) continue
         before[item.id] = item.before
         patches.push(patch)
+      }
+
+      // The plate settles the build once, here, rather than tugging at it
+      // every frame. A lift that finishes within a few millimetres of the
+      // floor lands flat on it; one that finishes higher is left where it was
+      // put. Off when the plate snap is switched off, and off while Alt is
+      // held, like every other snap.
+      const store = useScene.getState()
+      if (d.kind === 'move-y' && patches.length && store.floorSnap && snapRef.current) {
+        let seat = Infinity
+        for (const patch of patches) {
+          const o = store.objects.find((x) => x.id === patch.id)
+          if (!o) continue
+          seat = Math.min(seat, patch.position[1] + bottomOf({ ...o, rotation: patch.rotation }))
+        }
+        if (Number.isFinite(seat) && seat !== 0 && Math.abs(seat) <= FLOOR_GRAB) {
+          for (const patch of patches) {
+            patch.position[1] -= seat
+            paint(patch.id, vec.set(...patch.position), null, null)
+          }
+        }
       }
       if (patches.length) {
         stageTransform(patches)
@@ -1029,6 +1103,13 @@ export default function BoxGizmo() {
         // Clear of the edge, straight out from the box.
         tagOut.set(sign[0], sign[1], sign[2]).applyQuaternion(f.quat).normalize()
         return out.addScaledVector(tagOut, k * 2)
+      }
+
+      // The words editor sits where the readout sits: over the block, clear of
+      // its top.
+      const wordsGroup = tagGroups.current.words
+      if (wordsGroup) {
+        wordsGroup.position.set(f.center.x, f.center.y + topY + k * 3.4, f.center.z)
       }
 
       const note = (text) => {
@@ -1289,6 +1370,31 @@ export default function BoxGizmo() {
           </Html>
         </group>
       ))}
+
+      {wordsOpen && (
+        <group
+          ref={(g) => {
+            tagGroups.current.words = g
+          }}
+        >
+          <Html zIndexRange={[25, 15]} style={{ pointerEvents: 'none' }}>
+            <input
+              className="live-dim-input live-words-input"
+              defaultValue={
+                useScene.getState().objects.find((o) => o.id === wordsOpen)?.params.text ?? ''
+              }
+              autoFocus
+              onFocus={(e) => e.target.select()}
+              onBlur={(e) => applyWords(e.target.value, wordsOpen)}
+              onKeyDown={(e) => {
+                e.stopPropagation()
+                if (e.key === 'Enter') applyWords(e.currentTarget.value, wordsOpen)
+                if (e.key === 'Escape') setWordsOpen(null)
+              }}
+            />
+          </Html>
+        </group>
+      )}
 
       {(dragging || heldTurn) && (
         <group

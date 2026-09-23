@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import * as THREE from 'three'
 import Viewport from './scene/Viewport'
 import { useScene } from './scene/sceneStore'
 import { viewport } from './scene/viewportApi'
@@ -11,7 +12,19 @@ import ExportMenu from './ui/ExportMenu'
 import VariablesPanel from './ui/VariablesPanel'
 import ConfirmDialog from './ui/ConfirmDialog'
 import WelcomeScreen from './ui/WelcomeScreen'
+
+/**
+ * Arrow key -> [how far away from the camera, how far to its right], before
+ * either is turned into a world direction.
+ */
+const ARROWS = {
+  ArrowUp: [1, 0],
+  ArrowDown: [-1, 0],
+  ArrowRight: [0, 1],
+  ArrowLeft: [0, -1],
+}
 import { pickModelFiles, readModelFile } from './io/importModel'
+import { warmFontsFor } from './shapes/fontStore'
 import HelpModal from './ui/HelpModal'
 import TabStrip from './ui/TabStrip'
 import Toasts, { toast } from './ui/Toast'
@@ -128,6 +141,63 @@ export default function App() {
   const saveRef = useRef(() => {})
   const openRef = useRef(() => {})
 
+  /**
+   * Arrow keys walk the selection across the plate.
+   *
+   * Which way is "up" depends on where you are standing. The arrows are read
+   * against the camera: whichever world axis the camera is most nearly looking
+   * along becomes the up arrow, and the other three follow from it. Snapping
+   * to an axis rather than using the camera's exact heading is deliberate —
+   * a block nudged along the true view direction would walk off the grid and
+   * never land on a round number again.
+   *
+   * The step is the snap grid, so a nudge and a drag agree about where blocks
+   * are allowed to sit. Shift takes ten at a time, for crossing the plate.
+   */
+  const nudging = useRef(null)
+
+  const nudge = useCallback((key, big) => {
+    const store = useScene.getState()
+    const sel = store.selectedObjects()
+    if (!sel.length || !viewport.camera) return false
+
+    // The camera's heading, flattened onto the plate and snapped to an axis.
+    const look = viewport.camera.getWorldDirection(new THREE.Vector3())
+    const away =
+      Math.abs(look.x) > Math.abs(look.z)
+        ? { x: Math.sign(look.x), z: 0 }
+        : { x: 0, z: Math.sign(look.z) }
+    const right = { x: -away.z, z: away.x }
+
+    const [ax, az] = ARROWS[key]
+    const step = (store.snapEnabled ? store.snapStep : 1) * (big ? 10 : 1)
+    const dx = (away.x * ax + right.x * az) * step
+    const dz = (away.z * ax + right.z * az) * step
+
+    // One run of held keypresses is one move: `before` is taken once, at the
+    // first press, and kept until the key comes up.
+    if (!nudging.current) {
+      nudging.current = Object.fromEntries(
+        sel.map((o) => [o.id, { position: [...o.position], rotation: [...o.rotation], scale: [...o.scale] }])
+      )
+    }
+    store.stageTransform(
+      sel.map((o) => ({
+        id: o.id,
+        position: [o.position[0] + dx, o.position[1], o.position[2] + dz],
+        rotation: [...o.rotation],
+        scale: [...o.scale],
+      }))
+    )
+    return true
+  }, [])
+
+  const endNudge = useCallback(() => {
+    const before = nudging.current
+    nudging.current = null
+    if (before) useScene.getState().commitTransform(before, 'move')
+  }, [])
+
   useEffect(() => {
     // A focused text field owns its own undo stack, so the shortcuts stay out
     // of its way. A slider has no such thing, and leaving one focused after a
@@ -177,6 +247,8 @@ export default function App() {
           e.preventDefault()
           store.toggleAlign()
         }
+      } else if (ARROWS[e.key]) {
+        if (nudge(e.key, e.shiftKey)) e.preventDefault()
       } else if (e.key === 'Escape') {
         // Escape backs out of aligning first, and only clears the selection
         // once there is no mode left to leave.
@@ -187,6 +259,10 @@ export default function App() {
 
     const onKeyUp = (e) => {
       if (e.key === 'Alt') useScene.getState().setFreeMove(false)
+      // A held arrow repeats, and one undo step per repeat would bury the
+      // state before it. The whole run of a press is staged and committed once
+      // on release, the same shape a drag has.
+      if (ARROWS[e.key]) endNudge()
     }
     // Alt-tabbing away can swallow the keyup, so clear on blur too.
     const onBlur = () => useScene.getState().setFreeMove(false)
@@ -199,7 +275,7 @@ export default function App() {
       window.removeEventListener('keyup', onKeyUp)
       window.removeEventListener('blur', onBlur)
     }
-  }, [undo, redo])
+  }, [undo, redo, nudge, endNudge])
 
   /* ------------------------------------------------------------ actions -- */
 
@@ -220,6 +296,9 @@ export default function App() {
       let scene = null
       try {
         scene = migrate(JSON.parse(file.text))
+        // Start fetching any typeface the build names, so words that use one
+        // settle into it rather than staying in the fallback face.
+        if (scene) warmFontsFor(scene.objects)
       } catch {
         scene = null
       }

@@ -65,6 +65,9 @@ export const SNAP = {
  * work is in both senses at once.
  */
 export const SNAP_STEPS = [
+  // Finer than the printer can hold, but a hole in a bracket sometimes wants
+  // to be exactly where it is rather than near it.
+  { mm: 0.1, deg: 1 },
   { mm: 0.5, deg: 1 },
   { mm: 1, deg: 5 },
   { mm: 5, deg: 15 },
