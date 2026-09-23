@@ -270,12 +270,36 @@ export default function BoxGizmo() {
   )
   const boundNames = useMemo(() => bound.map((b) => b.name), [bound])
 
+  /**
+   * The dial left standing after a turn.
+   *
+   * It used to vanish on mouse-up, which made the angle impossible to work at:
+   * the one thing that says how far round the block is went away at exactly
+   * the moment you wanted to look at it, and there was no way to take another
+   * bite at the same turn against the same scale. It stays now, holding the
+   * axis, colour and radius of the turn that drew it, until something says it
+   * is out of date: a different turn replaces it, any other handle puts it
+   * away, and changing what is selected clears it — a dial around a block you
+   * are no longer holding is measuring nothing.
+   */
+  const heldDial = useRef(null)
+  /** The turn currently on show, so typing starts from the number being read. */
+  const liveTurn = useRef(0)
+  // The ref is what the frame loop reads; the state is what mounts the readout
+  // and lets it be typed into. `hold` keeps the two saying the same thing.
+  const [heldTurn, setHeldTurn] = useState(null)
+  const hold = useCallback((turn) => {
+    heldDial.current = turn
+    setHeldTurn(turn)
+  }, [])
+
   // A different block is a different box; let its labels find their own edges,
   // and never leave an editor open over a block that is no longer there.
   useEffect(() => {
     edgeChoice.current = {}
     setEditing(null)
-  }, [selectedIds])
+    hold(null)
+  }, [selectedIds, hold])
 
   /**
    * Type a size straight onto the box.
@@ -309,6 +333,57 @@ export default function BoxGizmo() {
     }
     useScene.getState().setParams({ [object.id]: resize.params }, 'resize')
   }, [])
+
+  /**
+   * Type a turn straight onto the dial, the same way a side is typed onto the
+   * box. The number shown is the rail's — the axis as the properties panel
+   * names it, with its sign — so what is typed back is read the same way
+   * round, and the whole turn is replaced rather than added to.
+   */
+  const applyTurn = useCallback(
+    (typed) => {
+      setEditing(null)
+      const held = heldDial.current
+      const named = held && axisOf(held.slot)
+      const f = frame.current
+      if (!named || !f) return
+      const deg = Number(typed)
+      if (!Number.isFinite(deg)) return
+
+      const sel = useScene.getState().selectedObjects()
+      if (!sel.length) return
+
+      // Turn the whole selection about its own middle, which is exactly what
+      // swinging the lever does. Restricting this to one block made it useless
+      // on every example: a build that has been combined selects as a group,
+      // so the only thing you could ever type a turn into was a block you had
+      // just placed yourself.
+      const lead = sel[0]
+      const shown = THREE.MathUtils.radToDeg(lead.rotation[held.slot]) * named.sign
+      const delta = THREE.MathUtils.degToRad(deg - shown) * named.sign
+      if (Math.abs(delta) < 1e-9) return
+
+      const axis = new THREE.Vector3(...held.axis).applyQuaternion(f.quat).normalize()
+      const dq = new THREE.Quaternion().setFromAxisAngle(axis, delta)
+      const before = {}
+      const patches = sel.map((o) => {
+        before[o.id] = { position: [...o.position], rotation: [...o.rotation], scale: [...o.scale] }
+        const position = new THREE.Vector3(...o.position)
+          .sub(f.center)
+          .applyQuaternion(dq)
+          .add(f.center)
+        const turned = new THREE.Quaternion()
+          .copy(dq)
+          .multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(...o.rotation)))
+        const e = new THREE.Euler().setFromQuaternion(turned)
+        return { id: o.id, position: position.toArray(), rotation: [e.x, e.y, e.z], scale: [...o.scale] }
+      })
+
+      stageTransform(patches)
+      commitTransform(before, 'turn')
+    },
+    [commitTransform, stageTransform]
+  )
 
   const reachRay = useMemo(() => new THREE.Raycaster(), [])
   const occludeAt = useRef(0)
@@ -384,6 +459,9 @@ export default function BoxGizmo() {
   const begin = (kind, extra, event) => {
     const selected = useScene.getState().selectedObjects()
     if (!selected.length) return
+    // Whatever is about to happen, the dial standing there is about to be
+    // either out of date or beside the point. `startTurn` claims it back.
+    hold(null)
     if (controls) controls.enabled = false // stop OrbitControls stealing the gesture
     drag.current = {
       kind,
@@ -543,6 +621,8 @@ export default function BoxGizmo() {
       },
       event
     )
+    // Set after `begin`, which clears it: this is the turn whose dial stays.
+    hold({ radius, slot: def.slot, axis: def.axis })
   }
 
   /* ---------------------------------------------------------- drag move -- */
@@ -832,13 +912,16 @@ export default function BoxGizmo() {
       shell.scale.set(f.half.x * 2 + m, f.half.y * 2 + m, f.half.z * 2 + m)
     }
 
-    // The turning dial, only while a lever is actually being swung.
+    // The dial: up while a lever is being swung, and left up afterwards so the
+    // angle can be read and taken further. `heldDial` is cleared by the next
+    // drag of any kind and by a change of selection.
     const dial = handles.current.dial
     if (dial) {
       const d = drag.current
       const turning = d?.kind === 'rotate'
-      dial.visible = turning
-      if (turning) dial.scale.setScalar(d.dialRadius)
+      const held = turning ? { radius: d.dialRadius } : heldDial.current
+      dial.visible = Boolean(held)
+      if (held) dial.scale.setScalar(held.radius)
     }
 
     // While a handle is being dragged it lights up and grows, and every other
@@ -952,6 +1035,8 @@ export default function BoxGizmo() {
         if (!divs.note) return
         divs.note.textContent = text
         divs.note.style.display = ''
+        const cls = drag.current ? 'live-note turning' : 'live-note'
+        if (divs.note.className !== cls) divs.note.className = cls
         const g = tagGroups.current.note
         if (g) {
           g.position.set(f.center.x, smooth('noteY', f.center.y + topY + k * 3.4), f.center.z)
@@ -991,11 +1076,17 @@ export default function BoxGizmo() {
         if (div.style.color !== color) div.style.color = color
       }
 
-      if (d?.kind === 'rotate') {
-        const mesh = meshes.get(d.items[0].id)
-        const axis = axisOf(d.slot)
+      // A turn in flight, or one that has been let go of and is still being
+      // read. Same number either way: the dial without its angle is a ruler
+      // with no markings, which is what made the angle impossible to work at.
+      const turnSlot = d?.kind === 'rotate' ? d.slot : (!d && heldDial.current?.slot)
+      if (turnSlot !== false && turnSlot !== undefined && turnSlot !== null) {
+        const id = d ? d.items[0].id : useScene.getState().selectedIds[0]
+        const mesh = meshes.get(id)
+        const axis = axisOf(turnSlot)
         if (mesh && axis) {
-          const turned = THREE.MathUtils.radToDeg(mesh.rotation.toArray()[d.slot]) * axis.sign
+          const turned = THREE.MathUtils.radToDeg(mesh.rotation.toArray()[turnSlot]) * axis.sign
+          liveTurn.current = turned
           note(`${axis.label} ${fixed1(smooth('turn', turned))}°`)
           if (divs.note) divs.note.style.color = axis.color
         }
@@ -1199,20 +1290,43 @@ export default function BoxGizmo() {
         </group>
       ))}
 
-      {dragging && (
+      {(dragging || heldTurn) && (
         <group
           ref={(g) => {
             tagGroups.current.note = g
           }}
         >
           <Html zIndexRange={[25, 15]} style={{ pointerEvents: 'none' }}>
-            <div
-              className="live-note"
-              ref={(el) => {
-                tagDivs.current.note = el
-              }}
-              style={{ display: 'none' }}
-            />
+            {editing === 'turn' ? (
+              <input
+                className="live-dim-input"
+                defaultValue={fixed1(liveTurn.current)}
+                autoFocus
+                onFocus={(e) => e.target.select()}
+                onBlur={(e) => applyTurn(e.target.value)}
+                onKeyDown={(e) => {
+                  e.stopPropagation()
+                  if (e.key === 'Enter') applyTurn(e.currentTarget.value)
+                  if (e.key === 'Escape') setEditing(null)
+                }}
+              />
+            ) : (
+              <div
+                className="live-note"
+                ref={(el) => {
+                  tagDivs.current.note = el
+                }}
+                style={{ display: 'none' }}
+                // Only typeable once the lever has been let go of: mid-swing
+                // the number is changing under the pointer.
+                title={dragging ? '' : 'Click to type a turn'}
+                onPointerDown={(e) => !dragging && e.stopPropagation()}
+                onClick={() => {
+                  if (dragging || !heldDial.current) return
+                  setEditing('turn')
+                }}
+              />
+            )}
           </Html>
         </group>
       )}
