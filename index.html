@@ -4,15 +4,53 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
     <meta name="theme-color" content="#0E1014" />
-    <meta name="description" content="BabyCAD — a 3D building sandbox that runs entirely in your browser." />
+
+    <title>BabyCAD — 3D modelling for kids, in the browser</title>
+    <meta
+      name="description"
+      content="A 3D building yard that runs entirely in your browser. Drop shapes on the plate, give them real millimetres, and take the result away as an STL you can print. No account, no cloud, no upload."
+    />
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./og.png" />
+
+    <!--
+      Absolute URLs, because a crawler reading a shared link has no page to
+      resolve a relative one against. They name the published site, so a fork
+      that wants its own preview card changes them to its own address — there
+      is no way to write these once and have them be right everywhere.
+    -->
+    <link rel="canonical" href="https://theanam.github.io/babycad/" />
+    <meta property="og:site_name" content="BabyCAD" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://theanam.github.io/babycad/" />
+    <meta property="og:title" content="BabyCAD — 3D modelling for kids, in the browser" />
+    <meta
+      property="og:description"
+      content="Drop shapes on the plate, give them real millimetres, and take the result away as an STL you can print. No account, no cloud, no upload."
+    />
+    <meta property="og:image" content="https://theanam.github.io/babycad/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="The BabyCAD workspace: a rocket built from coloured blocks on a 200 mm build plate, with its size in millimetres in the panel beside it."
+    />
+    <meta property="og:locale" content="en" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="BabyCAD — 3D modelling for kids, in the browser" />
+    <meta
+      name="twitter:description"
+      content="Drop shapes on the plate, give them real millimetres, and take the result away as an STL you can print. No account, no cloud, no upload."
+    />
+    <meta name="twitter:image" content="https://theanam.github.io/babycad/og.png" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <title>BabyCAD</title>
   </head>
   <body>
     <div id="root"></div>
