@@ -32,7 +32,8 @@ import {
 import { buildGear } from './builders/gear'
 import { buildThread } from './builders/thread'
 import { buildKnot, buildSpring } from './builders/spring'
-import { buildText, DEFAULT_TEXT, FONT_OPTIONS } from './builders/text'
+import { buildText, DEFAULT_TEXT } from './builders/text'
+import { DEFAULT_FAMILY, FONT_OPTIONS } from './fonts/catalogue'
 import { buildModel } from './builders/model'
 
 /**
@@ -90,7 +91,7 @@ export const SHAPE_DEFS = [
       text('text', 'Words', DEFAULT_TEXT),
       size('size', 'Letter height', 20),
       size('thickness', 'Thickness', 5),
-      choice('font', 'Weight', 'bold', FONT_OPTIONS),
+      choice('font', 'Typeface', DEFAULT_FAMILY, FONT_OPTIONS),
       int('curve', 'Smoothness', 6, { min: 1, max: 12 }),
       edge(6),
       edgeStyle(),

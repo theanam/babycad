@@ -1,16 +1,12 @@
 /**
  * Text, as a solid you can print.
  *
- * **Why the font is bundled rather than fetched.** Every builder in here is
- * synchronous — `build(params)` hands back a geometry, and the cache, the
- * placement maths and `measure` all call it expecting an answer immediately.
- * A font arriving over the network would mean the first text block had no size
- * to be placed by, so the two typefaces are imported as JSON and parsed once
- * when this module loads. They are three's own MgOpen-derived faces, whose
- * licence permits redistribution; the notice travels with them in
- * `shapes/fonts/LICENSE`. They are kept as JS modules rather than .json so the
- * same import works under Vite and under plain node, which would otherwise
- * demand an import attribute the bundler does not need.
+ * **Where the letters come from.** `shapes/fontStore` holds the typefaces and
+ * hands back the outlines for a run of text; this only extrudes them. Two are
+ * bundled so the app works with no network, and the rest are fetched from
+ * Google Fonts the first time somebody picks one. A builder cannot wait for a
+ * download, so a face that has not arrived falls back to the bundled one and
+ * the words are rebuilt when it lands.
  *
  * **Why it lies down.** `TextGeometry` writes in the XY plane and extrudes
  * along +Z, which would stand the letters up like a billboard. Everything in
@@ -27,20 +23,8 @@
  * of its lowest tail. Centring on the real bounding box is what lets the gizmo,
  * `restingHeight` and the resize substitution treat it like any other shape.
  */
-import { Font } from 'three/examples/jsm/loaders/FontLoader.js'
-import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js'
-import regular from '../fonts/helvetiker_regular'
-import bold from '../fonts/helvetiker_bold'
-
-const FONTS = {
-  regular: new Font(regular),
-  bold: new Font(bold),
-}
-
-export const FONT_OPTIONS = [
-  { value: 'bold', label: 'Bold' },
-  { value: 'regular', label: 'Regular' },
-]
+import * as THREE from 'three'
+import { shapesFor } from '../fontStore'
 
 /**
  * The face's own em size. `size` in the parameters is what the user means by
@@ -56,17 +40,14 @@ const printable = (value) => String(value ?? '').replace(/\s+/g, ' ').trim()
 
 export function buildText({ text, size, thickness, font, curve, edge, edgeStyle }) {
   const content = printable(text) || 'Text'
-  const face = FONTS[font] ?? FONTS.bold
 
-  const cut = (bevel) =>
-    new TextGeometry(content, {
-      font: face,
-      size: EM,
-      // `height` was renamed `depth` in r163; pass both so the builder does not
-      // quietly extrude nothing if three moves under us again.
+  const cut = (bevel) => {
+    const shapes = shapesFor(font, content, EM)
+    if (!shapes.length) return new THREE.BufferGeometry()
+    return new THREE.ExtrudeGeometry(shapes, {
       depth: EM,
-      height: EM,
       curveSegments: curve,
+      steps: 1,
       ...(bevel
         ? {
             bevelEnabled: true,
@@ -77,11 +58,12 @@ export function buildText({ text, size, thickness, font, curve, edge, edgeStyle 
           }
         : { bevelEnabled: false }),
     })
+  }
 
   let geometry = cut(null)
 
   // The letters are built at a fixed em and scaled to the millimetres asked
-  // for, so a bevel measured in millimetres has to be divided by the scale it
+  // for, so an edge measured in millimetres has to be divided by the scale it
   // is about to be multiplied by — and the two axes do not scale alike. That
   // needs the plain run's measurements, so it is cut once to measure and once
   // to keep.
@@ -90,8 +72,6 @@ export function buildText({ text, size, thickness, font, curve, edge, edgeStyle 
     const b0 = geometry.boundingBox
     const tall0 = Math.max(b0.max.y - b0.min.y, 1e-6)
     const deep0 = Math.max(b0.max.z - b0.min.z, 1e-6)
-    // Half the thickness and half the letter height are as far as an edge can
-    // come back before the two sides of it meet.
     const e = Math.min(edge, thickness * 0.49, size * 0.24)
     if (e > 1e-4) {
       const bevelled = cut({

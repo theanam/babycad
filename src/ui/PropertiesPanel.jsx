@@ -8,6 +8,7 @@ import { ColorDot, CombineIcon, CopyIcon, ResetIcon, SplitIcon, TrashIcon } from
 import ParamMenu from './ParamMenu'
 import { useUI } from '../state/ui'
 import { meshInfo } from '../shapes/meshStore'
+import { isFontReady, useFonts } from '../shapes/fontStore'
 import { toast } from './Toast'
 
 const DEG = 180 / Math.PI
@@ -89,6 +90,9 @@ function ParamField({
   onBind,
   onUnbind,
 }) {
+  // Re-renders when a typeface arrives, so "fetching…" clears itself.
+  useFonts((f) => f.generation)
+
   const menu = (
     <ParamMenu
       spec={spec}
@@ -125,6 +129,37 @@ function ParamField({
     )
   }
 
+  // A handful of options reads best as a row of buttons; fourteen typefaces
+  // does not. Past four, the same choice becomes a menu.
+  if (spec.kind === 'choice' && spec.options.length > 4) {
+    // Only the typefaces are fetched, and only they can be pending.
+    const waiting = spec.key === 'font' && !mixed && value && !isFontReady(value)
+    return (
+      <div className="param">
+        <div className="param-top">
+          <span className="param-name">{spec.label}</span>
+          {/* Always rendered, empty or not: it holds the middle column open so
+              the variable button lines up with the ones on numbered rows. */}
+          <span className="param-loading">{waiting ? 'fetching…' : ''}</span>
+          {menu}
+        </div>
+        <select
+          className="param-select"
+          value={mixed ? '' : value}
+          aria-label={spec.label}
+          onChange={(e) => onCommit(e.target.value)}
+        >
+          {mixed && <option value="">Mixed</option>}
+          {spec.options.map((o) => (
+            <option key={String(o.value)} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    )
+  }
+
   if (spec.kind === 'choice') {
     return (
       <div className="param">
@@ -155,9 +190,10 @@ function ParamField({
     const model = meshInfo(value)
     return (
       <div className="param">
+        {/* No variable button: no kind of variable can drive a model, so it
+            would be a button that never did anything. */}
         <div className="param-top">
           <span className="param-name">{spec.label}</span>
-          {menu}
         </div>
         <div className="param-readout" title={model ? `${model.triangles} triangles` : undefined}>
           {model ? `${model.name} · ${model.triangles.toLocaleString()} triangles` : 'missing'}
@@ -169,9 +205,10 @@ function ParamField({
   if (spec.kind === 'text') {
     return (
       <div className="param">
+        {/* Nor here. Variables exist to keep sizes agreeing with each other,
+            and there is nothing for a word to agree with. */}
         <div className="param-top">
           <span className="param-name">{spec.label}</span>
-          {menu}
         </div>
         {/* Committed on blur and on Enter rather than on every keystroke: each
             commit rebuilds the solid and lands on the undo stack, and a word

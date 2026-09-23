@@ -690,6 +690,15 @@ button:disabled { cursor: default; }
 .param-top {
   display: grid; grid-template-columns: 1fr 88px; align-items: center; gap: 8px;
 }
+/* A row whose control runs the full width below still keeps the three-column
+   grid, with the middle cell empty — that is what puts its variable button in
+   the same place as the buttons on the rows with numbers, instead of stranding
+   it in the number column. The empty cell is rendered, not implied. */
+.param-loading {
+  text-align: right;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.04em;
+  color: var(--accent-ink);
+}
 .param-name {
   font-size: 13px; font-weight: 800; color: var(--ink-dim);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -1345,3 +1354,30 @@ a.foot-btn, a.icon-btn { text-decoration: none; }
   border-color: #7C4DFF;
   background: #141826;
 }
+
+/* A choice with too many options to be a row of buttons — the typeface list.
+   Styled as the panel's other controls are, since it is one of them. */
+.param-select {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 9px;
+  border: 1px solid #2A3142;
+  border-radius: 7px;
+  background: #11141C;
+  color: #E7EAF2;
+  font: 700 13px/1.3 Nunito, system-ui, sans-serif;
+  appearance: none;
+  cursor: pointer;
+}
+.param-select:focus { outline: none; border-color: #7C4DFF; }
+.param-select option { background: #11141C; }
+
+/* Divides the snap grid from the settings that are not a grid. */
+.tools-menu-rule {
+  height: 1px;
+  margin: 5px 6px;
+  background: var(--line);
+}
+
+/* Wider than a number needs: this one holds words. */
+.live-words-input { width: 180px; text-align: left; font-family: Nunito, system-ui, sans-serif; }

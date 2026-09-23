@@ -13,6 +13,7 @@
  * it falls out of the pool.
  */
 import { getShapeDef, keyOfParams, normalizeParams } from './index'
+import { onFaceLoaded } from './fontStore'
 
 const IDLE_MAX = 48
 
@@ -27,6 +28,30 @@ export function buildGeometry(type, params) {
   geometry.computeBoundingBox()
   geometry.computeBoundingSphere()
   return geometry
+}
+
+/**
+ * Forget every cached geometry of one type, so the next ask rebuilds it.
+ *
+ * For things that change what a shape *is* without changing any of its
+ * parameters — a typeface arriving after the words were first drawn. The key
+ * is built from the parameters, so without this the cache would hand back the
+ * letters in the fallback face forever, and only editing the words would look
+ * like it fixed the typeface.
+ *
+ * Entries still held by something on screen are dropped from the map but not
+ * disposed: their holders are still drawing them, and will release them in the
+ * usual way. Only the lookup is forgotten.
+ */
+export function forgetType(type) {
+  for (const key of [...entries.keys()]) {
+    if (!key.startsWith(type)) continue
+    const entry = entries.get(key)
+    entries.delete(key)
+    const at = idle.indexOf(key)
+    if (at !== -1) idle.splice(at, 1)
+    if (entry && entry.refs === 0) entry.geometry.dispose()
+  }
 }
 
 export function acquireGeometry(type, params) {
@@ -78,3 +103,7 @@ export function measure(type, params) {
 export function restingHeight(type, params) {
   return -measure(type, params).min.y
 }
+
+// Words built while a typeface was still downloading are in the wrong face,
+// and nothing about their parameters says so. See `shapes/fontStore`.
+onFaceLoaded(() => forgetType('text'))

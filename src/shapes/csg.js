@@ -25,6 +25,7 @@ import * as THREE from 'three'
 import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg'
 import { acquireGeometry, releaseGeometry } from './geometryCache'
 import { keyOfParams } from './index'
+import { onFaceLoaded } from './fontStore'
 
 const IDLE_MAX = 24
 
@@ -113,6 +114,18 @@ function buildCut(object, holes) {
  * nothing cuts it, and the cut when something does. Release it with
  * `releaseShape`, which hands it back to whichever cache lent it.
  */
+/** The cut-geometry twin of `forgetType`, for the same reason. */
+export function forgetCutsOf(type) {
+  for (const key of [...entries.keys()]) {
+    if (!key.startsWith(type)) continue
+    const entry = entries.get(key)
+    entries.delete(key)
+    const at = idle.indexOf(key)
+    if (at !== -1) idle.splice(at, 1)
+    if (entry && entry.refs === 0) entry.geometry.dispose()
+  }
+}
+
 export function acquireShape(object, holes) {
   const near = object.hole || !holes?.length ? [] : holes
   if (!near.length) return acquireGeometry(object.type, object.params)
@@ -187,3 +200,7 @@ export function cuttersByObject(objects) {
 
 /** Whether a hole has been combined, and so has done its job and stepped back. */
 export const isFinished = (object) => Boolean(object.hole && object.parentGroupId)
+
+// Words built while a typeface was still downloading are in the wrong face,
+// and nothing about their parameters says so. See `shapes/fontStore`.
+onFaceLoaded(() => forgetCutsOf('text'))
