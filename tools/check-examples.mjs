@@ -16,6 +16,7 @@ register('./resolve-extensionless.mjs', import.meta.url)
 const { EXAMPLES, buildExample } = await import('../src/examples/index.js')
 const { buildGeometry } = await import('../src/shapes/geometryCache.js')
 const { PLATE_HALF } = await import('../src/constants.js')
+const { getShapeDef } = await import('../src/shapes/index.js')
 const { cuttersByObject } = await import('../src/shapes/csg.js')
 
 let problems = 0
@@ -79,6 +80,18 @@ for (const example of EXAMPLES) {
     // Every parameter written down has to survive validation unchanged. A
     // value out of the spec's range would be silently clamped, which is
     // exactly the sort of drift this check exists to catch.
+    // A parameter the shape does not have is dropped without a word by
+    // `normalizeParams`, so an example could ask for something imaginary —
+    // `radius` on a cube, a misremembered name — and load looking almost
+    // right. The comparison below cannot catch it either, since the missing
+    // value comes back undefined and every comparison against NaN is false.
+    const known = new Set(getShapeDef(object.type).params.map((p) => p.key))
+    for (const key of Object.keys(wrote)) {
+      if (!known.has(key)) {
+        fail(`${example.id} part ${i} (${object.type}): there is no such thing as "${key}" on a ${object.type}`)
+      }
+    }
+
     for (const [key, value] of Object.entries(wrote)) {
       const bound = object.bindings?.[key]
       if (bound) continue
@@ -117,6 +130,80 @@ for (const example of EXAMPLES) {
       const reach = Math.abs(object.position[slot]) + half
       if (reach > PLATE_HALF) {
         fail(`${example.id} part ${i} (${object.type}) reaches ${reach.toFixed(1)} mm on ${axis}, past the ${PLATE_HALF} mm plate`)
+      }
+    }
+  }
+}
+
+/* ------------------------------------------------- joints that hold -- */
+
+// A part set at an angle meets its neighbour along a slant, and it is very
+// easy to place one so that it only *touches*: the wall hook's peg started on
+// the face of its back plate, so half its end disc was in the material and
+// half was hanging in the air. It looked attached from most angles and would
+// have snapped off the moment it was printed.
+//
+// Only turned parts are tested. A block resting squarely on another shares no
+// material either, and that is a perfectly good joint — it is the slanted ones
+// where touching and joining come apart.
+console.log('\nparts set at an angle, and whether they are really joined…')
+{
+  const { Brush, Evaluator, INTERSECTION } = await import('three-bvh-csg')
+  const THREE = await import('three')
+  const ev = new Evaluator()
+  ev.attributes = ['position', 'normal']
+  ev.useGroups = false
+
+  const volumeOf = (result) => {
+    const g = result.geometry ?? result
+    const pos = g.getAttribute('position')
+    const idx = g.getIndex()
+    const n = idx ? idx.count / 3 : pos.count / 3
+    const at = (i) => {
+      const k = idx ? idx.getX(i) : i
+      return [pos.getX(k), pos.getY(k), pos.getZ(k)]
+    }
+    let v = 0
+    for (let t = 0; t < n; t++) {
+      const [a, b, c] = [at(t * 3), at(t * 3 + 1), at(t * 3 + 2)]
+      v += (a[0] * (b[1] * c[2] - b[2] * c[1]) + a[1] * (b[2] * c[0] - b[0] * c[2]) + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6
+    }
+    return Math.abs(v)
+  }
+  const brushOf = (o) => {
+    const b = new Brush(buildGeometry(o.type, o.params))
+    b.position.fromArray(o.position)
+    b.rotation.fromArray(o.rotation)
+    b.scale.fromArray(o.scale)
+    b.updateMatrixWorld(true)
+    return b
+  }
+
+  for (const example of EXAMPLES) {
+    const scene = buildExample(example)
+    const solids = scene.objects.filter((o) => !o.hole)
+    for (const part of solids) {
+      if (!part.rotation.some((r) => Math.abs(r) > 1e-6)) continue
+      // Standing on the plate is a joint in its own right.
+      const g = buildGeometry(part.type, part.params)
+      const box = new THREE.Box3().copy(g.boundingBox).applyMatrix4(
+        new THREE.Matrix4().compose(
+          new THREE.Vector3(...part.position),
+          new THREE.Quaternion().setFromEuler(new THREE.Euler(...part.rotation)),
+          new THREE.Vector3(...part.scale)
+        )
+      )
+      if (box.min.y <= 0.05) continue
+
+      let best = 0
+      for (const other of solids) {
+        if (other === part) continue
+        best = Math.max(best, volumeOf(ev.evaluate(brushOf(part), brushOf(other), INTERSECTION)))
+      }
+      const ok = best >= 1
+      console.log(`  ${example.id}: turned ${part.type} shares ${best.toFixed(1)} mm3 with its neighbours${ok ? '' : '   <-- only touching'}`)
+      if (!ok) {
+        fail(`${example.id}: a turned ${part.type} only touches what it is meant to be joined to — it would come off`)
       }
     }
   }

@@ -62,10 +62,26 @@ const finsAround = (radius, fin) =>
  */
 const HOOK_RAKE = Math.PI / 7.2 // 25 degrees above horizontal
 const HOOK_TILT = Math.PI / 2 - HOOK_RAKE
-const HOOK_LEN = 34
-const HOOK_BASE = [0, 16, -8] // on the front face of the back plate
 const HOOK_AXIS = [0, Math.sin(HOOK_RAKE), Math.cos(HOOK_RAKE)]
-const alongHook = (d) => HOOK_BASE.map((v, i) => v + HOOK_AXIS[i] * d)
+
+/**
+ * The peg starts inside the plate, not against it.
+ *
+ * A raked peg's end is a disc lying at 25 degrees to the plate's face. Started
+ * on that face, half the disc is in the material and half is hanging in the
+ * air, which is not a joint — the peg reads as stuck on rather than part of
+ * the thing, and printed it would snap off at the first coat. Starting it on
+ * the plate's middle buries the whole disc: the disc spans ±2.11 mm in z, the
+ * plate runs from −12 to −8, so a centre at −10 leaves the nearest edge a
+ * hair inside the front face and the furthest a hair inside the back.
+ */
+const HOOK_FACE = [0, 16, -8] // where it comes out of the plate's front
+const HOOK_PLATE_MID = -10
+const HOOK_EMBED = (HOOK_FACE[2] - HOOK_PLATE_MID) / HOOK_AXIS[2]
+const HOOK_REACH = 34 // how far it stands out, which is what matters to a coat
+const HOOK_LEN = HOOK_REACH + HOOK_EMBED
+const HOOK_START = HOOK_FACE.map((v, i) => v - HOOK_AXIS[i] * HOOK_EMBED)
+const alongHook = (d) => HOOK_START.map((v, i) => v + HOOK_AXIS[i] * d)
 const HOOK_MID = alongHook(HOOK_LEN / 2)
 const HOOK_TIP = alongHook(HOOK_LEN)
 
@@ -356,7 +372,9 @@ export const EXAMPLES = [
         color: '#FF8A3D',
         params: { radius: 8, wall: 2.5, height: 14, sides: 48, sweep: 280 },
         rot: [Math.PI / 2, (50 * Math.PI) / 180, 0],
-        y: 12,
+        // A millimetre into the base rather than balanced on it: two parts that
+        // meet at a plane and share no material are one piece only by luck.
+        y: 11,
       },
     ],
   },
@@ -578,7 +596,9 @@ export const EXAMPLES = [
       { type: 'cube', color: '#3A414F', params: { width: 90, height: 110, depth: 8, edge: 2 }, at: [0, -38.5], lift: 6 },
       // The ramp does what an unbraced upright cannot: it stops the corner
       // opening up under the weight of the books.
-      { type: 'wedge', color: '#2E7DF6', params: { width: 90, height: 45, depth: 45 }, at: [0, -12], lift: 6 },
+      // Overlapping the upright by a millimetre, for the same reason: a brace
+      // that only touches is a brace that comes off.
+      { type: 'wedge', color: '#2E7DF6', params: { width: 90, height: 45, depth: 45 }, at: [0, -13], lift: 6 },
     ],
   },
 
