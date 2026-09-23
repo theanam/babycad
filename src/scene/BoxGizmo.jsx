@@ -112,6 +112,18 @@ const EASE_SETTLED = 0.02
 
 const MIN_SCALE = 0.1
 const MAX_SCALE = 40
+
+/**
+ * Hold a scale between the limits without losing which way it faces.
+ *
+ * A mirrored block carries a negative number in its scale — that is what a
+ * reflection is — and clamping it against a positive floor would read −1.5 as
+ * far below the minimum and pull it up to 0.1: the flip lost and the block
+ * collapsed to a tenth of its size, from one drag of a resize handle. The
+ * limits are about how big, so they belong on the size and not on the sign.
+ */
+const clampScale = (value) =>
+  (value < 0 ? -1 : 1) * THREE.MathUtils.clamp(Math.abs(value), MIN_SCALE, MAX_SCALE)
 const READOUT_MS = 90
 // Handles hold this size on screen regardless of how far away the block is.
 // Kept small: zoomed out, a scene is mostly gizmo otherwise.
@@ -765,9 +777,9 @@ export default function BoxGizmo() {
           const item = d.items[i]
           const sz = d.sized[i]
           sz.scale.set(
-            THREE.MathUtils.clamp(item.scale.x * (d.mask[0] ? ratio : 1), MIN_SCALE, MAX_SCALE),
-            THREE.MathUtils.clamp(item.scale.y * (d.mask[1] ? ratio : 1), MIN_SCALE, MAX_SCALE),
-            THREE.MathUtils.clamp(item.scale.z * (d.mask[2] ? ratio : 1), MIN_SCALE, MAX_SCALE)
+            clampScale(item.scale.x * (d.mask[0] ? ratio : 1)),
+            clampScale(item.scale.y * (d.mask[1] ? ratio : 1)),
+            clampScale(item.scale.z * (d.mask[2] ? ratio : 1))
           )
           // Re-derive the ratio from the clamped scale so the anchor corner
           // stays exactly where it was.

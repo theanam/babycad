@@ -2,11 +2,12 @@ import { create } from 'zustand'
 import * as THREE from 'three'
 import * as cmd from '../history/undoRedo'
 import { FOOTPRINT, MAX_HISTORY, SCENE_VERSION, SNAP_DEFAULT, SNAP_STEPS } from '../constants'
-import { meshesFor } from '../shapes/meshStore'
+import { groupsAbove, pack, unpack } from './clipboard'
+import { adoptMeshes, meshesFor } from '../shapes/meshStore'
 import { defaultParams, normalizeParams, SHAPE_COLOR } from '../shapes'
 import { resizeToParams } from '../shapes/resize'
 import { measure, restingHeight } from '../shapes/geometryCache'
-import { alignOffsets } from './align'
+import { alignBounds, alignOffsets } from './align'
 import { meshes } from './meshRegistry'
 import {
   resolveParams,
@@ -95,6 +96,73 @@ export function expandSelection(ids, objects, groups = []) {
   return [...out]
 }
 
+/**
+ * Copy a set of blocks and the groups above them, with new ids throughout.
+ *
+ * Both the blocks and the groups are renamed, and every pointer between them
+ * is rewritten to match: a block to its group, and — this is the part that was
+ * missing — a group to the group it was folded into. Without that last one a
+ * duplicated nest came out flat, with the outer combine gone, because only the
+ * innermost link was ever remapped.
+ *
+ * `shift` moves the copies along the floor, and `variableMap` renames the
+ * variables the blocks are bound to, which paste needs and duplicate does not.
+ */
+function cloneUnits(objects, groups, shift = 0, variableMap = null) {
+  const groupIds = new Map(groups.map((g) => [g.id, uid()]))
+  const rename = (id) => (id && groupIds.get(id)) || null
+
+  const cloned = objects.map((o) => {
+    const bindings = o.bindings
+      ? Object.fromEntries(
+          Object.entries(o.bindings).map(([key, id]) => [key, variableMap?.get(id) ?? id])
+        )
+      : null
+    return {
+      ...o,
+      id: uid(),
+      position: [o.position[0] + shift, o.position[1], o.position[2] + shift],
+      parentGroupId: rename(o.parentGroupId),
+      ...(bindings ? { bindings } : {}),
+    }
+  })
+
+  const oldToNew = new Map(objects.map((o, i) => [o.id, cloned[i].id]))
+  const clonedGroups = groups.map((g) => ({
+    ...g,
+    id: groupIds.get(g.id),
+    parentGroupId: rename(g.parentGroupId),
+    // A group's members can be blocks or other groups, so both namings apply.
+    memberIds: (g.memberIds ?? [])
+      .map((id) => oldToNew.get(id) ?? groupIds.get(id))
+      .filter(Boolean),
+  }))
+  return { objects: cloned, groups: clonedGroups }
+}
+
+/**
+ * Align and Mirror are modes, and a mode does not outlive the selection it was
+ * opened for.
+ *
+ * Both replace the box handles for whatever is picked, so a flag left standing
+ * after the blocks are gone is a mode with nothing to act on — and it does not
+ * stay quiet: it lies in wait for the next thing selected. Turn on Mirror,
+ * delete the block, drop a fresh one on the plate, and the new block arrived
+ * wearing flip handles nobody asked for.
+ *
+ * So the flags are settled wherever the selection changes rather than only
+ * where a mode is switched: `NO_MODE` for the changes that mean a new job —
+ * picking something else, adding a block, loading a build — and `modesAfter`
+ * for the ones that merely thin the selection out, like an undo that takes
+ * some blocks away, where a mode is kept as long as what is left can still use
+ * it. Aligning needs two blocks to line up; mirroring is happy with one.
+ */
+const NO_MODE = { aligning: false, mirroring: false }
+const modesAfter = (st, ids) => ({
+  aligning: st.aligning && ids.length > 1,
+  mirroring: st.mirroring && ids.length > 0,
+})
+
 const emptyScene = () => ({ objects: [], groups: [], variables: [] })
 
 /**
@@ -142,6 +210,10 @@ export const useScene = create((set, get) => ({
   // hair above the plate wants the grid without the floor.
   floorSnap: true,
   ...readPrefs(),
+  // The last paste, so pasting the same blocks again steps further along the
+  // floor instead of landing on the copy already sitting there.
+  pasteRun: null,
+  mirroring: false, // the flip handles are showing instead of the box handles
   freeMove: false, // Alt held: temporarily ignore the snap grid
   aligning: false, // the align targets are showing instead of the box handles
   past: [],
@@ -190,7 +262,10 @@ export const useScene = create((set, get) => ({
       variables: next.variables,
       past: st.past.slice(0, -1),
       future: [command, ...st.future],
-      selectedIds: st.selectedIds.filter((id) => alive.has(id)),
+      ...(() => {
+        const ids = st.selectedIds.filter((id) => alive.has(id))
+        return { selectedIds: ids, ...modesAfter(st, ids) }
+      })(),
     })
   },
 
@@ -206,7 +281,10 @@ export const useScene = create((set, get) => ({
       variables: next.variables,
       past: [...st.past, command].slice(-MAX_HISTORY),
       future: st.future.slice(1),
-      selectedIds: st.selectedIds.filter((id) => alive.has(id)),
+      ...(() => {
+        const ids = st.selectedIds.filter((id) => alive.has(id))
+        return { selectedIds: ids, ...modesAfter(st, ids) }
+      })(),
     })
   },
 
@@ -214,30 +292,29 @@ export const useScene = create((set, get) => ({
 
   select(id, additive = false) {
     const st = get()
-    if (st.aligning) set({ aligning: false })
-    if (!id) return set({ selectedIds: [] })
+    if (!id) return set({ selectedIds: [], ...NO_MODE })
     let base = additive ? st.selectedIds : []
     if (additive && st.selectedIds.includes(id)) {
       // Toggling off removes the whole group the block belongs to.
       const drop = new Set(expandSelection([id], st.objects, st.groups))
       base = st.selectedIds.filter((x) => !drop.has(x))
-      return set({ selectedIds: base })
+      return set({ selectedIds: base, ...NO_MODE })
     }
-    set({ selectedIds: expandSelection([...base, id], st.objects, st.groups) })
+    set({ selectedIds: expandSelection([...base, id], st.objects, st.groups), ...NO_MODE })
   },
 
   setSelection(ids) {
-    set({ selectedIds: expandSelection(ids, get().objects, get().groups), aligning: false })
+    set({ selectedIds: expandSelection(ids, get().objects, get().groups), ...NO_MODE })
   },
 
   clearSelection() {
-    set({ selectedIds: [], aligning: false })
+    set({ selectedIds: [], ...NO_MODE })
   },
 
   selectAll() {
     const st = get()
     if (!st.objects.length) return false
-    set({ selectedIds: st.objects.map((o) => o.id), aligning: false })
+    set({ selectedIds: st.objects.map((o) => o.id), ...NO_MODE })
     return true
   },
 
@@ -248,7 +325,16 @@ export const useScene = create((set, get) => ({
    * an align target wants to sit to be visible.
    */
   toggleAlign() {
-    set((st) => ({ aligning: !st.aligning && st.selectedIds.length > 1 }))
+    set((st) => ({ aligning: !st.aligning && st.selectedIds.length > 1, mirroring: false }))
+  },
+
+  /**
+   * Mirroring needs only one block, unlike aligning, which needs something to
+   * line up against. The two replace the box handles, so only one of them can
+   * be showing.
+   */
+  toggleMirror() {
+    set((st) => ({ mirroring: !st.mirroring && st.selectedIds.length > 0, aligning: false }))
   },
 
   setFreeMove(freeMove) {
@@ -282,7 +368,7 @@ export const useScene = create((set, get) => ({
   addShape(type, position, params) {
     const obj = makeObject(type, position, undefined, params)
     get().apply(cmd.addObjects([obj]))
-    set({ selectedIds: [obj.id] })
+    set({ selectedIds: [obj.id], ...NO_MODE })
     return obj
   },
 
@@ -632,6 +718,82 @@ export const useScene = create((set, get) => ({
   },
 
   /**
+   * Flip the selection over, through the plane across the middle of it.
+   *
+   * The whole selection reflects about one plane, so two blocks swap sides and
+   * each is flipped where it stands. One block on its own reflects about its
+   * own middle, which leaves it exactly where it was — the point of mirroring
+   * a single thing is the handedness, not the position.
+   *
+   * Done as a matrix rather than by negating a number, because a reflection
+   * does not commute with a turn: a block lying at forty degrees, flipped,
+   * lies at minus forty, and no amount of sign-flipping the stored angles
+   * arrives at that on its own. Building each block's transform, reflecting
+   * it, and taking it apart again is the one way that is right for every
+   * block however it is sitting.
+   *
+   * What comes back out has a negative number in its scale — that is what a
+   * reflection *is*, and there is nowhere else to put it. Three things have to
+   * know: the renderer, which flips its winding for a negative determinant by
+   * itself; the exporter, which does not, and so reverses the triangles on the
+   * way out (see `io/exporters`); and resizing, which reads its own scale back
+   * and keeps it.
+   */
+  mirrorSelection(slot) {
+    const st = get()
+    const sel = st.selectedObjects()
+    if (!sel.length) return false
+    const { whole } = alignBounds(sel, meshes, st.groups)
+    if (whole.isEmpty()) return false
+
+    const axis = ['x', 'y', 'z'][slot]
+    const middle = (whole.min[axis] + whole.max[axis]) / 2
+
+    // Reflect about the plane across the middle: negate the axis, then put the
+    // middle back where it was.
+    const flip = new THREE.Matrix4().makeScale(
+      slot === 0 ? -1 : 1,
+      slot === 1 ? -1 : 1,
+      slot === 2 ? -1 : 1
+    )
+    flip.premultiply(
+      new THREE.Matrix4().makeTranslation(
+        slot === 0 ? 2 * middle : 0,
+        slot === 1 ? 2 * middle : 0,
+        slot === 2 ? 2 * middle : 0
+      )
+    )
+
+    const position = new THREE.Vector3()
+    const quaternion = new THREE.Quaternion()
+    const scale = new THREE.Vector3()
+    const euler = new THREE.Euler()
+    const matrix = new THREE.Matrix4()
+
+    const patches = sel.map((o) => {
+      matrix.compose(
+        position.fromArray(o.position),
+        quaternion.setFromEuler(euler.fromArray(o.rotation)),
+        scale.fromArray(o.scale)
+      )
+      matrix.premultiply(flip)
+      matrix.decompose(position, quaternion, scale)
+      euler.setFromQuaternion(quaternion)
+      return {
+        id: o.id,
+        before: { position: o.position, rotation: o.rotation, scale: o.scale },
+        after: {
+          position: position.toArray(),
+          rotation: [euler.x, euler.y, euler.z],
+          scale: scale.toArray(),
+        },
+      }
+    })
+    st.apply(cmd.transformObjects(patches, 'mirror'))
+    return true
+  },
+
+  /**
    * Turn the selection into holes, or back into solids. A hole only cuts once
    * it is combined with something, so this reports whether any of what it just
    * changed is still sitting on its own, for the rail to say so.
@@ -732,22 +894,82 @@ export const useScene = create((set, get) => ({
     const st = get()
     const sel = st.selectedObjects()
     if (!sel.length) return
-    const groupMap = new Map()
-    for (const o of sel) {
-      if (o.parentGroupId && !groupMap.has(o.parentGroupId)) groupMap.set(o.parentGroupId, uid())
+    const made = cloneUnits(sel, groupsAbove(sel, st.groups), FOOTPRINT / 2)
+    st.apply(cmd.addObjects(made.objects, made.groups, 'copy'))
+    set({ selectedIds: made.objects.map((o) => o.id), ...NO_MODE })
+  },
+
+  /* ------------------------------------------------------- clipboard -- */
+
+  /**
+   * The text to put on the clipboard for whatever is selected, or null if
+   * nothing is. Putting it there is the caller's job — only a real `copy`
+   * event may write to the clipboard, so `App` owns that half.
+   */
+  copyPayload() {
+    const st = get()
+    const sel = st.selectedObjects()
+    if (!sel.length) return null
+    return pack({ objects: sel, groups: st.groups, variables: st.variables })
+  },
+
+  /**
+   * Put pasted blocks on the plate.
+   *
+   * Three things have to be settled on the way in:
+   *
+   *  - **Where.** Blocks pasted into a different build keep the places they
+   *    had, so a part lands where it was designed to sit. Pasted back into the
+   *    build they came from they would land exactly on top of the originals
+   *    and look like nothing happened, so those are stepped aside — and
+   *    stepped again each time, so pasting four times gives four blocks rather
+   *    than a pile of one.
+   *  - **Variables.** A number bound to `wall` should go on meaning `wall` if
+   *    the build it arrives in already has one. Matching by name and kind
+   *    joins them up; anything unmatched arrives as a new variable of its own
+   *    rather than silently losing the link.
+   *  - **Imported models.** The triangles live in `shapes/meshStore`, not in
+   *    the block, so they are adopted before anything is placed.
+   */
+  paste(text) {
+    const payload = unpack(text)
+    if (!payload) return false
+    const st = get()
+
+    adoptMeshes(payload.meshes)
+
+    // Variables first: the clones need to know what to point at.
+    const byOldVariable = new Map()
+    const freshVariables = []
+    for (const v of sanitizeVariables(payload.variables)) {
+      const match = st.variables.find((existing) => existing.name === v.name && existing.kind === v.kind)
+      if (match) {
+        byOldVariable.set(v.id, match.id)
+        continue
+      }
+      const made = { ...v, id: uid(), name: uniqueName(v.name, [...st.variables, ...freshVariables]) }
+      byOldVariable.set(v.id, made.id)
+      freshVariables.push(made)
     }
-    const clones = sel.map((o) => ({
-      ...o,
-      id: uid(),
-      position: [o.position[0] + FOOTPRINT / 2, o.position[1], o.position[2] + FOOTPRINT / 2],
-      parentGroupId: o.parentGroupId ? groupMap.get(o.parentGroupId) : null,
-    }))
-    const newGroups = [...groupMap.values()].map((gid) => ({
-      id: gid,
-      memberIds: clones.filter((c) => c.parentGroupId === gid).map((c) => c.id),
-    }))
-    st.apply(cmd.addObjects(clones, newGroups, 'copy'))
-    set({ selectedIds: clones.map((c) => c.id) })
+
+    // Landing back where it came from? Step it aside, and further each time.
+    const here = new Set(st.objects.map((o) => o.id))
+    const home = payload.objects.some((o) => here.has(o.id))
+    const key = `${payload.objects.map((o) => o.id).join(',')}`
+    const times = get().pasteRun?.key === key ? get().pasteRun.times + 1 : 1
+    const shift = home ? (FOOTPRINT / 2) * times : 0
+
+    const made = cloneUnits(payload.objects, payload.groups, shift, byOldVariable)
+    st.apply(
+      cmd.addObjects(
+        made.objects,
+        made.groups,
+        made.objects.length > 1 ? `paste ${made.objects.length} blocks` : 'paste block',
+        freshVariables
+      )
+    )
+    set({ selectedIds: made.objects.map((o) => o.id), pasteRun: { key, times }, ...NO_MODE })
+    return true
   },
 
   deleteSelection() {
@@ -757,7 +979,7 @@ export const useScene = create((set, get) => ({
     const removing = new Set(sel.map((o) => o.id))
     const deadGroups = st.groups.filter((g) => g.memberIds.every((id) => removing.has(id)))
     st.apply(cmd.deleteObjects(sel, deadGroups))
-    set({ selectedIds: [] })
+    set({ selectedIds: [], ...NO_MODE })
   },
 
   // ---------------------------------------------------------- lifetime --
@@ -772,7 +994,7 @@ export const useScene = create((set, get) => ({
       variables: sanitizeVariables(scene.variables),
     }
     st.apply(cmd.replaceScene(before, after, label))
-    set({ selectedIds: [] })
+    set({ selectedIds: [], ...NO_MODE })
   },
 
   /** Plain-JSON snapshot — this is exactly what gets persisted and exported. */

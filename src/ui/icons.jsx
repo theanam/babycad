@@ -191,6 +191,14 @@ export const AlignIcon = (p) => (
     <rect x="8" y="14.5" width="7" height="4.5" rx="1.2" />
   </Svg>
 )
+/** Flip it over: a shape and its reflection, either side of the plane. */
+export const MirrorIcon = (p) => (
+  <Svg {...p}>
+    <path d="M12 3v18" strokeDasharray="2.5 2.5" />
+    <path d="M9 6.5 4 12l5 5.5z" />
+    <path d="M15 6.5 20 12l-5 5.5z" />
+  </Svg>
+)
 /** The empty plate: start with nothing on it. */
 export const BlankIcon = (p) => (
   <Svg {...p}>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useScene } from '../scene/sceneStore'
 import { SNAP_STEPS } from '../constants'
-import { AlignIcon, ChevronUpIcon, SnapIcon } from './icons'
+import { AlignIcon, ChevronUpIcon, MirrorIcon, SnapIcon } from './icons'
 
 /**
  * The scene-wide switches, in a strip at the top of the right rail: grid
@@ -45,7 +45,11 @@ export default function ViewTools() {
   }
   const aligning = useScene((s) => s.aligning)
   const toggleAlign = useScene((s) => s.toggleAlign)
+  const mirroring = useScene((s) => s.mirroring)
+  const toggleMirror = useScene((s) => s.toggleMirror)
   const multi = useScene((s) => s.selectedIds.length > 1)
+  // Mirroring asks for nothing to line up against, so one block is enough.
+  const any = useScene((s) => s.selectedIds.length > 0)
 
   const snapping = snapEnabled && !freeMove
 
@@ -131,11 +135,33 @@ export default function ViewTools() {
             Align
           </button>
         )}
+
+        {any && (
+          <button
+            className={`tools-btn${mirroring ? ' on' : ''}`}
+            onClick={toggleMirror}
+            aria-pressed={mirroring}
+            title="Flip what's picked over — tap the arrows for the way to turn it"
+          >
+            <MirrorIcon size={20} stroke={mirroring ? '#fff' : '#8A93A5'} />
+            Mirror
+          </button>
+        )}
       </div>
 
       {/* Nine dots with nothing written on them is a puzzle; this is the key
           to it, and it sits here rather than in the scene so it never covers
           the blocks it's talking about. */}
+      {mirroring && any && (
+        <div className="tools-legend" role="note">
+          Tap an arrow plate to flip what&apos;s picked over —{' '}
+          <i style={{ color: '#FF5A47' }}>X</i> left to right,{' '}
+          <i style={{ color: '#35C46B' }}>Y</i> front to back,{' '}
+          <i style={{ color: '#2E7DF6' }}>Z</i> top to bottom. Several blocks flip as one, so
+          they swap sides too.
+        </div>
+      )}
+
       {aligning && multi && (
         <div className="tools-legend" role="note">
           Each row of dots is one axis — <i style={{ color: '#FF5A47' }}>X</i>,{' '}

@@ -32,8 +32,14 @@ is a solid mesh a slicer will accept. It is only the *way in* that is simple.
   of whatever it overlaps — a tray, a bore, the pips on a die.
 - **Variables.** Point several numbers at one variable and drag it; everything
   that follows it moves together.
+- **Copy and paste that travels.** Blocks go on the real clipboard — with the
+  combines they're in, the variables they follow and, for an imported part, its
+  triangles — so they paste into another build, another window, or a message to
+  somebody who pastes them straight back onto a plate.
 - **Rounded and bevelled edges**, because a printed part with a softened edge
   is a nicer object than one with a knife edge.
+- **Line up and flip.** Align brings a set of blocks' faces together; Mirror
+  turns one block or a whole selection over, and exports the right way out.
 - **Words as solids.** Type them, pick a typeface — two bundled, a dozen more
   from Google Fonts — and they come out as raised lettering.
 - **Bring your own models.** Import an STL, OBJ or 3MF and build around it.
@@ -45,10 +51,12 @@ is a solid mesh a slicer will accept. It is only the *way in* that is simple.
 | | |
 |---|---|
 | Pick a block | click it — Shift-click to add, or drag a box over empty plate |
+| Copy it | Ctrl/⌘ + C, then V — blocks paste into any build, or any other window |
 | Move it | drag the block itself along the floor |
 | Lift it | drag the cone above the box |
 | Resize it | drag a corner handle, or type a size straight onto the box |
 | Turn it | swing one of the coloured balls, or type an angle onto the dial it leaves |
+| Flip it | switch on **Mirror** and tap an arrow plate — works on one block or many |
 | Turn the view | right-drag |
 | Slide the view | middle-drag, or Shift + right-drag |
 | Zoom | scroll — on a touchscreen, one finger turns and two pinch and slide |

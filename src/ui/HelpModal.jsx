@@ -9,7 +9,10 @@ const SHORTCUTS = [
   ['Ctrl / ⌘ + A', 'Pick every block'],
   ['Ctrl / ⌘ + S', 'Save this build to its file'],
   ['Ctrl / ⌘ + O', 'Open a build'],
-  ['Ctrl / ⌘ + D', 'Copy what’s selected'],
+  ['Ctrl / ⌘ + D', 'Make a copy, right here'],
+  ['Ctrl / ⌘ + C', 'Copy what’s selected'],
+  ['Ctrl / ⌘ + X', 'Cut what’s selected'],
+  ['Ctrl / ⌘ + V', 'Paste — into this build, or another one'],
   ['Delete or Backspace', 'Remove what’s selected'],
   ['Esc', 'Deselect'],
   ['Shift + click', 'Add a block to the selection'],
@@ -207,6 +210,23 @@ export default function HelpModal({ onClose, onShowWelcome }) {
               middle dot to centre everything on that axis. Hovering a dot draws a square where
               the faces are about to meet. Anything you&apos;ve <strong>combined</strong> travels
               as one piece, so it keeps its own arrangement.
+            </p>
+          </section>
+
+          <section>
+            <h3>Flipping things over</h3>
+            <p>
+              Next to Align is <strong>Mirror</strong>, and this one works on a single block —
+              there is nothing to line one block up against, but turning it over is an ordinary
+              thing to want. Switch it on and three arrow plates appear around the selection, one
+              for each direction: tap one and everything picked flips that way.
+            </p>
+            <p>
+              With several blocks picked they flip together, about the middle of the whole
+              selection, so they swap sides as well as turning over. A single block flips about
+              its own middle and stays exactly where it was — on something symmetrical, like a
+              ball or a cube, that is a change you will not see at all, which is as it should be.
+              Tap the same plate twice and you are back where you began.
             </p>
           </section>
 

@@ -24,20 +24,26 @@ const patchObjects = (objects, byId) =>
   objects.map((o) => (byId[o.id] ? { ...o, ...byId[o.id] } : o))
 
 /** Add objects (and optionally the groups they belong to). Inverse removes both. */
-export function addObjects(added, addedGroups = [], label) {
+export function addObjects(added, addedGroups = [], label, addedVariables = []) {
   const ids = added.map((o) => o.id)
   const groupIds = addedGroups.map((g) => g.id)
+  // Pasted blocks can bring variables with them. They are part of the same
+  // step, so undoing the paste has to take them away again — a stack of
+  // orphaned numbers left behind by an undone paste is its own little mess.
+  const variableIds = addedVariables.map((v) => v.id)
   return {
     label: label ?? (added.length > 1 ? `add ${added.length} blocks` : 'add block'),
     forward: (s) => ({
       ...s,
       objects: [...s.objects, ...added],
       groups: [...s.groups, ...addedGroups],
+      variables: [...s.variables, ...addedVariables],
     }),
     backward: (s) => ({
       ...s,
       objects: withoutIds(s.objects, ids),
       groups: s.groups.filter((g) => !groupIds.includes(g.id)),
+      variables: s.variables.filter((v) => !variableIds.includes(v.id)),
     }),
   }
 }

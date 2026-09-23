@@ -251,9 +251,10 @@ export default function App() {
       } else if (ARROWS[e.key]) {
         if (nudge(e.key, e.shiftKey)) e.preventDefault()
       } else if (e.key === 'Escape') {
-        // Escape backs out of aligning first, and only clears the selection
-        // once there is no mode left to leave.
+        // Escape backs out of whichever mode is showing first, and only
+        // clears the selection once there is no mode left to leave.
         if (store.aligning) store.toggleAlign()
+        else if (store.mirroring) store.toggleMirror()
         else store.clearSelection()
       }
     }
@@ -277,6 +278,83 @@ export default function App() {
       window.removeEventListener('blur', onBlur)
     }
   }, [undo, redo, nudge, endNudge])
+
+  /* --------------------------------------------------------- clipboard -- */
+
+  /**
+   * Copy, cut and paste, through the browser's own clipboard events.
+   *
+   * Not the keydown handler above, and not `navigator.clipboard`: only a real
+   * `copy` event is allowed to write to the clipboard, and reading it any
+   * other way needs a permission Firefox does not grant web pages at all.
+   * These three events carry the data with no permission anywhere, because
+   * pressing the keys is the consent. What is actually carried is in
+   * `scene/clipboard`.
+   *
+   * A text field being edited keeps its own copy and paste. Someone renaming a
+   * variable with the keyboard is copying words, not blocks.
+   */
+  useEffect(() => {
+    const inAField = (e) => {
+      const el = e.target
+      return (
+        (el instanceof HTMLInputElement && el.type !== 'range') ||
+        el instanceof HTMLTextAreaElement ||
+        el?.isContentEditable
+      )
+    }
+
+    const write = (e) => {
+      const text = useScene.getState().copyPayload()
+      if (!text) return null
+      e.clipboardData.setData('text/plain', text)
+      e.preventDefault()
+      return useScene.getState().selectedIds.length
+    }
+
+    const onCopy = (e) => {
+      if (inAField(e)) return
+      const n = write(e)
+      if (n) toast(n > 1 ? `Copied ${n} blocks` : 'Copied it')
+    }
+
+    const onCut = (e) => {
+      if (inAField(e)) return
+      const n = write(e)
+      if (!n) return
+      useScene.getState().deleteSelection()
+      toast(n > 1 ? `Cut ${n} blocks` : 'Cut it')
+    }
+
+    const onPaste = (e) => {
+      if (inAField(e)) return
+      const text = e.clipboardData?.getData('text/plain')
+      if (!text) return
+      // Somewhere to paste into. Arriving with the welcome screen up is a
+      // perfectly reasonable way to start a build.
+      const hadDoc = useDocs.getState().docs.length > 0
+      if (!hadDoc) useDocs.getState().open({})
+      if (!useScene.getState().paste(text)) {
+        // Not ours — ordinary text somebody pasted out of habit. Leave the
+        // empty build we may have just opened alone rather than closing it
+        // out from under them.
+        return
+      }
+      e.preventDefault()
+      setWelcomeAsked(false)
+      const n = useScene.getState().selectedIds.length
+      toast(n > 1 ? `Pasted ${n} blocks` : 'Pasted it')
+    }
+
+    document.addEventListener('copy', onCopy)
+    document.addEventListener('cut', onCut)
+    document.addEventListener('paste', onPaste)
+    return () => {
+      document.removeEventListener('copy', onCopy)
+      document.removeEventListener('cut', onCut)
+      document.removeEventListener('paste', onPaste)
+    }
+  }, [])
 
   /* ------------------------------------------------------------ actions -- */
 

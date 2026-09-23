@@ -67,6 +67,13 @@ async function buildExportScene(objects, groups) {
       borrowed.push(geometry)
       if (holes?.length) rough++
     }
+    if (isMirrored(o)) {
+      const wound = reverseWinding(geometry)
+      // The original is still the cache's or Manifold's; only the copy made
+      // here belongs to the export and has to be let go of at the end.
+      owned.push(wound)
+      geometry = wound
+    }
     const mesh = new THREE.Mesh(geometry, material)
     mesh.name = o.type
     mesh.position.fromArray(o.position)
@@ -103,6 +110,46 @@ async function buildExportScene(objects, groups) {
  * Y-up, so the internal frame is already right and turning it would be the bug.
  */
 const Z_UP_X_ROTATION = Math.PI / 2
+
+/**
+ * The same triangles, wound the other way round.
+ *
+ * A mirrored block carries a negative number in its scale, because that is
+ * what a reflection is. The renderer copes with that by itself — it flips
+ * which way it considers a face to be pointing when a matrix turns space
+ * inside out — but an exporter does not: it multiplies the corners through the
+ * matrix and writes them down in the order they were already in, and that
+ * order now runs the wrong way round the triangle. Every face of a mirrored
+ * part would point into the solid, and a slicer reads that as a hole the size
+ * of the model.
+ *
+ * Swapping two corners of each triangle before it goes out puts the winding
+ * back, so the reflection and the fix cancel and the file is wound outward
+ * like everything else in it.
+ */
+export function reverseWinding(geometry) {
+  const out = geometry.index ? geometry.toNonIndexed() : geometry.clone()
+  for (const name of Object.keys(out.attributes)) {
+    const attribute = out.getAttribute(name)
+    const size = attribute.itemSize
+    const data = attribute.array
+    // Second and third corner change places; the first stays where it is.
+    for (let t = 0; t < attribute.count; t += 3) {
+      for (let i = 0; i < size; i++) {
+        const b = (t + 1) * size + i
+        const c = (t + 2) * size + i
+        const swap = data[b]
+        data[b] = data[c]
+        data[c] = swap
+      }
+    }
+    attribute.needsUpdate = true
+  }
+  return out
+}
+
+/** A block is mirrored if its scale turns space inside out. */
+const isMirrored = (object) => object.scale[0] * object.scale[1] * object.scale[2] < 0
 
 function download(blob, filename) {
   const url = URL.createObjectURL(blob)

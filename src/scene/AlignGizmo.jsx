@@ -63,6 +63,15 @@ const AXIS_KEY = ['x', 'y', 'z']
 const DOT_SCREEN = 0.014
 const GAP_SCREEN = 0.06
 const HOVER_GROW = 1.5
+/**
+ * The shortest a row of three dots is allowed to be, in the same
+ * screen-constant units as the dots themselves.
+ *
+ * A dot is `DOT_SCREEN` across the radius, so a hovered one is about 0.042
+ * wide; at 0.11 the three centres sit 0.055 apart and the row still reads as
+ * three separate targets however small the blocks are.
+ */
+const MIN_ROW_SCREEN = 0.11
 
 const axisOf = (slot) => AXES.find((a) => a.slot === slot)
 const edge = (box, axis, mode) =>
@@ -161,9 +170,27 @@ export default function AlignGizmo() {
         row.along === 'y' ? 0 : edge(whole, 'y', row.at.y) + (row.off.y ?? 0) * gap,
         row.along === 'z' ? 0 : edge(whole, 'z', row.at.z) + (row.off.z ?? 0) * gap
       )
+      // Where the three dots sit along the row.
+      //
+      // They mark the selection's low, middle and high edges — which is the
+      // right place for them until the selection is barely any size in this
+      // direction, when all three edges are nearly the same point and the dots
+      // land on top of one another. Three small balls in a line came out as
+      // one smudge per axis, with no way to tell which dot was which or to hit
+      // the one you wanted.
+      //
+      // A dot's meaning is which dot it is, not where it sits: pressing it
+      // calls `alignSelection` with the row's axis and this mode, and never
+      // reads its position. So a short row can simply be opened out to a
+      // length that stays readable, and nothing it does changes.
+      const low = edge(whole, row.along, 'min')
+      const high = edge(whole, row.along, 'max')
+      const middle = (low + high) / 2
+      const reach = Math.max((high - low) / 2, (k * MIN_ROW_SCREEN) / 2)
+      const along = { min: middle - reach, center: middle, max: middle + reach }
       const at = (mode) => {
         const p = base.clone()
-        p[row.along] = edge(whole, row.along, mode)
+        p[row.along] = along[mode]
         return p
       }
 

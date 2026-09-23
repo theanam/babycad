@@ -6,6 +6,7 @@ import SceneObject from './SceneObject'
 import ErrorBoundary from '../ui/ErrorBoundary'
 import BoxGizmo from './BoxGizmo'
 import AlignGizmo from './AlignGizmo'
+import MirrorGizmo from './MirrorGizmo'
 import { OrbitCamera } from './orbit'
 import { useScene } from './sceneStore'
 import { HOME_CAMERA, viewport } from './viewportApi'
@@ -205,7 +206,10 @@ function Lighting() {
  */
 function Handles() {
   const aligning = useScene((s) => s.aligning)
+  const mirroring = useScene((s) => s.mirroring)
+  const any = useScene((s) => s.selectedIds.length > 0)
   const multi = useScene((s) => s.selectedIds.length > 1)
+  if (mirroring && any) return <MirrorGizmo />
   return aligning && multi ? <AlignGizmo /> : <BoxGizmo />
 }
 
@@ -227,8 +231,22 @@ export default function Viewport() {
       flat
       gl={{ antialias: true, preserveDrawingBuffer: true }}
       camera={{ position: HOME_CAMERA.position, fov: 40, near: 2, far: 4000 }}
-      // Only a real click clears the selection — not the end of a camera swing.
-      onPointerMissed={() => {
+      /**
+       * Clicking empty plate clears the selection. Two things are not that.
+       *
+       * The right and middle buttons belong to the camera — turning the view
+       * and sliding it — and moving the camera is not a decision about what is
+       * selected. Distance alone could not tell them apart: a swing that
+       * happens to travel only a few pixels reads as a click, so right-clicking
+       * or nudging the view round dropped whatever was picked. The button says
+       * so outright and does not depend on how far anybody dragged.
+       *
+       * With the left button the distance test still matters, because that is
+       * what separates a click on the plate from the end of a selection box
+       * drawn across it. Touch reports button 0, so a tap still clears.
+       */
+      onPointerMissed={(e) => {
+        if (e.button !== 0) return
         if (!gesture.moved) clearSelection()
       }}
       onCreated={({ scene }) => {
