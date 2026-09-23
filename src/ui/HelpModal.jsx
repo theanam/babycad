@@ -178,6 +178,20 @@ export default function HelpModal({ onClose, onShowWelcome }) {
           </section>
 
           <section>
+            <h3>Taking the edges off</h3>
+            <p>
+              A cube, a tube, a cone, a pipe and words all carry an <b>Edge</b>. Wind it up and
+              the sharp edges come back — as a quarter <b>Round</b> or as a flat <b>Bevel</b>,
+              whichever <b>Edge shape</b> says. Zero is a sharp edge, which is what everything
+              starts as.
+            </p>
+            <p>
+              It is measured in millimetres like everything else, and each shape quietly takes as
+              much as it has room for: a 6 mm plate cannot lose 20 mm of edge, so it loses what it
+              can. A tube or a pipe cut to part of a turn keeps its cut faces sharp — a cut face is
+              sharp, and pretending otherwise would be describing something the cut did not do.
+            </p>
+
             <h3>One size, not two</h3>
             <p>
               Resizing a block in the yard writes straight into the shape&apos;s own numbers. Drag

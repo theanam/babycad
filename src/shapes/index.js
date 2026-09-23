@@ -42,6 +42,26 @@ import { buildText, DEFAULT_TEXT, FONT_OPTIONS } from './builders/text'
 const size = (key, label, def, opts) =>
   num(key, label, def, { min: 0.4, max: 160, step: 2, unit: 'mm', length: true, ...opts })
 const smoothness = (def = 32) => int('sides', 'Smoothness', def, { min: 3, max: 96 })
+
+/**
+ * Taking the edges off.
+ *
+ * `edge` is how far back the edge comes, in millimetres; `edgeStyle` says
+ * whether it comes off as a quarter round or as a flat bevel. Zero is a sharp
+ * edge, which is what every shape had before this existed — so every build
+ * saved before it opens exactly as it did.
+ *
+ * Builders clamp it against their own smallest dimension, since half a 6 mm
+ * plate cannot lose 20 mm of edge. That lets the slider offer a range that
+ * suits a big block without breaking a small one.
+ */
+const EDGE_STYLES = [
+  { value: 'round', label: 'Round' },
+  { value: 'bevel', label: 'Bevel' },
+]
+const edge = (max = 30) =>
+  num('edge', 'Edge', 0, { min: 0, max, step: 0.5, unit: 'mm', length: true })
+const edgeStyle = () => choice('edgeStyle', 'Edge shape', 'round', EDGE_STYLES)
 const sweep = () => deg('sweep', 'Sweep', 360, { min: 10, max: 360, step: 15 })
 const HAND = [
   { value: 'right', label: 'Right' },
@@ -60,6 +80,8 @@ export const SHAPE_DEFS = [
       size('thickness', 'Thickness', 5),
       choice('font', 'Weight', 'bold', FONT_OPTIONS),
       int('curve', 'Smoothness', 6, { min: 1, max: 12 }),
+      edge(6),
+      edgeStyle(),
     ],
     build: buildText,
   },
@@ -72,6 +94,8 @@ export const SHAPE_DEFS = [
       size('width', 'Width', 20),
       size('height', 'Height', 20),
       size('depth', 'Depth', 20),
+      edge(),
+      edgeStyle(),
     ],
     build: buildCube,
   },
@@ -93,7 +117,14 @@ export const SHAPE_DEFS = [
     label: 'Cone',
     family: 'solid',
     color: '#FF5A47',
-    params: [size('radius', 'Radius', 10), size('height', 'Height', 20), smoothness(32), sweep()],
+    params: [
+      size('radius', 'Radius', 10),
+      size('height', 'Height', 20),
+      smoothness(32),
+      sweep(),
+      edge(),
+      edgeStyle(),
+    ],
     build: buildCone,
   },
   {
@@ -107,6 +138,8 @@ export const SHAPE_DEFS = [
       size('height', 'Height', 20),
       smoothness(32),
       sweep(),
+      edge(),
+      edgeStyle(),
     ],
     build: buildCylinder,
   },
@@ -155,6 +188,8 @@ export const SHAPE_DEFS = [
       size('height', 'Height', 20),
       smoothness(48),
       sweep(),
+      edge(),
+      edgeStyle(),
     ],
     build: buildPipe,
   },

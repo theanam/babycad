@@ -54,23 +54,59 @@ const EM = 10
 /** Nothing printable left after trimming means there is no solid to make. */
 const printable = (value) => String(value ?? '').replace(/\s+/g, ' ').trim()
 
-export function buildText({ text, size, thickness, font, curve }) {
+export function buildText({ text, size, thickness, font, curve, edge, edgeStyle }) {
   const content = printable(text) || 'Text'
   const face = FONTS[font] ?? FONTS.bold
 
-  const geometry = new TextGeometry(content, {
-    font: face,
-    size: EM,
-    // `height` was renamed `depth` in r163; pass both so the builder does not
-    // quietly extrude nothing if three moves under us again.
-    depth: EM,
-    height: EM,
-    curveSegments: curve,
-    bevelEnabled: false,
-  })
+  const cut = (bevel) =>
+    new TextGeometry(content, {
+      font: face,
+      size: EM,
+      // `height` was renamed `depth` in r163; pass both so the builder does not
+      // quietly extrude nothing if three moves under us again.
+      depth: EM,
+      height: EM,
+      curveSegments: curve,
+      ...(bevel
+        ? {
+            bevelEnabled: true,
+            bevelThickness: bevel.deep,
+            bevelSize: bevel.wide,
+            bevelOffset: 0,
+            bevelSegments: bevel.segments,
+          }
+        : { bevelEnabled: false }),
+    })
+
+  let geometry = cut(null)
+
+  // The letters are built at a fixed em and scaled to the millimetres asked
+  // for, so a bevel measured in millimetres has to be divided by the scale it
+  // is about to be multiplied by — and the two axes do not scale alike. That
+  // needs the plain run's measurements, so it is cut once to measure and once
+  // to keep.
+  if (edge > 0) {
+    geometry.computeBoundingBox()
+    const b0 = geometry.boundingBox
+    const tall0 = Math.max(b0.max.y - b0.min.y, 1e-6)
+    const deep0 = Math.max(b0.max.z - b0.min.z, 1e-6)
+    // Half the thickness and half the letter height are as far as an edge can
+    // come back before the two sides of it meet.
+    const e = Math.min(edge, thickness * 0.49, size * 0.24)
+    if (e > 1e-4) {
+      const bevelled = cut({
+        wide: (e * tall0) / size,
+        deep: (e * deep0) / thickness,
+        segments: edgeStyle === 'bevel' ? 1 : 3,
+      })
+      geometry.dispose()
+      geometry = bevelled
+    }
+  }
 
   // Lie the letters down: reading direction stays +X, thickness becomes +Y.
   geometry.rotateX(-Math.PI / 2)
+  geometry.computeBoundingBox()
 
   // Scale to the asked-for cap height and thickness. Measured from the glyphs
   // themselves rather than assumed from `EM`, because a string of lower-case
