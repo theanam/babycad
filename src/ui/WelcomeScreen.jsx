@@ -1,3 +1,4 @@
+import { PLATE } from '../constants'
 import { useEffect } from 'react'
 import { EXAMPLES } from '../examples'
 import { REPO_URL } from '../links'
@@ -66,7 +67,7 @@ export default function WelcomeScreen({ onBlank, onDismiss, onExample, onHelp, o
             </i>
             <span>
               <b>Start with an empty plate</b>
-              <em>200 × 200 mm, nothing on it.</em>
+              <em>{PLATE} × {PLATE} mm, nothing on it.</em>
             </span>
           </button>
 

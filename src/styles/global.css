@@ -1403,3 +1403,25 @@ a.foot-btn, a.icon-btn { text-decoration: none; }
 .panel-crash b { font-size: 15px; font-weight: 900; }
 .panel-crash span { font-size: 14px; font-weight: 700; color: var(--muted); line-height: 1.5; }
 .stage-crash { position: absolute; inset: 0; margin: auto; width: max-content; height: max-content; align-items: center; }
+
+/* The clearance to the nearest other block, under the box while a move is in
+   flight and for as long afterwards as the block stays picked. Quieter than
+   the position note above the box: it is there to glance at, and to click on
+   when you would rather say the number than find it by dragging. */
+.live-gap {
+  font: 700 12px/1 'JetBrains Mono', ui-monospace, monospace;
+  /* The same pale violet as the line it sits on, so the number and the thing
+     it measures read as one control rather than two. */
+  color: #C8B6FF;
+  background: rgba(11, 13, 17, 0.82);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 8px;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  cursor: text;
+  user-select: none;
+}
+.live-gap.moving { color: #E4DBFF; cursor: default; }
+.live-gap:hover { color: #E4DBFF; border-color: var(--accent); }

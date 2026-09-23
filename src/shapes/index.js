@@ -37,12 +37,28 @@ import { DEFAULT_FAMILY, FONT_OPTIONS } from './fonts/catalogue'
 import { buildModel } from './builders/model'
 
 /**
+ * The largest a length may be, in millimetres. Ten metres.
+ *
+ * There has to be a number here, because `coerce` clamps and something has to
+ * stop a typo becoming a shape with no end to it. It does not have to be a
+ * number anybody meets: it was 160, which is not a limit so much as an
+ * opinion, and a wrong one — the plate alone is 200 mm across, so a block
+ * could not be made to span the thing it stands on. Nothing is printed at ten
+ * metres either, but at that size the number has stopped being a rule about
+ * what you are allowed to build and gone back to being a guard against
+ * nonsense, which is all it was ever for.
+ */
+export const MAX_LENGTH = 10_000
+
+/**
  * A length, in millimetres. `length: true` is what the v3 -> v4 migration
  * looks for when it scales an older build up into millimetres, so a size that
- * doesn't go through here won't be found: put every length through it.
+ * doesn't go through here won't be found: put every length through it. It is
+ * also what the rail reads to decide a length gets a box to type in and no
+ * slider — see `ui/PropertiesPanel`.
  */
 const size = (key, label, def, opts) =>
-  num(key, label, def, { min: 0.4, max: 160, step: 2, unit: 'mm', length: true, ...opts })
+  num(key, label, def, { min: 0.4, max: MAX_LENGTH, step: 2, unit: 'mm', length: true, ...opts })
 const smoothness = (def = 32) => int('sides', 'Smoothness', def, { min: 3, max: 96 })
 
 /**
@@ -61,8 +77,8 @@ const EDGE_STYLES = [
   { value: 'round', label: 'Round' },
   { value: 'bevel', label: 'Bevel' },
 ]
-const edge = (max = 30) =>
-  num('edge', 'Edge', 0, { min: 0, max, step: 0.5, unit: 'mm', length: true })
+const edge = () =>
+  num('edge', 'Edge', 0, { min: 0, max: MAX_LENGTH, step: 0.5, unit: 'mm', length: true })
 const edgeStyle = () => choice('edgeStyle', 'Edge shape', 'round', EDGE_STYLES)
 /**
  * How far round a round shape goes, in degrees. A full turn is the whole
@@ -111,7 +127,7 @@ export const SHAPE_DEFS = [
       size('thickness', 'Thickness', 5),
       choice('font', 'Typeface', DEFAULT_FAMILY, FONT_OPTIONS),
       int('curve', 'Smoothness', 6, { min: 1, max: 12 }),
-      edge(6),
+      edge(),
       edgeStyle(),
     ],
     build: buildText,

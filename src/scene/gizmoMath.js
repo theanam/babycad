@@ -103,3 +103,29 @@ export const UNIT_Y = new THREE.Vector3(0, 1, 0)
 export const UNIT_Z = new THREE.Vector3(0, 0, 1)
 
 export const snapTo = (value, step) => (step ? Math.round(value / step) * step : value)
+
+/**
+ * How big a handle you can take hold of should be.
+ *
+ * A fingertip covers a good deal more screen than a cursor does, so on a
+ * tablet the grips have to stay chunky to be hittable at all. With a mouse
+ * that same bulk is just a blot sitting over the block being built, and the
+ * pointer can hit something far daintier. `pointer: coarse` asks about the
+ * primary input rather than whether a touch API happens to exist, so a laptop
+ * with a touchscreen but a mouse in hand reads as fine, which is right.
+ *
+ * The list is read live each frame rather than latched at load, so a
+ * convertible folded into a tablet — or a mouse unplugged — resizes the grips
+ * on the spot.
+ *
+ * It lives here rather than in the box handles because it is not about the box
+ * handles: the align targets went without it and were fingertip-sized on every
+ * screen, which on a desktop is a row of blots across the build.
+ */
+const COARSE_POINTER =
+  typeof window !== 'undefined' && window.matchMedia
+    ? window.matchMedia('(pointer: coarse)')
+    : null
+
+/** Multiplier on every handle you can hit: full for fingers, trimmed for a cursor. */
+export const grabScale = () => (COARSE_POINTER?.matches ? 1 : 0.62)

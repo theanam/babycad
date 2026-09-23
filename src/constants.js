@@ -77,7 +77,21 @@ export const SNAP_DEFAULT = 0.5
 /** The turn that goes with a length grid. */
 export const angleStepFor = (mm) => SNAP_STEPS.find((s) => s.mm === mm)?.deg ?? 15
 
-export const PLATE = 200
+/**
+ * The plate, in millimetres square.
+ *
+ * It was 200, which is a small printer's bed and was fast becoming the same
+ * kind of answer the old 160 mm size limit was: not a fact about printing, but
+ * a wall you met while building. A 198 mm bar could not be laid across the
+ * thing it was standing on. 400 covers every consumer printer worth naming and
+ * leaves room to lay parts out beside what you are assembling rather than on
+ * top of it.
+ *
+ * Everything that cares reads it from here — the floor, the grid, where a new
+ * block is set down, and the sentence in the help sheet that tells you how big
+ * it is — so this is the only number to change.
+ */
+export const PLATE = 400
 export const PLATE_HALF = PLATE / 2
 
 // The floor space one placed shape gets to itself. Every shape's defaults are

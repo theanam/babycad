@@ -20,56 +20,17 @@
  * the tree on every mouse move of a drag; this is the same reason the gizmo
  * paints meshes directly rather than going through the store.
  *
- * **A block counts as touched if its screen box overlaps the drag box** — not
- * if it is swallowed whole. Requiring full containment means a kid who drags a
- * box across four blocks gets none of them because each pokes out slightly,
- * which reads as the feature being broken.
+ * **What counts as caught** is worked out in `scene/marqueeHit`, which is the
+ * arithmetic on its own so it can be checked without a browser.
  */
 import { useEffect } from 'react'
 import * as THREE from 'three'
 import { useThree } from '@react-three/fiber'
+import { hullHitsRect, hullOf, screenCornersOf } from './marqueeHit'
 import { meshes } from './meshRegistry'
 import { useScene } from './sceneStore'
 import { CLICK_SLOP } from './orbit'
 import { viewport } from './viewportApi'
-
-/** Screen-space bounds of a mesh's world box, in viewport pixels. */
-const _v = new THREE.Vector3()
-function screenBoundsOf(mesh, camera, rect) {
-  const geometry = mesh.geometry
-  if (!geometry.boundingBox) geometry.computeBoundingBox()
-  const bb = geometry.boundingBox
-  if (!bb) return null
-
-  let minX = Infinity
-  let minY = Infinity
-  let maxX = -Infinity
-  let maxY = -Infinity
-  let seen = false
-
-  for (const x of [bb.min.x, bb.max.x]) {
-    for (const y of [bb.min.y, bb.max.y]) {
-      for (const z of [bb.min.z, bb.max.z]) {
-        _v.set(x, y, z).applyMatrix4(mesh.matrixWorld).project(camera)
-        // A corner behind the eye projects to nonsense — the perspective divide
-        // flips it through the origin. Corners in front are enough to place the
-        // block on screen, and a block with none is not on screen at all.
-        if (_v.z > 1) continue
-        seen = true
-        const sx = rect.left + ((_v.x + 1) / 2) * rect.width
-        const sy = rect.top + ((1 - _v.y) / 2) * rect.height
-        if (sx < minX) minX = sx
-        if (sx > maxX) maxX = sx
-        if (sy < minY) minY = sy
-        if (sy > maxY) maxY = sy
-      }
-    }
-  }
-  return seen ? { minX, minY, maxX, maxY } : null
-}
-
-const overlaps = (a, b) =>
-  a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY
 
 export default function MarqueeSelect() {
   const { camera, gl } = useThree()
@@ -122,8 +83,8 @@ export default function MarqueeSelect() {
         // object and still reachable through its group, but a box drag that
         // quietly picked up things nobody can see would be a mystery.
         if (!mesh.visible) continue
-        const bounds = screenBoundsOf(mesh, camera, rect)
-        if (bounds && overlaps(bounds, drag)) caught.push(id)
+        const corners = screenCornersOf(mesh, camera, rect)
+        if (corners && hullHitsRect(hullOf(corners), drag)) caught.push(id)
       }
 
       const { selectedIds, setSelection } = useScene.getState()

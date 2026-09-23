@@ -4,7 +4,7 @@
 
 # BabyCAD
 
-**3D modelling for kids, in the browser.** Drop shapes on a 200 mm plate, give
+**3D modelling for kids, in the browser.** Drop shapes on a 400 mm plate, give
 them real millimetres, and take the result away as an STL you can print.
 
 [**Open BabyCAD →**](https://theanam.github.io/babycad/)

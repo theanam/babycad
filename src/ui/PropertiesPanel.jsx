@@ -260,6 +260,15 @@ function ParamField({
     )
   }
 
+  /**
+   * A length gets a box to type in and no slider.
+   *
+   * A slider has to end somewhere, and wherever it ends becomes the answer to
+   * "how big can this be" whether or not anybody meant it as one. The end was
+   * 160 mm, which is smaller than the plate the blocks stand on. Counts and
+   * angles keep theirs, because those really do have ends — a shape cannot
+   * have two sides, and a turn past a whole one is the turn it started at.
+   */
   return (
     <div className="param">
       <div className="param-top">
@@ -268,25 +277,27 @@ function ParamField({
           value={mixed ? null : value}
           step={spec.step}
           suffix={spec.unit}
-          hint={`${spec.label} — ${spec.min} to ${spec.max}`}
+          hint={spec.length ? `${spec.label} in ${spec.unit}` : `${spec.label} — ${spec.min} to ${spec.max}`}
           onCommit={onCommit}
         />
         {menu}
       </div>
-      <input
-        className="param-slider"
-        type="range"
-        min={spec.min}
-        max={spec.max}
-        step={spec.step}
-        value={value}
-        aria-label={spec.label}
-        onChange={(e) => onPreview(Number(e.target.value))}
-        onPointerDown={onBegin}
-        onPointerUp={onRelease}
-        onKeyUp={onRelease}
-        onBlur={onRelease}
-      />
+      {!spec.length && (
+        <input
+          className="param-slider"
+          type="range"
+          min={spec.min}
+          max={spec.max}
+          step={spec.step}
+          value={value}
+          aria-label={spec.label}
+          onChange={(e) => onPreview(Number(e.target.value))}
+          onPointerDown={onBegin}
+          onPointerUp={onRelease}
+          onKeyUp={onRelease}
+          onBlur={onRelease}
+        />
+      )}
     </div>
   )
 }

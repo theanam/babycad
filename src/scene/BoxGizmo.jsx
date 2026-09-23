@@ -5,6 +5,7 @@ import { Html } from '@react-three/drei'
 import { bottomOf, useScene } from './sceneStore'
 import { AXES, axisColor } from './axes'
 import { meshes } from './meshRegistry'
+import { nearestNeighbour } from './neighbour'
 import { dragBus } from './dragBus'
 import { beginDrag, endDrag, setLive, useLive } from './liveStore'
 import { angleStepFor, SNAP, SNAP_DEFAULT } from '../constants'
@@ -17,6 +18,7 @@ import {
   distanceAlongLine,
   emptyFrame,
   frameFromMeshes,
+  grabScale,
   perpendicularTo,
   snapTo,
   UNIT_Y,
@@ -142,12 +144,6 @@ const HANDLE_SCREEN = 0.017
  * The list is read live each frame rather than latched at load, so a convertible
  * folded into a tablet — or a mouse unplugged — resizes the grips on the spot.
  */
-const COARSE_POINTER =
-  typeof window !== 'undefined' && window.matchMedia
-    ? window.matchMedia('(pointer: coarse)')
-    : null
-/** Multiplier on every grabbable handle: full size for fingers, trimmed for a cursor. */
-const grabScale = () => (COARSE_POINTER?.matches ? 1 : 0.62)
 
 /**
  * How close to the plate a block has to get before the plate takes it, in
@@ -312,6 +308,18 @@ export default function BoxGizmo() {
    * shut in the same breath it was opened.
    */
   const [wordsOpen, setWordsOpen] = useState(null)
+  /**
+   * The room between what is being moved and the nearest thing it is not.
+   *
+   * Measured every frame for as long as anything is picked, rather than only
+   * while the pointer is down. A drag is not the only way a block moves: the
+   * arrow keys walk it across the plate, undo puts it back, a variable can
+   * shift it from the other side of the app — and a clearance that only knew
+   * about dragging sat there showing the distance from somewhere the block no
+   * longer was.
+   */
+  const nearGap = useRef(null)
+
   const heldDial = useRef(null)
   /** The turn currently on show, so typing starts from the number being read. */
   const liveTurn = useRef(0)
@@ -418,6 +426,54 @@ export default function BoxGizmo() {
     },
     [commitTransform, stageTransform]
   )
+
+  /**
+   * Type the clearance you want and let the block go and find it.
+   *
+   * The measurement came back with the way out as well as the distance, so
+   * honouring a typed number is a move of exactly the shortfall along it. The
+   * whole selection travels, because the gap was measured from all of it as
+   * one box — moving only the first block would open the gap it names and
+   * close another one behind it.
+   */
+  const applyGap = useCallback(
+    (typed) => {
+      setEditing(null)
+      const near = nearGap.current
+      const want = Number(typed)
+      if (!near || !Number.isFinite(want) || want < 0) return
+      const delta = want - near.gap
+      if (Math.abs(delta) < 1e-6) return
+
+      const sel = useScene.getState().selectedObjects()
+      if (!sel.length) return
+      const before = {}
+      const patches = sel.map((o) => {
+        before[o.id] = { position: [...o.position], rotation: [...o.rotation], scale: [...o.scale] }
+        return {
+          id: o.id,
+          position: [
+            o.position[0] + near.direction[0] * delta,
+            o.position[1] + near.direction[1] * delta,
+            o.position[2] + near.direction[2] * delta,
+          ],
+          rotation: [...o.rotation],
+          scale: [...o.scale],
+        }
+      })
+      stageTransform(patches)
+      commitTransform(before, 'move')
+    },
+    [commitTransform, stageTransform]
+  )
+
+  /** The one segment the clearance line is drawn with, rewritten each frame. */
+  const gapLine = useRef()
+  const gapGeometry = useMemo(() => {
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(6), 3))
+    return g
+  }, [])
 
   const reachRay = useMemo(() => new THREE.Raycaster(), [])
   const occludeAt = useRef(0)
@@ -1124,6 +1180,53 @@ export default function BoxGizmo() {
         wordsGroup.position.set(f.center.x, f.center.y + topY + k * 3.4, f.center.z)
       }
 
+      /*
+       * How much room is left between what is picked and the nearest thing it
+       * is not, drawn as a line between the two nearest points with the number
+       * sitting on it.
+       *
+       * The line is the half of this that makes it usable. "14.1 mm to the
+       * cube" on a plate with three cubes on it is a riddle; a line touching
+       * the one it means is not. It also shows *where* the two are closest,
+       * which for two blocks that are side by side and also one above the
+       * other is not obvious from the number at all.
+       */
+      const near = nearestNeighbour(useScene.getState().selectedIds, useScene.getState().objects, meshes)
+      nearGap.current = near
+      const span = gapLine.current
+      const div = divs.gap
+      if (near && editing !== 'gap') {
+        const text = `${fixed1(near.gap)} mm to the ${(SHAPE_LABEL[near.type] ?? 'block').toLowerCase()}`
+        if (div) {
+          if (div.textContent !== text) div.textContent = text
+          div.style.display = ''
+          const cls = drag.current ? 'live-gap moving' : 'live-gap'
+          if (div.className !== cls) div.className = cls
+        }
+        if (span) {
+          const pos = span.geometry.attributes.position
+          pos.setXYZ(0, near.from[0], near.from[1], near.from[2])
+          pos.setXYZ(1, near.to[0], near.to[1], near.to[2])
+          pos.needsUpdate = true
+          // Two blocks that touch have no line to draw, only a number.
+          span.visible = near.gap > 1e-6
+        }
+        const g = tagGroups.current.gap
+        if (g) {
+          // On the line, nudged clear of it so the two do not sit on top of
+          // one another, and a little way out of the block when there is no
+          // line to sit on.
+          g.position.set(
+            (near.from[0] + near.to[0]) / 2,
+            (near.from[1] + near.to[1]) / 2 + k * (near.gap > 1e-6 ? 1.1 : 2.2),
+            (near.from[2] + near.to[2]) / 2
+          )
+        }
+      } else {
+        if (div) div.style.display = 'none'
+        if (span) span.visible = false
+      }
+
       const note = (text) => {
         if (!divs.note) return
         divs.note.textContent = text
@@ -1404,6 +1507,56 @@ export default function BoxGizmo() {
                 if (e.key === 'Escape') setWordsOpen(null)
               }}
             />
+          </Html>
+        </group>
+      )}
+
+      {/* The plate is drawn in greys — #2B3140 for its squares and #3A4254 for
+          its heavier lines — so a grey measurement line reads as one more of
+          them. This is the pale violet the align guides and the ghost boxes
+          already use, which means "this is a measurement, not part of the
+          build" everywhere else in the app too. */}
+      <lineSegments ref={gapLine} geometry={gapGeometry} visible={false} raycast={() => null}>
+        <lineBasicMaterial color="#C8B6FF" transparent opacity={0.95} depthTest={false} />
+      </lineSegments>
+
+      {(
+        <group
+          ref={(g) => {
+            tagGroups.current.gap = g
+          }}
+        >
+          <Html zIndexRange={[25, 15]} style={{ pointerEvents: 'none' }}>
+            {editing === 'gap' ? (
+              <input
+                className="live-dim-input"
+                defaultValue={fixed1(nearGap.current?.gap ?? 0)}
+                autoFocus
+                onFocus={(e) => e.target.select()}
+                onBlur={(e) => applyGap(e.target.value)}
+                onKeyDown={(e) => {
+                  e.stopPropagation()
+                  if (e.key === 'Enter') applyGap(e.currentTarget.value)
+                  if (e.key === 'Escape') setEditing(null)
+                }}
+              />
+            ) : (
+              <div
+                className="live-gap"
+                ref={(el) => {
+                  tagDivs.current.gap = el
+                }}
+                style={{ display: 'none' }}
+                // Typeable only once the block has been put down: mid-drag the
+                // number is changing under the pointer.
+                title={dragging ? '' : 'Click to type a gap'}
+                onPointerDown={(e) => !dragging && e.stopPropagation()}
+                onClick={() => {
+                  if (dragging || !nearGap.current) return
+                  setEditing('gap')
+                }}
+              />
+            )}
           </Html>
         </group>
       )}

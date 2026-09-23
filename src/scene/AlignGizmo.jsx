@@ -5,6 +5,7 @@ import { Html } from '@react-three/drei'
 import { useScene } from './sceneStore'
 import { ALIGN_MODES, alignBounds, alignOffsets } from './align'
 import { AXES } from './axes'
+import { grabScale } from './gizmoMath'
 import { meshes } from './meshRegistry'
 
 /**
@@ -60,6 +61,14 @@ const GUIDE_PLANE = {
 }
 
 const AXIS_KEY = ['x', 'y', 'z']
+/**
+ * Dot size, before `grabScale` trims it for a cursor.
+ *
+ * These went without that trim, so they were drawn at fingertip size whatever
+ * was pointing at them — nine of them, at full size, sitting over the build on
+ * every desktop. With a mouse they now come out at a little under two thirds,
+ * which is still a comfortable target and no longer a row of blots.
+ */
 const DOT_SCREEN = 0.014
 const GAP_SCREEN = 0.06
 const HOVER_GROW = 1.5
@@ -67,9 +76,10 @@ const HOVER_GROW = 1.5
  * The shortest a row of three dots is allowed to be, in the same
  * screen-constant units as the dots themselves.
  *
- * A dot is `DOT_SCREEN` across the radius, so a hovered one is about 0.042
- * wide; at 0.11 the three centres sit 0.055 apart and the row still reads as
- * three separate targets however small the blocks are.
+ * It scales with the dots, since it exists to keep them off one another: a
+ * hovered dot is `DOT_SCREEN` × 1.5 across the radius, and at this the three
+ * centres sit far enough apart that the row still reads as three targets
+ * however small the blocks are.
  */
 const MIN_ROW_SCREEN = 0.11
 
@@ -160,8 +170,11 @@ export default function AlignGizmo() {
 
     const centre = whole.getCenter(new THREE.Vector3())
     const k = camera.position.distanceTo(centre)
+    // Fingers need a bigger target than a cursor does; both need the row to
+    // stay long enough that the three dots do not touch.
+    const grab = grabScale()
     const gap = k * GAP_SCREEN
-    const size = k * DOT_SCREEN
+    const size = k * DOT_SCREEN * grab
 
     for (const row of ROWS) {
       // Where along the fixed two axes this row of dots sits.
@@ -186,7 +199,7 @@ export default function AlignGizmo() {
       const low = edge(whole, row.along, 'min')
       const high = edge(whole, row.along, 'max')
       const middle = (low + high) / 2
-      const reach = Math.max((high - low) / 2, (k * MIN_ROW_SCREEN) / 2)
+      const reach = Math.max((high - low) / 2, (k * MIN_ROW_SCREEN * grab) / 2)
       const along = { min: middle - reach, center: middle, max: middle + reach }
       const at = (mode) => {
         const p = base.clone()
