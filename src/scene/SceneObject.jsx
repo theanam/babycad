@@ -116,7 +116,32 @@ function SceneObject({ object, selected, onSelect, holes, castShadow = true }) {
         (object.hole ? (
           <Edges threshold={20} color="#7C4DFF" />
         ) : (
-          <Outlines thickness={OUTLINE_PX} color="#7C4DFF" transparent opacity={1} toneMapped={false} />
+          <Outlines
+            thickness={OUTLINE_PX}
+            color="#7C4DFF"
+            transparent
+            opacity={1}
+            toneMapped={false}
+            // `angle={0}` is load-bearing, and drei defaults it to Math.PI.
+            //
+            // Given an angle, Outlines builds its shell with
+            // `toCreasedNormals(parent.geometry, angle)` — and three's
+            // `toCreasedNormals` returns *the original geometry* when it is
+            // not indexed, writing the creased normals straight into it. Our
+            // carved geometry comes out of three-bvh-csg non-indexed, so
+            // picking up a block with a hole in it rewrote that block's
+            // normals: a tray's crisp edges went soft, and a die with
+            // twenty-one pips shattered into shards. Letting go then ran
+            // `mesh.geometry.dispose()` on the shared, reference-counted
+            // geometry the block was still drawn from.
+            //
+            // At zero it shares the parent's geometry untouched and disposes
+            // nothing, which is what a back-face shell wanted in the first
+            // place. Plain shapes never showed this: three's own geometries
+            // are indexed, so `toNonIndexed()` hands back a copy and the
+            // original is left alone.
+            angle={0}
+          />
         ))}
     </mesh>
   )
