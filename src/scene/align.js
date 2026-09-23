@@ -18,6 +18,7 @@
  */
 import * as THREE from 'three'
 import { boxOfMesh } from './gizmoMath'
+import { rootUnitOf } from './sceneStore'
 
 /** Low edge, middle, high edge — along one axis. */
 export const ALIGN_MODES = ['min', 'center', 'max']
@@ -27,11 +28,17 @@ const AXIS_KEY = ['x', 'y', 'z']
 const edgeOf = (box, axis, mode) =>
   mode === 'min' ? box.min[axis] : mode === 'max' ? box.max[axis] : (box.min[axis] + box.max[axis]) / 2
 
-/** Members of one group move together; everything else is its own unit. */
-function unitsOf(objects) {
+/**
+ * Members of one group move together; everything else is its own unit.
+ *
+ * By the *top* group, not the innermost one. Groups nest, so a thing built out
+ * of two combined halves is one object to anybody looking at it, and lining it
+ * up should slide the whole thing rather than shear its halves apart.
+ */
+function unitsOf(objects, groups = []) {
   const byKey = new Map()
   for (const o of objects) {
-    const key = o.parentGroupId ?? o.id
+    const key = rootUnitOf(o, groups)
     if (!byKey.has(key)) byKey.set(key, [])
     byKey.get(key).push(o)
   }
@@ -43,12 +50,12 @@ function unitsOf(objects) {
  * Units whose meshes aren't in the viewport yet are left out rather than
  * treated as a point at the origin.
  */
-export function alignBounds(objects, meshes) {
+export function alignBounds(objects, meshes, groups = []) {
   const scratch = new THREE.Box3()
   const units = []
   const whole = new THREE.Box3().makeEmpty()
 
-  for (const members of unitsOf(objects)) {
+  for (const members of unitsOf(objects, groups)) {
     const box = new THREE.Box3().makeEmpty()
     for (const o of members) {
       const mesh = meshes.get(o.id)
@@ -71,9 +78,9 @@ export function alignBounds(objects, meshes) {
  * @returns  Map of object id to the distance it moves along that axis. Empty
  *           when there is nothing to line up, or when it is already lined up.
  */
-export function alignOffsets(objects, meshes, slot, mode) {
+export function alignOffsets(objects, meshes, slot, mode, groups = []) {
   const axis = AXIS_KEY[slot]
-  const { units, whole } = alignBounds(objects, meshes)
+  const { units, whole } = alignBounds(objects, meshes, groups)
   // One unit is already as aligned as it can be — a group is not lined up
   // against itself.
   if (units.length < 2) return new Map()

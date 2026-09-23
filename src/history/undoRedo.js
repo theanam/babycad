@@ -121,50 +121,117 @@ export function recolorObjects(patches) {
  * Combine into a group. Members may already belong to other groups, so we
  * capture each member's previous parent to restore on undo.
  */
-export function combineObjects(group, prevParents) {
-  const stamp = Object.fromEntries(group.memberIds.map((id) => [id, { parentGroupId: group.id }]))
+/**
+ * @param prev `{ id: { parentGroupId, color } }` — what each member was before,
+ *   so undo puts back both the grouping *and* the colour it overwrote.
+ * @param color the one colour the combined parts take, or null to leave them.
+ */
+/**
+ * @param prev `{ id: { parentGroupId, color } }` — what each block was before.
+ * @param color the one colour the combined parts take, or null to leave them.
+ * @param loose ids of the blocks that were not in a group, which are the only
+ *   ones whose parent changes; anything already in a group keeps pointing at
+ *   it, and that group is what now points at this one.
+ * @param childGroupIds groups folded into this one as units. They survive —
+ *   that is what makes combining have levels — and are handed back by a split.
+ */
+export function combineObjects(group, prev, color, loose = [], childGroupIds = []) {
+  const stamp = {}
+  for (const id of group.memberIds) {
+    // A colour for everything underneath; a new parent only for the loose.
+    const patch = {}
+    if (color) patch.color = color
+    if (loose.includes(id)) patch.parentGroupId = group.id
+    if (Object.keys(patch).length) stamp[id] = patch
+  }
   const restore = Object.fromEntries(
-    Object.entries(prevParents).map(([id, parentGroupId]) => [id, { parentGroupId }])
+    Object.entries(prev).map(([id, was]) => [id, { parentGroupId: was.parentGroupId, color: was.color }])
   )
-  const absorbedIds = Object.values(prevParents).filter(Boolean)
+  const adopt = (groups) =>
+    groups.map((g) => (childGroupIds.includes(g.id) ? { ...g, parentGroupId: group.id } : g))
+  const orphan = (groups) =>
+    groups.map((g) => (childGroupIds.includes(g.id) ? { ...g, parentGroupId: null } : g))
   return {
     label: 'combine',
     forward: (s) => ({
       ...s,
       objects: patchObjects(s.objects, stamp),
-      // A group fully absorbed into the new one stops existing.
-      groups: [...s.groups.filter((g) => !absorbedIds.includes(g.id)), group],
+      groups: [...adopt(s.groups), group],
     }),
     backward: (s) => ({
       ...s,
       objects: patchObjects(s.objects, restore),
-      groups: s.groups.filter((g) => g.id !== group.id),
+      groups: orphan(s.groups.filter((g) => g.id !== group.id)),
     }),
   }
 }
 
 /** Split a group apart. Inverse re-creates the groups and re-stamps members. */
-export function ungroupObjects(groups) {
+/**
+ * Split groups apart, giving each part the colour it had before it was
+ * combined.
+ *
+ * Combining paints the parts one colour, so splitting has to be able to undo
+ * that — otherwise a thing taken apart is a heap of identically coloured
+ * blocks and the build is no longer readable. The colours are carried on the
+ * group itself, written there when it was made: the group is the only thing
+ * that knows what it absorbed, and it is saved with the build, so a build
+ * opened next week still comes apart into its own colours.
+ *
+ * A group with no record of them — one made before this, or one an example
+ * declared — leaves the colours alone rather than inventing any.
+ */
+/** Is this block inside one of the group's child groups, rather than in it? */
+function insideAChild(id, group, allGroups) {
+  for (const childId of group.childGroupIds ?? []) {
+    const child = allGroups.find((g) => g.id === childId)
+    if (child?.memberIds?.includes(id)) return true
+  }
+  return false
+}
+
+export function ungroupObjects(groups, allGroups = []) {
   const groupIds = groups.map((g) => g.id)
   const clear = {}
   const restore = {}
+  // Only the blocks that sat directly in the group being removed lose their
+  // parent. Ones inside a child group keep it — the child is what comes out as
+  // an object in its own right.
+  const directly = (g) => g.memberIds.filter((id) => !insideAChild(id, g, allGroups))
   for (const g of groups) {
+    const direct = new Set(directly(g))
     for (const id of g.memberIds) {
-      clear[id] = { parentGroupId: null }
-      restore[id] = { parentGroupId: g.id }
+      const was = g.colors?.[id]
+      const patch = {}
+      if (direct.has(id)) patch.parentGroupId = null
+      if (was) patch.color = was
+      if (Object.keys(patch).length) clear[id] = patch
+      restore[id] = direct.has(id) ? { parentGroupId: g.id } : {}
     }
   }
+  // Putting the group back has to put the one colour back with it.
+  for (const g of groups) {
+    if (!g.combinedColor) continue
+    for (const id of g.memberIds) restore[id] = { ...restore[id], color: g.combinedColor }
+  }
+  const children = groups.flatMap((g) => g.childGroupIds ?? [])
+  const release = (gs) => gs.map((g) => (children.includes(g.id) ? { ...g, parentGroupId: null } : g))
+  const reclaim = (gs) =>
+    gs.map((g) => {
+      const owner = groups.find((x) => (x.childGroupIds ?? []).includes(g.id))
+      return owner ? { ...g, parentGroupId: owner.id } : g
+    })
   return {
     label: 'split apart',
     forward: (s) => ({
       ...s,
       objects: patchObjects(s.objects, clear),
-      groups: s.groups.filter((g) => !groupIds.includes(g.id)),
+      groups: release(s.groups.filter((g) => !groupIds.includes(g.id))),
     }),
     backward: (s) => ({
       ...s,
       objects: patchObjects(s.objects, restore),
-      groups: [...s.groups, ...groups],
+      groups: [...reclaim(s.groups), ...groups],
     }),
   }
 }

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import * as THREE from 'three'
 import * as cmd from '../history/undoRedo'
-import { FOOTPRINT, MAX_HISTORY, SCENE_VERSION, SNAP_DEFAULT } from '../constants'
+import { FOOTPRINT, MAX_HISTORY, SCENE_VERSION, SNAP_DEFAULT, SNAP_STEPS } from '../constants'
 import { meshesFor } from '../shapes/meshStore'
 import { defaultParams, normalizeParams, SHAPE_COLOR } from '../shapes'
 import { resizeToParams } from '../shapes/resize'
@@ -49,27 +49,99 @@ export function makeObject(type, position = [], color, params) {
 }
 
 /** Selecting any member of a group selects the whole group. */
-export function expandSelection(ids, objects) {
+/**
+ * Groups nest, and a group knows its parent.
+ *
+ * Combining two things that are already combined makes an outer group holding
+ * the inner ones, rather than dissolving them into one flat heap — so a build
+ * keeps the structure it was assembled with, and Split apart takes the last
+ * step back instead of every step at once.
+ *
+ * An object always points at its *innermost* group; a group points at the one
+ * it was folded into. Everything that asks "what am I picking up when I click
+ * this" walks that chain to the top.
+ */
+export const rootGroupId = (groupId, groups) => {
+  const byId = groups instanceof Map ? groups : new Map(groups.map((g) => [g.id, g]))
+  let g = byId.get(groupId)
+  let guard = 0
+  // A file hand-edited into a cycle would otherwise spin here forever.
+  while (g?.parentGroupId && byId.get(g.parentGroupId) && guard++ < 64) g = byId.get(g.parentGroupId)
+  // A group nobody has heard of is still a group: falling back to the id keeps
+  // blocks that name it together, rather than scattering them into singletons
+  // because the list of groups was not to hand.
+  return g?.id ?? groupId
+}
+
+/** The outermost thing a block belongs to: its top group, or itself. */
+export const rootUnitOf = (object, groups) =>
+  (object.parentGroupId && rootGroupId(object.parentGroupId, groups)) || object.id
+
+/** Selecting any member of a group selects everything under its top group. */
+export function expandSelection(ids, objects, groups = []) {
   const byId = new Map(objects.map((o) => [o.id, o]))
-  const groupIds = new Set()
+  const byGroup = new Map(groups.map((g) => [g.id, g]))
+  const roots = new Set()
   for (const id of ids) {
     const o = byId.get(id)
-    if (o?.parentGroupId) groupIds.add(o.parentGroupId)
+    if (o?.parentGroupId) roots.add(rootGroupId(o.parentGroupId, byGroup))
   }
   const out = new Set(ids.filter((id) => byId.has(id)))
-  if (groupIds.size) {
-    for (const o of objects) if (o.parentGroupId && groupIds.has(o.parentGroupId)) out.add(o.id)
+  if (roots.size) {
+    for (const o of objects) {
+      if (o.parentGroupId && roots.has(rootGroupId(o.parentGroupId, byGroup))) out.add(o.id)
+    }
   }
   return [...out]
 }
 
 const emptyScene = () => ({ objects: [], groups: [], variables: [] })
 
+/**
+ * How somebody likes to work: the grid, and whether the plate is sticky.
+ *
+ * Kept for the app rather than in the build, because it is a preference and
+ * not a property of the model — two people opening the same file should each
+ * get their own. Remembered between visits, so a choice made once is still the
+ * choice tomorrow; a browser that refuses storage simply starts on the
+ * defaults every time, which is no worse than not remembering.
+ */
+const PREFS_KEY = 'babycad.snap'
+
+const readPrefs = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PREFS_KEY) ?? 'null')
+    if (!saved || typeof saved !== 'object') return {}
+    return {
+      snapStep: SNAP_STEPS.some((s) => s.mm === saved.snapStep) ? saved.snapStep : SNAP_DEFAULT,
+      snapEnabled: saved.snapEnabled !== false,
+      floorSnap: saved.floorSnap !== false,
+    }
+  } catch {
+    return {}
+  }
+}
+
+const writePrefs = () => {
+  try {
+    const { snapStep, snapEnabled, floorSnap } = useScene.getState()
+    localStorage.setItem(PREFS_KEY, JSON.stringify({ snapStep, snapEnabled, floorSnap }))
+  } catch {
+    /* private window, storage disabled — the settings just do not persist */
+  }
+}
+
 export const useScene = create((set, get) => ({
   ...emptyScene(),
   selectedIds: [],
   snapEnabled: true, // grid snapping, on by default
   snapStep: SNAP_DEFAULT, // millimetres a drag snaps to while snapping is on
+  // Whether the plate takes a block lowered near it. Separate from the grid,
+  // because they answer different questions — one is how fine the work is, the
+  // other is whether the floor is sticky — and somebody laying out parts a
+  // hair above the plate wants the grid without the floor.
+  floorSnap: true,
+  ...readPrefs(),
   freeMove: false, // Alt held: temporarily ignore the snap grid
   aligning: false, // the align targets are showing instead of the box handles
   past: [],
@@ -147,15 +219,15 @@ export const useScene = create((set, get) => ({
     let base = additive ? st.selectedIds : []
     if (additive && st.selectedIds.includes(id)) {
       // Toggling off removes the whole group the block belongs to.
-      const drop = new Set(expandSelection([id], st.objects))
+      const drop = new Set(expandSelection([id], st.objects, st.groups))
       base = st.selectedIds.filter((x) => !drop.has(x))
       return set({ selectedIds: base })
     }
-    set({ selectedIds: expandSelection([...base, id], st.objects) })
+    set({ selectedIds: expandSelection([...base, id], st.objects, st.groups) })
   },
 
   setSelection(ids) {
-    set({ selectedIds: expandSelection(ids, get().objects), aligning: false })
+    set({ selectedIds: expandSelection(ids, get().objects, get().groups), aligning: false })
   },
 
   clearSelection() {
@@ -185,11 +257,18 @@ export const useScene = create((set, get) => ({
 
   toggleSnap() {
     set((st) => ({ snapEnabled: !st.snapEnabled }))
+    writePrefs()
+  },
+
+  toggleFloorSnap() {
+    set((st) => ({ floorSnap: !st.floorSnap }))
+    writePrefs()
   },
 
   /** Pick a grid to snap to, and snap. `0` is the same as switching it off. */
   setSnapStep(step) {
     set(step > 0 ? { snapStep: step, snapEnabled: true } : { snapEnabled: false })
+    writePrefs()
   },
 
   selectedObjects() {
@@ -532,7 +611,7 @@ export const useScene = create((set, get) => ({
     const st = get()
     const sel = st.selectedObjects()
     if (sel.length < 2) return false
-    const offsets = alignOffsets(sel, meshes, slot, mode)
+    const offsets = alignOffsets(sel, meshes, slot, mode, st.groups)
     if (!offsets.size) return false
 
     const patches = []
@@ -571,24 +650,82 @@ export const useScene = create((set, get) => ({
     st.apply(cmd.recolorObjects(sel.map((o) => ({ id: o.id, before: o.color, after: color }))))
   },
 
+  /**
+   * Combine, and make the parts look like one thing.
+   *
+   * They take the colour of whichever covers the most plate. A thing built out
+   * of six colours is six blocks that happen to be touching; once it is one
+   * object it should read as one, and the biggest part is the one somebody
+   * would name if asked what colour it is.
+   *
+   * Holes do not get a vote — they are drawn grey whatever colour they carry,
+   * so letting one decide would pick a colour nobody can see. They are
+   * recoloured along with everything else, so splitting the group apart later
+   * does not suddenly produce an odd one out.
+   */
   combine() {
     const st = get()
     const ids = st.selectedIds
     if (ids.length < 2) return
-    const group = { id: uid(), memberIds: [...ids] }
-    const prevParents = Object.fromEntries(
-      st.selectedObjects().map((o) => [o.id, o.parentGroupId ?? null])
+    const sel = st.selectedObjects()
+
+    // What is being combined is the *top* things in the selection: a group
+    // already made goes in whole, as one child, rather than being dissolved
+    // into its parts. That is what gives combining levels — and what lets
+    // Split apart take one level back off rather than all of them.
+    const units = [...new Set(sel.map((o) => rootUnitOf(o, st.groups)))]
+    if (units.length < 2) return
+    const childGroupIds = units.filter((id) => st.groups.some((g) => g.id === id))
+
+    const prev = Object.fromEntries(
+      sel.map((o) => [o.id, { parentGroupId: o.parentGroupId ?? null, color: o.color }])
     )
-    st.apply(cmd.combineObjects(group, prevParents))
+    // The group remembers what everything looked like before it existed, so
+    // Split apart can hand the colours back — see `ungroupObjects`. It is
+    // written into the group rather than kept beside it because the group is
+    // what gets saved, and a build should still come apart properly tomorrow.
+    const group = {
+      id: uid(),
+      // Every block underneath, however deep: what deletion and the colours
+      // need. `childGroupIds` is what says which of them came in as a unit.
+      memberIds: [...ids],
+      childGroupIds,
+      parentGroupId: null,
+      colors: Object.fromEntries(sel.map((o) => [o.id, o.color])),
+    }
+
+    const voters = sel.filter((o) => !o.hole)
+    const widest = (voters.length ? voters : sel).reduce(
+      (best, o) => (footprintOf(o) > footprintOf(best) ? o : best),
+      voters[0] ?? sel[0]
+    )
+    const color = sel.every((o) => o.color === widest.color) ? null : widest.color
+    if (color) group.combinedColor = color
+
+    // Only the blocks that were loose get their parent set to the new group;
+    // the ones already inside a child group keep pointing at it, and the child
+    // group is what now points upward.
+    const loose = sel.filter((o) => !o.parentGroupId).map((o) => o.id)
+    st.apply(cmd.combineObjects(group, prev, color, loose, childGroupIds))
   },
 
+  /**
+   * Take one level of combining off.
+   *
+   * Only the outermost group goes: whatever was combined before it stays
+   * combined, and comes out as its own object again. Splitting all the way
+   * down in one go would throw away the structure somebody built, and there
+   * would be no way to get it back short of starting over.
+   */
   ungroup() {
     const st = get()
     const sel = st.selectedObjects()
-    const ids = new Set(sel.map((o) => o.parentGroupId).filter(Boolean))
+    const ids = new Set(
+      sel.map((o) => o.parentGroupId && rootGroupId(o.parentGroupId, st.groups)).filter(Boolean)
+    )
     const groups = st.groups.filter((g) => ids.has(g.id))
     if (!groups.length) return
-    st.apply(cmd.ungroupObjects(groups))
+    st.apply(cmd.ungroupObjects(groups, st.groups))
   },
 
   duplicate() {
@@ -706,6 +843,35 @@ export function bottomOf(object, params = object.params) {
     }
   }
   return lowest
+}
+
+/**
+ * How much plate a block covers, in square millimetres.
+ *
+ * The shape's own box, turned and stretched the way the block is, measured
+ * across the floor. Not its volume: "footprint" is already what this app calls
+ * the floor space a block takes, and a wide flat base is what somebody points
+ * at when they say which part a thing mostly *is*.
+ */
+export function footprintOf(object) {
+  const { min, max } = measure(object.type, object.params)
+  _q.setFromEuler(_e.fromArray(object.rotation))
+  let lowX = Infinity
+  let highX = -Infinity
+  let lowZ = Infinity
+  let highZ = -Infinity
+  for (const x of [min.x, max.x]) {
+    for (const y of [min.y, max.y]) {
+      for (const z of [min.z, max.z]) {
+        _v.set(x * object.scale[0], y * object.scale[1], z * object.scale[2]).applyQuaternion(_q)
+        if (_v.x < lowX) lowX = _v.x
+        if (_v.x > highX) highX = _v.x
+        if (_v.z < lowZ) lowZ = _v.z
+        if (_v.z > highZ) highZ = _v.z
+      }
+    }
+  }
+  return (highX - lowX) * (highZ - lowZ)
 }
 
 /**

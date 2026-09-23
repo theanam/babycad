@@ -209,5 +209,70 @@ console.log('\nparts set at an angle, and whether they are really joined…')
   }
 }
 
+/* ------------------------------------------------ combining in levels -- */
+
+// Combining something already combined nests rather than flattens, and a split
+// takes one level off. Both halves are easy to lose: an outer combine that
+// dissolved its children would look identical until somebody tried to take the
+// thing apart and got a heap.
+console.log('\ncombining, nesting and splitting…')
+{
+  const { useScene } = await import('../src/scene/sceneStore.js')
+  const { migrate } = await import('../src/io/persistence.js')
+  const st = () => useScene.getState()
+  const paint = (id, c) =>
+    useScene.setState({ objects: st().objects.map((o) => (o.id === id ? { ...o, color: c } : o)) })
+  const add = (type, params, color) => {
+    st().addShape(type, [0, 0, 0], params)
+    const o = st().objects.at(-1)
+    paint(o.id, color)
+    return o.id
+  }
+  const colours = () => st().objects.map((o) => o.color).join(' ')
+
+  useScene.setState({ objects: [], groups: [], variables: [], past: [], future: [] })
+  const a = add('cube', { width: 80, height: 6, depth: 60 }, '#2E7DF6')
+  const b = add('cylinder', { bottomRadius: 5, topRadius: 5, height: 40 }, '#FF5A47')
+  const c = add('sphere', { radius: 4 }, '#FFC93D')
+  const original = colours()
+
+  st().setSelection([a, b])
+  st().combine()
+  const inner = st().groups[0]?.id
+  if (!inner) fail('combining two blocks made no group')
+  if (new Set(st().objects.slice(0, 2).map((o) => o.color)).size !== 1) {
+    fail('combining did not give the parts one colour')
+  }
+
+  st().setSelection([c, a])
+  st().combine()
+  if (st().groups.length !== 2) fail(`combining with a group should nest, got ${st().groups.length} group(s)`)
+  if (!st().groups.some((g) => g.parentGroupId)) fail('the inner group was not folded into the outer one')
+  console.log(`  two levels, ${st().groups.length} groups, all one colour: ${new Set(st().objects.map((o) => o.color)).size === 1}`)
+
+  // A saved build has to come back with its levels.
+  const reopened = migrate(JSON.parse(JSON.stringify(st().serialize())))
+  st().loadScene(reopened)
+  if (st().groups.length !== 2 || !st().groups.some((g) => g.parentGroupId)) {
+    fail('the levels did not survive being saved and opened')
+  }
+
+  st().setSelection([a])
+  st().ungroup()
+  if (st().groups.length !== 1) fail('a split should take one level off, not all of them')
+  if (st().objects.find((o) => o.id === c).parentGroupId) fail('the block added last was not let go')
+  if (!st().objects.filter((o) => o.id === a || o.id === b).every((o) => o.parentGroupId === inner)) {
+    fail('the inner group did not survive the split')
+  }
+  console.log('  one split leaves the inner group standing, and frees the block added last')
+
+  st().setSelection([a])
+  st().ungroup()
+  if (!st().objects.every((o) => !o.parentGroupId)) fail('a second split left something grouped')
+  if (colours() !== original) fail(`splitting all the way back did not restore the colours: ${colours()}`)
+  console.log('  splitting the rest of the way gives every block its own colour back')
+  useScene.setState({ objects: [], groups: [], variables: [], past: [], future: [] })
+}
+
 console.log(problems ? `\n${problems} problem(s)` : '\nall clear')
 process.exitCode = problems ? 1 : 0
