@@ -16,6 +16,7 @@ register('./resolve-extensionless.mjs', import.meta.url)
 const { EXAMPLES, buildExample } = await import('../src/examples/index.js')
 const { buildGeometry } = await import('../src/shapes/geometryCache.js')
 const { PLATE_HALF } = await import('../src/constants.js')
+const { cuttersByObject } = await import('../src/shapes/csg.js')
 
 let problems = 0
 const fail = (message) => {
@@ -37,6 +38,37 @@ for (const example of EXAMPLES) {
   }
   if (scene.variables.length !== (example.variables ?? []).length) {
     fail(`${example.id} lost a variable`)
+  }
+
+  // A hole has to travel with what it cuts.
+  //
+  // A combined hole is not drawn, so nothing on screen says whether it is
+  // attached to anything — and if it is not, the build looks perfect until the
+  // moment somebody drags it, at which point the solid walks out of its own
+  // holes and leaves them hanging in the air. That is precisely the bug this
+  // catches: every hole must share a group with a solid it actually cuts.
+  const cutters = cuttersByObject(scene.objects)
+  const cutBy = new Map() // hole id -> ids of the solids it cuts
+  for (const [solidId, holes] of cutters) {
+    for (const hole of holes) {
+      if (!cutBy.has(hole.id)) cutBy.set(hole.id, [])
+      cutBy.get(hole.id).push(solidId)
+    }
+  }
+  const groupOf = new Map(scene.objects.map((o) => [o.id, o.parentGroupId ?? null]))
+  for (const object of scene.objects) {
+    if (!object.hole) continue
+    const cut = cutBy.get(object.id) ?? []
+    if (!cut.length) {
+      fail(`${example.id}: a ${object.type} hole cuts nothing at all`)
+      continue
+    }
+    // Uncombined is a legitimate state — the hole shows as a ghost and is
+    // there to be picked up. What cannot stand is combined but unattached.
+    const group = groupOf.get(object.id)
+    if (group && !cut.some((id) => groupOf.get(id) === group)) {
+      fail(`${example.id}: a ${object.type} hole is combined into a group with nothing it cuts, so it will be left behind when the build moves`)
+    }
   }
 
   const byId = new Map(scene.variables.map((v) => [v.id, v]))
@@ -74,10 +106,13 @@ for (const example of EXAMPLES) {
     // Rotated parts are measured loosely: the unrotated box is all we have
     // here, and it over-reports for anything lying on its side.
     const turned = object.rotation.some((r) => Math.abs(r) > 1e-6)
-    if (!turned && floor < -0.01) {
+    // A hole is measured by none of this. It is a tool, not a part: one that
+    // bores right through a plate has to stick out below it, and one that opens
+    // a tray has to stick out above — reaching past the model is the job.
+    if (!object.hole && !turned && floor < -0.01) {
       fail(`${example.id} part ${i} (${object.type}) sinks ${(-floor).toFixed(2)} mm into the plate`)
     }
-    for (const [axis, slot] of [['x', 0], ['z', 2]]) {
+    for (const [axis, slot] of object.hole ? [] : [['x', 0], ['z', 2]]) {
       const half = slot === 0 ? box.max.x : box.max.z
       const reach = Math.abs(object.position[slot]) + half
       if (reach > PLATE_HALF) {
