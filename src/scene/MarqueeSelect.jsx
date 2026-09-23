@@ -31,6 +31,7 @@ import { useThree } from '@react-three/fiber'
 import { meshes } from './meshRegistry'
 import { useScene } from './sceneStore'
 import { CLICK_SLOP } from './orbit'
+import { viewport } from './viewportApi'
 
 /** Screen-space bounds of a mesh's world box, in viewport pixels. */
 const _v = new THREE.Vector3()
@@ -144,6 +145,22 @@ export default function MarqueeSelect() {
         // Below the slop this is still a click, and a click on empty space
         // already means "clear the selection" by way of R3F's miss handler.
         if (Math.hypot(event.clientX - start.x, event.clientY - start.y) <= CLICK_SLOP) return
+
+        // Somebody else already owns this drag. A gizmo handle is not a block,
+        // so the raycast on the way down let a press on one through and a
+        // resize or a turn drew a selection box across the yard behind it —
+        // which then threw the selection away on release. `begin` switches the
+        // camera controls off the moment it takes a drag, and that flag is the
+        // one thing every claim on the pointer has in common: the box handles,
+        // the turn levers, the lift, and dragging a block by its body.
+        //
+        // It is asked here rather than on the way down because that is a
+        // native listener racing R3F's synthetic one; by the time the pointer
+        // has moved far enough to mean a drag, the claim is in.
+        if (viewport.controls && !viewport.controls.enabled) {
+          start = null
+          return
+        }
         live = true
         box.style.display = 'block'
       }
