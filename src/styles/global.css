@@ -534,6 +534,21 @@ button:disabled { cursor: default; }
 .modal-copy { font-size: 17px; font-weight: 700; color: var(--muted); line-height: 1.55; text-wrap: pretty; }
 .modal-btns { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
 
+/* The "go ahead" in a confirmation, which is always the destructive one.
+   It carried a class with no rule behind it, so it came out as bare text
+   beside a filled cancel button: the choice that loses your work looked like a
+   caption, and the one that keeps it looked like the button. Same red as the
+   rail's Delete, so "this removes something" reads the same way everywhere. */
+.confirm-btn {
+  height: 52px; padding: 0 22px;
+  border-radius: var(--r-control-lg);
+  background: var(--danger-bg); color: var(--danger-ink);
+  font-size: 16px; font-weight: 800;
+  flex: none;
+  transition: background var(--fade);
+}
+.confirm-btn:active { background: #3a1b1f; }
+
 
 /* --------------------------------------------------------------- toasts -- */
 

@@ -1,5 +1,14 @@
 import { useEffect } from 'react'
 
+/**
+ * A question with two answers, where one of them cannot be taken back.
+ *
+ * The two buttons are deliberately not alike. Going ahead is the destructive
+ * one — this is only ever asked about something that is about to be lost — so
+ * it wears the same red the Delete button in the properties rail does, and
+ * staying put wears the ordinary control grey. They read as what they are at a
+ * glance, which is the whole job of a dialog nobody wanted to see.
+ */
 export default function ConfirmDialog({
   title,
   body,
@@ -32,7 +41,7 @@ export default function ConfirmDialog({
           >
             Keep building
           </button>
-          <button className="save-btn" onClick={onConfirm} title={confirmHint ?? confirmLabel}>
+          <button className="confirm-btn" onClick={onConfirm} title={confirmHint ?? confirmLabel}>
             {confirmLabel}
           </button>
         </div>
