@@ -308,11 +308,11 @@ export const EXAMPLES = [
     blurb: 'A ramp to lean on and a lip to stop it sliding. Fits any phone.',
     teaches: 'ramps',
     parts: [
-      { type: 'cube', color: '#2E7DF6', params: { width: 84, height: 6, depth: 70 } },
+      { type: 'cube', color: '#2E7DF6', params: { width: 84, height: 6, depth: 70, edge: 2 } },
       // The ramp is full height at its back edge and tapers to nothing at the
       // front, which is exactly the wedge a phone wants to lean against.
       { type: 'wedge', color: '#2E7DF6', params: { width: 84, height: 46, depth: 46 }, at: [0, -12], lift: 6 },
-      { type: 'cube', color: '#FFC93D', params: { width: 84, height: 12, depth: 6 }, at: [0, 30], lift: 6 },
+      { type: 'cube', color: '#FFC93D', params: { width: 84, height: 12, depth: 6, edge: 2 }, at: [0, 30], lift: 6 },
     ],
   },
 
@@ -323,7 +323,7 @@ export const EXAMPLES = [
     teaches: 'pipes',
     parts: [
       { type: 'cylinder', color: '#35C46B', params: { bottomRadius: 34, topRadius: 34, height: 3, sides: 64 } },
-      { type: 'pipe', color: '#35C46B', params: { radius: 34, wall: 3, height: 89, sides: 64 }, lift: 3 },
+      { type: 'pipe', color: '#35C46B', params: { radius: 34, wall: 3, height: 89, sides: 64, edge: 1.2 }, lift: 3 },
     ],
   },
 
@@ -333,8 +333,8 @@ export const EXAMPLES = [
     blurb: 'A disc with a raised rim, so a wet glass stays where you put it.',
     teaches: 'round shapes',
     parts: [
-      { type: 'cylinder', color: '#A9744F', params: { bottomRadius: 45, topRadius: 45, height: 3, sides: 64 } },
-      { type: 'pipe', color: '#8A5B3C', params: { radius: 45, wall: 3, height: 5, sides: 64 }, lift: 3 },
+      { type: 'cylinder', color: '#A9744F', params: { bottomRadius: 45, topRadius: 45, height: 3, sides: 64, edge: 1 } },
+      { type: 'pipe', color: '#8A5B3C', params: { radius: 45, wall: 3, height: 5, sides: 64, edge: 1.2 }, lift: 3 },
     ],
   },
 
@@ -344,7 +344,7 @@ export const EXAMPLES = [
     blurb: 'A pipe swept most of the way round grips a cable and still lets it back out.',
     teaches: 'partial sweeps',
     parts: [
-      { type: 'cube', color: '#FF8A3D', params: { width: 24, height: 4, depth: 16 } },
+      { type: 'cube', color: '#FF8A3D', params: { width: 24, height: 4, depth: 16, edge: 1 } },
       // A pipe is built standing, so the quarter turn about X is what lays its
       // axis along the cable. The turn about Y comes first (Euler 'XYZ' with no
       // Z applies Y innermost, about the pipe's own axis) and spins the gap to
@@ -368,7 +368,7 @@ export const EXAMPLES = [
     blurb: 'Your own word on it and a hole for the ring. Change the word in the rail.',
     teaches: 'text and holes',
     parts: [
-      { type: 'cube', color: '#7C4DFF', params: { width: 46, height: 4, depth: 20 } },
+      { type: 'cube', color: '#7C4DFF', params: { width: 46, height: 4, depth: 20, edge: 1.4 } },
       { type: 'cylinder', color: '#7C4DFF', params: { bottomRadius: 10, topRadius: 10, height: 4, sides: 48 }, at: [-23, 0] },
       // Taller than the tag on purpose: a hole has to come out the far side to
       // be a hole rather than a dent.
@@ -390,8 +390,8 @@ export const EXAMPLES = [
     blurb: 'A slab and a word. Type your own into Words and it rebuilds itself.',
     teaches: 'text',
     parts: [
-      { type: 'cube', color: '#3A414F', params: { width: 110, height: 6, depth: 34 } },
-      { type: 'text', color: '#FFC93D', params: { text: 'HELLO', size: 15, thickness: 3 }, lift: 6 },
+      { type: 'cube', color: '#3A414F', params: { width: 110, height: 6, depth: 34, edge: 2 } },
+      { type: 'text', color: '#FFC93D', params: { text: 'HELLO', size: 15, thickness: 3, edge: 0.6 }, lift: 6 },
     ],
   },
 
@@ -402,7 +402,7 @@ export const EXAMPLES = [
     blurb: 'A back plate with two screw holes, and a peg raked upward so nothing slides off.',
     teaches: 'turning parts',
     parts: [
-      { type: 'cube', color: '#EDEFF4', params: { width: 30, height: 44, depth: 4 }, at: [0, -10] },
+      { type: 'cube', color: '#EDEFF4', params: { width: 30, height: 44, depth: 4, edge: 1.6 }, at: [0, -10] },
       // Lying along z, so they bore front to back through the plate.
       {
         type: 'cylinder',
@@ -451,10 +451,10 @@ export const EXAMPLES = [
     blurb: 'One block, and a second marked as a hole to scoop the inside out.',
     teaches: 'holes',
     parts: [
-      { type: 'cube', color: '#2E7DF6', params: { width: 90, height: 26, depth: 60 } },
+      { type: 'cube', color: '#2E7DF6', params: { width: 90, height: 26, depth: 60, edge: 3 } },
       // Open at the top: the hole runs past the rim rather than stopping level
       // with it, or the tray would come out as a sealed box.
-      { type: 'cube', color: '#8A93A5', params: { width: 82, height: 30, depth: 52 }, lift: 4, hole: true },
+      { type: 'cube', color: '#8A93A5', params: { width: 82, height: 30, depth: 52, edge: 3 }, lift: 4, hole: true },
     ],
   },
 
@@ -465,7 +465,7 @@ export const EXAMPLES = [
     blurb: 'Twenty-one balls marked as holes. Opposite faces add up to seven.',
     teaches: 'holes',
     parts: [
-      { type: 'cube', color: '#EDEFF4', params: { width: 24, height: 24, depth: 24 } },
+      { type: 'cube', color: '#EDEFF4', params: { width: 24, height: 24, depth: 24, edge: 2.4 } },
       ...diePips(24, 5, 2.6, PIP_OUT),
     ],
   },
@@ -477,7 +477,7 @@ export const EXAMPLES = [
     blurb: 'A tube wider at the top than the bottom, hollowed out and drained.',
     teaches: 'taper',
     parts: [
-      { type: 'cylinder', color: '#A9744F', params: { bottomRadius: 26, topRadius: 34, height: 56, sides: 64 } },
+      { type: 'cylinder', color: '#A9744F', params: { bottomRadius: 26, topRadius: 34, height: 56, sides: 64, edge: 2 } },
       // The cavity tapers with the outside, so the wall stays the same
       // thickness all the way up instead of thinning toward the rim.
       {
@@ -504,8 +504,8 @@ export const EXAMPLES = [
     blurb: 'Two holes laid crosswise cut four windows for the light to come through.',
     teaches: 'holes',
     parts: [
-      { type: 'cylinder', color: '#FF8A3D', params: { bottomRadius: 24, topRadius: 24, height: 3, sides: 64 } },
-      { type: 'pipe', color: '#FF8A3D', params: { radius: 24, wall: 3.5, height: 26, sides: 64 }, lift: 3 },
+      { type: 'cylinder', color: '#FF8A3D', params: { bottomRadius: 24, topRadius: 24, height: 3, sides: 64, edge: 1 } },
+      { type: 'pipe', color: '#FF8A3D', params: { radius: 24, wall: 3.5, height: 26, sides: 64, edge: 1.4 }, lift: 3 },
       // One bar front to back, one left to right: two parts, four windows,
       // because each bar leaves the wall twice.
       {
@@ -554,17 +554,17 @@ export const EXAMPLES = [
     blurb: 'Four flat rings down a post, each one wider than the last but with the same hole.',
     teaches: 'sizes',
     parts: [
-      { type: 'cylinder', color: '#EDEFF4', params: { bottomRadius: 40, topRadius: 40, height: 5, sides: 64 } },
+      { type: 'cylinder', color: '#EDEFF4', params: { bottomRadius: 40, topRadius: 40, height: 5, sides: 64, edge: 1.5 } },
       { type: 'cylinder', color: '#C3CAD9', params: { bottomRadius: 6, topRadius: 5, height: 52, sides: 32 }, lift: 5 },
       // Pipes, not donuts. A donut's hole is its radius less its tube, so a
       // slim ring with a small hole can only be a small ring — the four would
       // have come out the same size, or floating round a post far too thin for
       // them. A pipe sets its outside and its wall apart, so every ring here
       // keeps the same 8 mm hole and only the outside grows.
-      { type: 'pipe', color: '#FF5A47', params: { radius: 34, wall: 26, height: 11, sides: 64 }, lift: 5 },
-      { type: 'pipe', color: '#FF8A3D', params: { radius: 28, wall: 20, height: 11, sides: 64 }, lift: 16 },
-      { type: 'pipe', color: '#FFC93D', params: { radius: 22, wall: 14, height: 11, sides: 64 }, lift: 27 },
-      { type: 'pipe', color: '#35C46B', params: { radius: 16, wall: 8, height: 11, sides: 64 }, lift: 38 },
+      { type: 'pipe', color: '#FF5A47', params: { radius: 34, wall: 26, height: 11, sides: 64, edge: 1.4 }, lift: 5 },
+      { type: 'pipe', color: '#FF8A3D', params: { radius: 28, wall: 20, height: 11, sides: 64, edge: 1.4 }, lift: 16 },
+      { type: 'pipe', color: '#FFC93D', params: { radius: 22, wall: 14, height: 11, sides: 64, edge: 1.4 }, lift: 27 },
+      { type: 'pipe', color: '#35C46B', params: { radius: 16, wall: 8, height: 11, sides: 64, edge: 1.4 }, lift: 38 },
     ],
   },
 
@@ -574,8 +574,8 @@ export const EXAMPLES = [
     blurb: 'A foot the books sit on and an upright they lean on, braced by a ramp.',
     teaches: 'right angles',
     parts: [
-      { type: 'cube', color: '#3A414F', params: { width: 90, height: 6, depth: 85 } },
-      { type: 'cube', color: '#3A414F', params: { width: 90, height: 110, depth: 8 }, at: [0, -38.5], lift: 6 },
+      { type: 'cube', color: '#3A414F', params: { width: 90, height: 6, depth: 85, edge: 2 } },
+      { type: 'cube', color: '#3A414F', params: { width: 90, height: 110, depth: 8, edge: 2 }, at: [0, -38.5], lift: 6 },
       // The ramp does what an unbraced upright cannot: it stops the corner
       // opening up under the weight of the books.
       { type: 'wedge', color: '#2E7DF6', params: { width: 90, height: 45, depth: 45 }, at: [0, -12], lift: 6 },
@@ -591,8 +591,8 @@ export const EXAMPLES = [
     parts: [
       { type: 'thread', color: '#C3CAD9', params: { diameter: 16, pitch: 2.5, length: 40, angle: 60, starts: 1, sides: 48 }, at: [-20, 0] },
       // Six sides makes a hex head; it is the same tube the pen pot is made of.
-      { type: 'cylinder', color: '#8A93A5', params: { bottomRadius: 13, topRadius: 13, height: 8, sides: 6 }, at: [-20, 0], lift: 40 },
-      { type: 'cylinder', color: '#8A93A5', params: { bottomRadius: 13, topRadius: 13, height: 10, sides: 6 }, at: [20, 0] },
+      { type: 'cylinder', color: '#8A93A5', params: { bottomRadius: 13, topRadius: 13, height: 8, sides: 6, edge: 1.4, edgeStyle: 'bevel' }, at: [-20, 0], lift: 40 },
+      { type: 'cylinder', color: '#8A93A5', params: { bottomRadius: 13, topRadius: 13, height: 10, sides: 6, edge: 1.4, edgeStyle: 'bevel' }, at: [20, 0] },
       { type: 'cylinder', color: '#3A414F', params: { bottomRadius: 7.2, topRadius: 7.2, height: 20, sides: 32 }, at: [20, 0], y: 5, hole: true },
     ],
   },
@@ -624,8 +624,8 @@ export const EXAMPLES = [
     blurb: 'A tray with three holes in the floor, so the soap dries instead of sitting in water.',
     teaches: 'holes',
     parts: [
-      { type: 'cube', color: '#35C46B', params: { width: 100, height: 16, depth: 70 } },
-      { type: 'cube', color: '#8A93A5', params: { width: 90, height: 20, depth: 60 }, lift: 5, hole: true },
+      { type: 'cube', color: '#35C46B', params: { width: 100, height: 16, depth: 70, edge: 4 } },
+      { type: 'cube', color: '#8A93A5', params: { width: 90, height: 20, depth: 60, edge: 4 }, lift: 5, hole: true },
       { type: 'cylinder', color: '#8A93A5', params: { bottomRadius: 5, topRadius: 5, height: 20, sides: 32 }, at: [-24, 0], y: 4, hole: true },
       { type: 'cylinder', color: '#8A93A5', params: { bottomRadius: 5, topRadius: 5, height: 20, sides: 32 }, at: [0, 0], y: 4, hole: true },
       { type: 'cylinder', color: '#8A93A5', params: { bottomRadius: 5, topRadius: 5, height: 20, sides: 32 }, at: [24, 0], y: 4, hole: true },
@@ -638,7 +638,7 @@ export const EXAMPLES = [
     blurb: 'A short length of pipe with a star stood up on the front of it.',
     teaches: 'putting shapes together',
     parts: [
-      { type: 'pipe', color: '#D6E24A', params: { radius: 22, wall: 3, height: 32, sides: 64 } },
+      { type: 'pipe', color: '#D6E24A', params: { radius: 22, wall: 3, height: 32, sides: 64, edge: 1.2 } },
       // A star is built lying flat, like a donut, so it has to be stood up to be
       // seen at all. A quarter turn about Z puts its face along +x — the side
       // the opening view looks straight at, rather than the back of the ring
@@ -665,7 +665,7 @@ export const EXAMPLES = [
     blurb: 'A groove down the middle and five dimples, every one of them a hole.',
     teaches: 'holes',
     parts: [
-      { type: 'cube', color: '#EDEFF4', params: { width: 48, height: 8, depth: 24 } },
+      { type: 'cube', color: '#EDEFF4', params: { width: 48, height: 8, depth: 24, edge: 1.6 } },
       // Past the edge at both ends, or the groove stops short and reads as a
       // scratch rather than a line.
       { type: 'cube', color: '#8A93A5', params: { width: 1.6, height: 3, depth: 28 }, lift: 7, hole: true },
