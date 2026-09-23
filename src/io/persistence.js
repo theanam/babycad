@@ -10,6 +10,7 @@
  */
 import { SCENE_VERSION } from '../constants'
 import { getShapeDef, normalizeParams } from '../shapes'
+import { adoptMeshes, meshesFor } from '../shapes/meshStore'
 import { resolvePatches, sanitizeVariables } from '../scene/variables'
 
 const SESSION_KEY = 'babycad.session.v1'
@@ -110,6 +111,11 @@ export function takeLegacyAutosave() {
  */
 export function migrate(scene) {
   if (!scene || typeof scene !== 'object') return null
+  // Imported models travel inside the file (v6 and up). They go back into the
+  // store before anything is built, so a block that refers to one finds it
+  // there rather than coming up empty on the first frame. Nothing to adopt is
+  // the normal case: only a build with an import in it carries any.
+  adoptMeshes(scene.meshes)
   const rawObjects = Array.isArray(scene.objects) ? scene.objects : []
   const variables = sanitizeVariables(scene.variables)
   const known = new Set(variables.map((v) => v.id))
@@ -152,6 +158,9 @@ export function migrate(scene) {
   return {
     version: SCENE_VERSION,
     objects: settled,
+    // Only the models this build actually uses, so deleting an imported block
+    // and saving does not keep carrying its triangles around forever.
+    meshes: meshesFor(settled),
     groups: (Array.isArray(scene.groups) ? scene.groups : []).filter(
       (g) => g && typeof g.id === 'string' && Array.isArray(g.memberIds)
     ),

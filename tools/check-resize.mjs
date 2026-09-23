@@ -38,12 +38,18 @@ const fail = (message) => {
 }
 
 console.log('every shape has a resize mapping…')
-for (const def of SHAPE_DEFS) {
+// An imported model has no size parameters and is not meant to: it is a bag of
+// triangles with no opinion about which of them is "the width", so a resize is
+// left as a scale multiplier. That is the honest answer rather than a gap, so
+// it is excluded here instead of being counted as missing.
+const SIZED = SHAPE_DEFS.filter((d) => !d.imported)
+
+for (const def of SIZED) {
   if (!AXIS_PARAMS[def.type]) fail(`${def.type} is missing from AXIS_PARAMS`)
 }
 
 console.log('\na uniform resize lands where the multiplier would have…')
-for (const def of SHAPE_DEFS) {
+for (const def of SIZED) {
   for (const ratio of [0.5, 1.5, 2]) {
     const o = object(def.type)
     const result = resizeToParams(o, [ratio, ratio, ratio])

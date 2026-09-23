@@ -17,7 +17,7 @@
  * fresh shape drops with a 20 mm footprint, the size of the yard's grid
  * squares, so anything placed sits on the grid like a building block.
  */
-import { choice, deg, defaultsOf, int, normalize, num, paramsKey, text } from './params'
+import { choice, deg, defaultsOf, int, mesh, normalize, num, paramsKey, text } from './params'
 import {
   buildCone,
   buildCube,
@@ -33,6 +33,7 @@ import { buildGear } from './builders/gear'
 import { buildThread } from './builders/thread'
 import { buildKnot, buildSpring } from './builders/spring'
 import { buildText, DEFAULT_TEXT, FONT_OPTIONS } from './builders/text'
+import { buildModel } from './builders/model'
 
 /**
  * A length, in millimetres. `length: true` is what the v3 -> v4 migration
@@ -69,6 +70,17 @@ const HAND = [
 ]
 
 export const SHAPE_DEFS = [
+  {
+    type: 'model',
+    label: 'Model',
+    family: 'generator',
+    color: '#C3CAD9',
+    // Imported, not placed: the tray has nothing to offer for this one, so it
+    // is hidden from it and arrives only by way of Import.
+    imported: true,
+    params: [mesh()],
+    build: buildModel,
+  },
   {
     type: 'text',
     label: 'Text',
@@ -287,7 +299,7 @@ export const getShapeDef = (type) => byType.get(type) ?? byType.get('cube')
 
 export const SHAPE_TYPES = SHAPE_DEFS.map((d) => d.type)
 export const SOLIDS = SHAPE_DEFS.filter((d) => d.family === 'solid')
-export const GENERATORS = SHAPE_DEFS.filter((d) => d.family === 'generator')
+export const GENERATORS = SHAPE_DEFS.filter((d) => d.family === 'generator' && !d.imported)
 
 export const SHAPE_LABEL = Object.fromEntries(SHAPE_DEFS.map((d) => [d.type, d.label]))
 export const SHAPE_COLOR = Object.fromEntries(SHAPE_DEFS.map((d) => [d.type, d.color]))

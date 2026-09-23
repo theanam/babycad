@@ -11,6 +11,7 @@ import ExportMenu from './ui/ExportMenu'
 import VariablesPanel from './ui/VariablesPanel'
 import ConfirmDialog from './ui/ConfirmDialog'
 import WelcomeScreen from './ui/WelcomeScreen'
+import { pickModelFiles, readModelFile } from './io/importModel'
 import HelpModal from './ui/HelpModal'
 import TabStrip from './ui/TabStrip'
 import Toasts, { toast } from './ui/Toast'
@@ -312,6 +313,51 @@ export default function App() {
   // Opening a file leaves the welcome up until one actually opens — backing
   // out of the file dialog should put you back where you were, not on an
   // empty plate you didn't ask for.
+  /**
+   * Bring models onto the plate.
+   *
+   * Each one lands like any other block — placed by the same `placementPoint`,
+   * so two imports sit side by side rather than inside one another — and is
+   * selected afterwards, because the first thing anybody does with a part they
+   * have just brought in is move or resize it.
+   */
+  const onImport = useCallback(async () => {
+    let files = []
+    try {
+      files = await pickModelFiles()
+    } catch {
+      return toast('That file could not be opened', 'warn')
+    }
+    if (!files.length) return
+    if (!useDocs.getState().docs.length) useDocs.getState().open({})
+    setWelcomeAsked(false)
+
+    const added = []
+    for (const file of files) {
+      try {
+        const model = await readModelFile(file)
+        const params = { mesh: model.id }
+        const at = viewport.placementPoint('model', useScene.getState().objects, params)
+        const object = useScene.getState().addShape('model', at, params)
+        added.push({ object, model })
+        if (model.busy) {
+          toast(`${model.name} is ${Math.round(model.triangles / 1000)}k triangles — it may feel slow`, 'warn')
+        }
+      } catch (error) {
+        toast(error.message ?? 'That model could not be read', 'warn')
+      }
+    }
+    if (!added.length) return
+    useScene.getState().setSelection(added.map((a) => a.object.id))
+    const [first] = added
+    const mm = (n) => Math.round(n * 10) / 10
+    toast(
+      added.length === 1
+        ? `${first.model.name} — ${mm(first.model.size.x)} × ${mm(first.model.size.z)} × ${mm(first.model.size.y)} mm`
+        : `${added.length} models brought in`
+    )
+  }, [])
+
   const onOpenFile = useCallback(async () => {
     await onOpen()
     if (useDocs.getState().docs.length) setWelcomeAsked(false)
@@ -327,6 +373,7 @@ export default function App() {
         onSave={onSave}
         onSaveAs={onSaveAs}
         onOpen={onOpen}
+        onImport={onImport}
         onExport={() => setSheet('export')}
         onVariables={toggleVariables}
         onHelp={() => setSheet('help')}

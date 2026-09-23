@@ -62,7 +62,12 @@ function inspect(geometry) {
 
 let problems = 0
 
-for (const def of SHAPE_DEFS) {
+// An imported model has no geometry until something is imported, so there is
+// nothing here for the sweep to build. What it *does* have — the round trip
+// through a saved file — is checked on its own at the bottom.
+const GENERATED = SHAPE_DEFS.filter((d) => !d.imported)
+
+for (const def of GENERATED) {
   const geometry = buildGeometry(def.type, defaultParams(def.type))
   const s = inspect(geometry)
   const box = geometry.boundingBox
@@ -78,7 +83,7 @@ for (const def of SHAPE_DEFS) {
 }
 
 console.log('\nsweeping every parameter to both ends of its range…')
-for (const def of SHAPE_DEFS) {
+for (const def of GENERATED) {
   for (const spec of def.params) {
     const values =
       spec.kind === 'choice'
@@ -104,6 +109,55 @@ for (const def of SHAPE_DEFS) {
       }
     }
   }
+}
+
+/* ------------------------------------------------- imported models -- */
+
+// The thing that can actually go wrong with an import is the journey into a
+// file and back: positions are stored as base64 of the raw bytes, and a model
+// that came back a different shape — or not at all — would be a build quietly
+// ruined by having been saved.
+console.log('\nan imported model, out to a file and back…')
+{
+  const { registerMesh, meshesFor, adoptMeshes, geometryFor, meshInfo } = await import(
+    '../src/shapes/meshStore.js'
+  )
+  // One tetrahedron: four triangles, no two alike, so a transposed or
+  // truncated round trip cannot come back looking right by luck.
+  const positions = new Float32Array([
+    0, 0, 0, 10, 0, 0, 0, 10, 0,
+    0, 0, 0, 0, 10, 0, 0, 0, 10,
+    0, 0, 0, 0, 0, 10, 10, 0, 0,
+    10, 0, 0, 0, 0, 10, 0, 10, 0,
+  ])
+  const id = registerMesh('tetra.stl', positions)
+  const packed = meshesFor([{ params: { mesh: id } }])
+  if (!packed[id]) fail('the model was not written into the file at all')
+
+  // Adopt into a store that has never seen it, the way opening a file does.
+  const store = await import(`../src/shapes/meshStore.js?fresh`)
+  const took = store.adoptMeshes(packed)
+  if (took !== 1) fail(`a saved model did not come back: adopted ${took}`)
+  const back = store.meshInfo(id)
+  if (!back) fail('the model is missing from the store after loading')
+  else {
+    const same =
+      back.positions.length === positions.length &&
+      positions.every((v, i) => Math.abs(v - back.positions[i]) < 1e-9)
+    console.log(
+      `  ${back.triangles} triangles in, ${back.triangles} out, every vertex ${same ? 'identical' : 'CHANGED'}`
+    )
+    if (!same) fail('a saved model came back a different shape')
+  }
+  const g = geometryFor(id)
+  if (!g.getAttribute('position')?.count) fail('the rebuilt model has no vertices')
+  if (!g.getAttribute('normal')?.count) fail('the rebuilt model has no normals')
+
+  // An id with nothing behind it has to draw nothing rather than throw.
+  const missing = geometryFor('no-such-model')
+  if (missing.getAttribute('position').count !== 0) fail('a missing model built something')
+  console.log('  a reference to a model that is not there builds empty, as it should')
+  void meshInfo, adoptMeshes
 }
 
 console.log(problems ? `\n${problems} problem(s)` : '\nall clear')

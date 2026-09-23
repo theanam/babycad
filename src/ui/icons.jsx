@@ -52,6 +52,14 @@ export const ExportIcon = (p) => (
     <path d="M5 20h14" />
   </Svg>
 )
+/** A solid with an arrow coming into it: bringing somebody else's part in. */
+export const ImportIcon = (p) => (
+  <Svg {...p}>
+    <path d="M3 8.5 12 4l9 4.5v7L12 20l-9-4.5Z" />
+    <path d="M3 8.5 12 13l9-4.5M12 13v7" />
+  </Svg>
+)
+
 export const OpenIcon = (p) => (
   <Svg {...p}>
     <path d="M12 20V9" />

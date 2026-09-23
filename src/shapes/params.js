@@ -8,7 +8,7 @@
  *
  *   { kind, key, label, default, ...bounds }
  *
- * `kind` is one of 'number' | 'int' | 'bool' | 'choice' | 'text'.
+ * `kind` is one of 'number' | 'int' | 'bool' | 'choice' | 'text' | 'mesh'.
  */
 
 /** A continuous value. `soft` bounds the slider without bounding what you can type. */
@@ -75,6 +75,16 @@ export const text = (key, label, def, opts = {}) => ({
   ...opts,
 })
 
+/**
+ * The id of an imported model, in `shapes/meshStore`.
+ *
+ * Nothing edits this: it is written once by the importer and read by the
+ * builder. It is a parameter rather than a field on the object so that the
+ * geometry cache keys on it for free — change which model a block is and the
+ * mesh is rebuilt, exactly as changing a cube's width rebuilds the cube.
+ */
+export const mesh = (key = 'mesh') => ({ kind: 'mesh', key, label: 'Model', default: '' })
+
 /** `options` is [{ value, label }]; values may be numbers or strings. */
 export const choice = (key, label, def, options, opts = {}) => ({
   kind: 'choice',
@@ -100,6 +110,8 @@ export function coerce(spec, value) {
       return typeof value === 'boolean' ? value : spec.default
     case 'choice':
       return spec.options.some((o) => o.value === value) ? value : spec.default
+    case 'mesh':
+      return typeof value === 'string' ? value : spec.default
     case 'text': {
       // Runs of whitespace collapse and the ends are trimmed, so two spellings
       // of the same words settle to one stored value — and therefore, once

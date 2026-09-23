@@ -178,6 +178,22 @@ export default function HelpModal({ onClose, onShowWelcome }) {
           </section>
 
           <section>
+            <h3>Bringing a model in</h3>
+            <p>
+              <b>Import</b> in the top bar opens an <b>STL</b>, an <b>OBJ</b> or a <b>3MF</b> and
+              drops it on the plate as a block like any other — move it, turn it, make it a hole,
+              export it with the rest. Only the triangles come across: colours and materials are
+              left behind, and the part takes a swatch here the way everything else does.
+            </p>
+            <p>
+              It has no width or height to type, because a model is a bag of triangles with no
+              opinion about which of them is its width — so resizing one stretches it rather than
+              writing a number. The triangles are kept inside the build file, so a
+              <b> .babycad</b> with an imported part opens the same on somebody else&apos;s
+              computer, with no second file to go and find. That does make the file much bigger
+              than a build of plain blocks.
+            </p>
+
             <h3>Taking the edges off</h3>
             <p>
               A cube, a tube, a cone, a pipe and words all carry an <b>Edge</b>. Wind it up and

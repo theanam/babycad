@@ -6,6 +6,7 @@ import {
   ExportIcon,
   GithubIcon,
   HelpIcon,
+  ImportIcon,
   OpenIcon,
   PlusIcon,
   RedoIcon,
@@ -15,6 +16,7 @@ import {
 } from './icons'
 
 export default function TopBar({
+  onImport,
   onNew,
   onSave,
   onSaveAs,
@@ -93,6 +95,16 @@ export default function TopBar({
         <button className="bar-btn" onClick={onOpen} title="Open a .babycad file from your computer">
           <OpenIcon size={18} stroke="#8A93A5" />
           Open
+        </button>
+        {/* Beside Open, and not the same thing: Open replaces what is on the
+            plate with a build, Import drops somebody else's part onto it. */}
+        <button
+          className="bar-btn"
+          onClick={onImport}
+          title="Bring an STL, OBJ or 3MF onto the plate"
+        >
+          <ImportIcon size={18} stroke="#8A93A5" />
+          Import
         </button>
 
         <div className="bar-save" ref={saveWrap}>

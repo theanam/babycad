@@ -7,6 +7,7 @@ import { getShapeDef, SHAPE_LABEL } from '../shapes'
 import { ColorDot, CombineIcon, CopyIcon, ResetIcon, SplitIcon, TrashIcon } from './icons'
 import ParamMenu from './ParamMenu'
 import { useUI } from '../state/ui'
+import { meshInfo } from '../shapes/meshStore'
 import { toast } from './Toast'
 
 const DEG = 180 / Math.PI
@@ -142,6 +143,24 @@ function ParamField({
               {o.label}
             </button>
           ))}
+        </div>
+      </div>
+    )
+  }
+
+  // An imported model has no numbers to show: it is the triangles that came out
+  // of the file. Naming the file is the useful thing — it says which part this
+  // block is — and there is nothing here to type into.
+  if (spec.kind === 'mesh') {
+    const model = meshInfo(value)
+    return (
+      <div className="param">
+        <div className="param-top">
+          <span className="param-name">{spec.label}</span>
+          {menu}
+        </div>
+        <div className="param-readout" title={model ? `${model.triangles} triangles` : undefined}>
+          {model ? `${model.name} · ${model.triangles.toLocaleString()} triangles` : 'missing'}
         </div>
       </div>
     )

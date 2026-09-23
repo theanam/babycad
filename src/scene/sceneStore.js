@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import * as THREE from 'three'
 import * as cmd from '../history/undoRedo'
 import { FOOTPRINT, MAX_HISTORY, SCENE_VERSION, SNAP_DEFAULT } from '../constants'
+import { meshesFor } from '../shapes/meshStore'
 import { defaultParams, normalizeParams, SHAPE_COLOR } from '../shapes'
 import { resizeToParams } from '../shapes/resize'
 import { measure, restingHeight } from '../shapes/geometryCache'
@@ -644,6 +645,10 @@ export const useScene = create((set, get) => ({
     return {
       version: SCENE_VERSION,
       objects: st.objects,
+      // An imported model's triangles are not in the object — see
+      // shapes/meshStore — so a saved build has to carry the ones it uses, or
+      // it opens with a block that refers to a model nobody has.
+      meshes: meshesFor(st.objects),
       groups: st.groups,
       variables: st.variables,
       createdAt: createdAt ?? now,

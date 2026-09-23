@@ -94,7 +94,7 @@ export const FOOTPRINT = 20
 // v5 adds `hole`: a block that cuts the solids it is combined with instead of
 // being one. Purely additive — a v4 build has no holes in it, so it loads
 // looking exactly as it did.
-export const SCENE_VERSION = 5
+export const SCENE_VERSION = 6
 export const MAX_HISTORY = 200
 
 // Past this many blocks we drop shadow quality rather than let the frame rate go.
