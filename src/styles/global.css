@@ -910,14 +910,17 @@ button:disabled { cursor: default; }
 .var-name:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
 .var-control { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .var-value {
-  width: 68px; height: 34px; flex: none;
+  /* Wide enough for a sum, not just a number: at 68px "twice * 2" was cut off
+     after the first word, which is the half that says what it is built from.
+     It grows to fill the row and the worked-out answer sits after it. */
+  min-width: 68px; flex: 1 1 auto;
+  height: 34px;
   padding: 0 9px;
   border-radius: 8px; border: 0;
   background: var(--panel); color: var(--ink);
   font-family: var(--mono); font-size: 13px;
 }
 .var-value:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
-.var-slider { flex: 1; min-width: 50px; margin: 0; }
 .var-control .param-seg { margin-top: 0; flex: 1; }
 .var-control .param-toggle { flex: 1; }
 .var-control .param-seg-btn, .var-control .param-toggle { background: var(--panel); }
@@ -1425,3 +1428,22 @@ a.foot-btn, a.icon-btn { text-decoration: none; }
 }
 .live-gap.moving { color: #E4DBFF; cursor: default; }
 .live-gap:hover { color: #E4DBFF; border-color: var(--accent); }
+
+/* A variable holding a sum rather than a number. The box shows the working,
+   and what it comes to sits beside it — otherwise the one number you actually
+   wanted is the one thing on screen you cannot see. */
+.var-value.sum { font-style: normal; color: var(--accent); }
+.var-value.broken { color: var(--warn); }
+.var-worked {
+  font: 700 12px/1 'JetBrains Mono', ui-monospace, monospace;
+  color: var(--muted); white-space: nowrap; padding-left: 2px;
+}
+.var-worked.broken { color: var(--warn); }
+
+/* Sums quoted in the panel's footnote, so `wall*2` reads as something to type
+   rather than as part of the sentence. */
+.vars-note code {
+  font-family: var(--mono); font-size: 11px;
+  color: var(--accent); background: var(--panel-2);
+  padding: 1px 4px; border-radius: 4px;
+}

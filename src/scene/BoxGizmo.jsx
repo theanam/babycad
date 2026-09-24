@@ -164,14 +164,26 @@ const HANDLE_SCREEN = 0.017
  * The plate snap can be switched off on its own in the snap menu, separately
  * from the grid.
  *
- * Set to the coarse move grid, because at 3 mm the plate let go too readily:
- * a block lowered by hand came to rest a whisker off it as often as on it.
+ * It is two grid squares, whatever the grid is set to, rather than a number of
+ * its own. A fixed 5 mm was the coarse move grid, and stopped making sense the
+ * moment that stopped being the grid anybody works at: at the 0.5 mm default
+ * the plate was reaching ten squares up for a block and taking it from a
+ * height nobody would call close. Tying it to the step means how close you
+ * have to get is asked in the same units as how finely you are working —
+ * somebody at 0.1 mm is placing things to a tenth and wants the plate to keep
+ * its hands to itself, somebody at 5 mm is roughing out and does not.
+ *
+ *   0.1 mm grid -> 0.2 mm      1 mm grid -> 2 mm
+ *   0.5 mm grid -> 1 mm        5 mm grid -> 10 mm
+ *
+ * With grid snapping off there is no step to be a proportion of, and no plate
+ * snap either: the caller tests for that before it gets here.
  *
  * Only for dragging. A number typed into the rail or onto the box is somebody
  * saying exactly what they want, and is left exactly there. It catches a turn
  * as well as a lift — see the rotate branch of the drag handler.
  */
-const FLOOR_GRAB = 5
+const floorGrab = (step) => step * 2
 
 // How often the "can I actually reach this handle" test runs. Every frame
 // would be wasted work: it only changes when the camera or the block moves.
@@ -981,13 +993,29 @@ export default function BoxGizmo() {
       // held, like every other snap.
       const store = useScene.getState()
       if (d.kind === 'move-y' && patches.length && store.floorSnap && snapRef.current) {
-        let seat = Infinity
-        for (const patch of patches) {
-          const o = store.objects.find((x) => x.id === patch.id)
-          if (!o) continue
-          seat = Math.min(seat, patch.position[1] + bottomOf({ ...o, rotation: patch.rotation }))
+        /** How far the lowest underside sits off the plate, for a set of places. */
+        const seatOf = (places) => {
+          let lowest = Infinity
+          for (const [id, place] of places) {
+            const o = store.objects.find((x) => x.id === id)
+            if (!o) continue
+            lowest = Math.min(lowest, place.position[1] + bottomOf({ ...o, rotation: place.rotation }))
+          }
+          return lowest
         }
-        if (Number.isFinite(seat) && seat !== 0 && Math.abs(seat) <= FLOOR_GRAB) {
+
+        const seat = seatOf(patches.map((patch) => [patch.id, patch]))
+        // A block that was already on the plate when the lift began is not
+        // being landed, it is being picked up, and the plate has no business
+        // pulling it back down. Without this the first couple of millimetres
+        // of every lift off the floor were unreachable: let go anywhere inside
+        // the band and the block dropped flat again, which reads as the lift
+        // handle being broken rather than as the plate being helpful.
+        const began = seatOf(d.items.map((item) => [item.id, item.before]))
+        const startedOnThePlate = Number.isFinite(began) && Math.abs(began) < 1e-6
+
+        const grab = floorGrab(snapRef.current)
+        if (!startedOnThePlate && Number.isFinite(seat) && seat !== 0 && Math.abs(seat) <= grab) {
           for (const patch of patches) {
             patch.position[1] -= seat
             paint(patch.id, vec.set(...patch.position), null, null)

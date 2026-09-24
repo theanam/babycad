@@ -3,6 +3,7 @@ import { useScene } from '../scene/sceneStore'
 import { useUI } from '../state/ui'
 import { KIND_LABEL, usageCounts } from '../scene/variables'
 import { CheckIcon, PlusIcon, TrashIcon, VariableIcon } from './icons'
+import { toast } from './Toast'
 
 const show = (value) => {
   if (typeof value === 'boolean') return value ? 'yes' : 'no'
@@ -13,58 +14,60 @@ const show = (value) => {
   return String(value)
 }
 
-const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n))
-
-const TICKS = 1000
-
 /**
- * The span a variable's slider covers. A variable has no bounds of its own —
- * it isn't attached to any one parameter — so they come from its magnitude:
- * zero to three times where it sits now, which makes a 0.06 tooth size drag
- * with the same feel as a 16-tooth count. Type in the field for anything else.
- */
-function spanFor(value) {
-  const reach = Math.abs(value) * 3 || 1
-  return value < 0 ? { lo: -reach, hi: 0 } : { lo: 0, hi: reach }
-}
-
-/**
- * The slider runs 0..1000 and the value is mapped onto it by hand, rather than
- * putting the real numbers in `min`/`max`/`step`.
+ * A variable used to have a slider, and it had to invent the range it ran
+ * over: zero to three times wherever the value happened to sit. A variable is
+ * not attached to any one parameter, so there is no honest answer to how far
+ * it should go — and an invented one is worse than none, because it reads as
+ * a limit. Drag to the end of a slider and the natural conclusion is that the
+ * number stops there.
  *
- * That indirection is load-bearing. With real bounds on the element they have
- * to move as the value does, and changing `step` on a range input makes the
- * browser re-snap its value to the new grid and fire an `input` event for it —
- * which arrives just after the drag ends, reads as one more user edit, and
- * lands a second undo entry holding a number nobody chose. Fixed attributes
- * can't re-snap, so the whole class of problem goes away.
+ * Shape parameters lost theirs for the same reason. What kept them are the
+ * numbers with real ends: a shape cannot have fewer than three sides, and a
+ * turn past a whole one is the turn it started at.
  */
-const toTicks = (value, span) =>
-  Math.round(clamp((value - span.lo) / (span.hi - span.lo), 0, 1) * TICKS)
-
-const fromTicks = (ticks, span) => {
-  const raw = span.lo + ((span.hi - span.lo) * ticks) / TICKS
-  // Round to the slider's own resolution, so a drag yields 0.155 not 0.1546695.
-  const step = (span.hi - span.lo) / TICKS
-  const places = Math.max(0, Math.ceil(-Math.log10(step)) + 1)
-  return Number(raw.toFixed(Math.min(places, 8)))
-}
 
 /** A text field that keeps its draft while focused, so typing "1.7" survives. */
-function ValueField({ value, onCommit, label, focusRef }) {
+/**
+ * The value, which can be typed as a sum.
+ *
+ * `600 / 4`, `PI * 50`, `2.4 * 3` — the working is often the interesting part,
+ * and made to do it themselves people either fetch a calculator or round it,
+ * and the rounded one is what ends up in the model. See `scene/expression` for
+ * what it reads and, just as deliberately, what it refuses.
+ *
+ * The sum is worked out once and the answer is kept; the field shows that
+ * answer the moment you press Enter, which is the plainest way of saying that
+ * nothing is remembering the sum.
+ */
+function ValueField({ variable, onNumber, onFormula, label, focusRef }) {
   const [draft, setDraft] = useState(null)
+  const shown = variable.formula ?? show(variable.value)
   return (
     <input
       ref={focusRef}
-      className="var-value"
-      inputMode="decimal"
+      className={`var-value${variable.formula ? ' sum' : ''}${variable.broken ? ' broken' : ''}`}
+      inputMode="text"
       aria-label={label}
-      value={draft ?? show(value)}
+      title={
+        variable.broken
+          ? 'This sum cannot be worked out — it is showing the last number it had'
+          : 'A number, or a sum: + - * / ( ), PI, and the names of other variables'
+      }
+      value={draft ?? shown}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={(e) => {
         setDraft(null)
-        const n = parseFloat(e.target.value)
-        if (Number.isFinite(n)) onCommit(n)
+        const text = e.target.value.trim()
+        // A plain number is a plain number, and puts away any sum that was
+        // there. Anything else is offered as a sum, and the store says whether
+        // it took — a name nobody knows, or a loop, comes back as a sentence.
+        const plain = Number(text)
+        if (text !== '' && Number.isFinite(plain) && !/[a-z(]/i.test(text)) onNumber(plain)
+        else if (text !== shown) {
+          const why = onFormula(text)
+          if (why) toast(why, 'warn')
+        }
       }}
       onKeyDown={(e) => {
         if (e.key === 'Enter') e.currentTarget.blur()
@@ -77,12 +80,10 @@ function ValueField({ value, onCommit, label, focusRef }) {
   )
 }
 
-/** One row. Rename, retype the value, drag it, or throw it away. */
+/** One row. Rename it, retype its value or its sum, or throw it away. */
 function VariableRow({ variable, used, wanted }) {
   const setVariableValue = useScene((s) => s.setVariableValue)
-  const stageVariableValue = useScene((s) => s.stageVariableValue)
-  const commitVariableDrag = useScene((s) => s.commitVariableDrag)
-  const variableSnapshot = useScene((s) => s.variableSnapshot)
+  const setVariableFormula = useScene((s) => s.setVariableFormula)
   const renameVariable = useScene((s) => s.renameVariable)
   const deleteVariable = useScene((s) => s.deleteVariable)
   const [name, setName] = useState(null)
@@ -103,26 +104,6 @@ function VariableRow({ variable, used, wanted }) {
     value.current?.select()
     clearFocus()
   }, [wanted, clearFocus])
-  const [held, setHeld] = useState(null)
-  const snapshot = useRef(null)
-
-  // The span is frozen for the length of a drag: derived from the live value
-  // it would stretch as the value grows, walking the far end away from the
-  // thumb so the slider never catches the cursor.
-  const span = held ?? spanFor(variable.value)
-
-  const begin = () => {
-    if (snapshot.current) return
-    snapshot.current = variableSnapshot()
-    setHeld(spanFor(variable.value))
-  }
-  const release = () => {
-    setHeld(null)
-    if (!snapshot.current) return
-    commitVariableDrag(snapshot.current)
-    snapshot.current = null
-  }
-
   return (
     <div className="var-row" ref={row}>
       <div className="var-row-top">
@@ -160,27 +141,18 @@ function VariableRow({ variable, used, wanted }) {
           <>
             <ValueField
               focusRef={value}
-              value={variable.value}
+              variable={variable}
               label={`${variable.name} value`}
-              onCommit={(v) => setVariableValue(variable.id, v)}
+              onNumber={(v) => setVariableValue(variable.id, v)}
+              onFormula={(text) => setVariableFormula(variable.id, text)}
             />
-            <input
-              className="param-slider var-slider"
-              type="range"
-              min={0}
-              max={TICKS}
-              step={1}
-              value={toTicks(variable.value, span)}
-              aria-label={`${variable.name} slider`}
-              onChange={(e) => {
-                begin()
-                stageVariableValue(variable.id, fromTicks(Number(e.target.value), span))
-              }}
-              onPointerDown={begin}
-              onPointerUp={release}
-              onKeyUp={release}
-              onBlur={release}
-            />
+            {/* A sum shows what it comes to, since the box is showing the sum
+                rather than the answer. */}
+            {variable.formula && (
+              <span className={`var-worked${variable.broken ? ' broken' : ''}`}>
+                = {show(variable.value)}
+              </span>
+            )}
           </>
         )}
 
@@ -223,7 +195,7 @@ function VariableRow({ variable, used, wanted }) {
  * everything bound to it in one undoable step.
  *
  * It takes over the right-hand rail rather than opening over the scene. A
- * variable is only worth dragging if you can watch the build answer, and a
+ * variable is only worth changing if you can watch the build answer, and a
  * centred sheet covers the very thing it is changing. Done hands the rail back
  * to the shape settings.
  */
@@ -271,7 +243,11 @@ export default function VariablesPanel({ onClose }) {
             aria-label="New variable name"
             maxLength={24}
           />
-          <button className="var-add-btn" onClick={add} title="Add a number you can use anywhere">
+          <button
+            className="var-add-btn"
+            onClick={add}
+            title="Add a number — or a sum — you can use anywhere"
+          >
             <PlusIcon size={20} stroke="#fff" width={2.6} />
           </button>
         </div>
@@ -283,7 +259,7 @@ export default function VariablesPanel({ onClose }) {
             <span>
               Name one above, or press <VariableIcon size={13} stroke="#8A93A5" /> beside any shape
               setting — press Done first, then pick a shape. Anything following a variable changes
-              with it.
+              with it, and a variable can be a sum built from the others.
             </span>
           </div>
         ) : (
@@ -299,7 +275,9 @@ export default function VariablesPanel({ onClose }) {
               ))}
             </div>
             <p className="props-note vars-note">
-              Drag a value and watch the build follow. Yes/no and either-or variables come from the{' '}
+              Type a number, or a sum: <code>600/4</code>, <code>PI*10</code>, or the name of
+              another variable — <code>wall*2</code> keeps up with <code>wall</code> whenever it
+              changes. Yes/no and either-or variables come from the{' '}
               <VariableIcon size={12} stroke="#8A93A5" /> button on a shape setting — they carry the
               choices that setting offers. {KIND_LABEL.number} variables you can add here.
             </p>

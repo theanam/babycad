@@ -8,14 +8,19 @@ import { defaultParams, normalizeParams, SHAPE_COLOR } from '../shapes'
 import { resizeToParams } from '../shapes/resize'
 import { measure, restingHeight } from '../shapes/geometryCache'
 import { alignBounds, alignOffsets } from './align'
+import { evaluate } from './expression'
 import { meshes } from './meshRegistry'
 import {
   resolveParams,
   resolvePatches,
+  freezeFormulasUsing,
+  recompute,
+  renameInFormulas,
   sanitizeVariables,
   specOf,
   uniqueName,
   variableKindFor,
+  wouldCycle,
 } from './variables'
 
 const uid = () =>
@@ -136,6 +141,22 @@ function cloneUnits(objects, groups, shift = 0, variableMap = null) {
     memberIds: (g.memberIds ?? [])
       .map((id) => oldToNew.get(id) ?? groupIds.get(id))
       .filter(Boolean),
+    ...(g.childGroupIds
+      ? { childGroupIds: g.childGroupIds.map((id) => groupIds.get(id)).filter(Boolean) }
+      : {}),
+    // What each block was before combining made them one colour. Keyed by
+    // block, so the keys are names that have just changed — left alone, a
+    // pasted group split apart to a set of blocks with no colours to go back
+    // to, and kept whatever the combine had painted them.
+    ...(g.colors
+      ? {
+          colors: Object.fromEntries(
+            Object.entries(g.colors)
+              .map(([id, colour]) => [oldToNew.get(id), colour])
+              .filter(([id]) => id)
+          ),
+        }
+      : {}),
   }))
   return { objects: cloned, groups: clonedGroups }
 }
@@ -512,20 +533,65 @@ export const useScene = create((set, get) => ({
     return variable
   },
 
+  /** A plain number, which also puts away any sum the variable was holding. */
   setVariableValue(id, value) {
     const st = get()
-    const next = st.variables.map((v) => (v.id === id ? { ...v, value } : v))
+    const next = recompute(
+      st.variables.map((v) => {
+        if (v.id !== id) return v
+        const { formula, broken, ...rest } = v
+        return { ...rest, value }
+      })
+    )
     if (next.every((v, i) => v === st.variables[i])) return
     st.commitVariables(next, 'change value')
   },
 
+  /**
+   * Give a variable a sum to work itself out from.
+   *
+   * Returns null when it took, or a sentence saying why not — a name nobody
+   * has heard of, arithmetic that does not parse, or a loop. The loop is the
+   * one worth refusing rather than storing and coping with: told at the moment
+   * of typing, it is a typo to correct, and stored it is two variables that
+   * quietly stop meaning anything.
+   */
+  setVariableFormula(id, text) {
+    const st = get()
+    const variable = st.variables.find((v) => v.id === id)
+    if (!variable || variable.kind !== 'number') return 'That variable cannot hold a sum'
+
+    const formula = String(text ?? '').trim()
+    if (!formula) return 'Type a number or a sum'
+
+    if (wouldCycle(st.variables, id, formula)) {
+      return `That would leave ${variable.name} waiting on itself`
+    }
+    // Worked out against everything else as it stands now, which is also how
+    // an unknown name is caught: the sum simply will not evaluate.
+    const scope = {}
+    for (const v of st.variables) if (v.id !== id && v.kind === 'number') scope[v.name] = v.value
+    if (evaluate(formula, scope) === null) {
+      return `${formula} is not a sum this can work out`
+    }
+
+    const next = recompute(st.variables.map((v) => (v.id === id ? { ...v, formula } : v)))
+    st.commitVariables(next, 'change value')
+    return null
+  },
+
   renameVariable(id, name) {
     const st = get()
+    const was = st.variables.find((v) => v.id === id)
     const clean = uniqueName(name, st.variables, id)
-    st.commitVariables(
+    // Sums name their variables in words, so a rename has to travel into them
+    // or `wall * 2` is left pointing at a name nobody answers to.
+    const renamed = renameInFormulas(
       st.variables.map((v) => (v.id === id ? { ...v, name: clean } : v)),
-      'rename'
+      was?.name,
+      clean
     )
+    st.commitVariables(recompute(renamed), 'rename')
   },
 
   /** Delete a variable. Anything bound to it keeps its last value, unlinked. */
@@ -534,54 +600,13 @@ export const useScene = create((set, get) => ({
     const variable = st.variables.find((v) => v.id === id)
     if (!variable) return
     // resolvePatches prunes bindings whose variable has gone, so the objects
-    // fall back to plain numbers on their own.
+    // fall back to plain numbers on their own. A sum that named this one is
+    // frozen at the number it last worked out to, so deleting a variable
+    // cannot move anything that was built on top of it.
     st.commitVariables(
-      st.variables.filter((v) => v.id !== id),
+      recompute(freezeFormulasUsing(st.variables.filter((v) => v.id !== id), variable.name)),
       `delete ${variable.name}`
     )
-  },
-
-  /** Live variable drag, outside the history — same deal as a shape slider. */
-  stageVariableValue(id, value) {
-    set((st) => {
-      const variables = st.variables.map((v) => (v.id === id ? { ...v, value } : v))
-      const byId = variableMap(variables)
-      return {
-        variables,
-        objects: st.objects.map((o) =>
-          o.bindings ? { ...o, params: resolveParams(o, byId) } : o
-        ),
-      }
-    })
-  },
-
-  /** Close out a variable drag against the snapshot taken when it started. */
-  commitVariableDrag(before) {
-    const st = get()
-    if (!before) return
-    const patches = []
-    for (const o of st.objects) {
-      const was = before.params[o.id]
-      if (!was || sameParams(was, o.params)) continue
-      patches.push({
-        id: o.id,
-        before: { params: was, bindings: o.bindings ?? null },
-        after: { params: o.params, bindings: o.bindings ?? null },
-      })
-    }
-    const moved = before.variables.some((v, i) => v !== st.variables[i])
-    if (moved || patches.length) {
-      st.record(cmd.editVariables('change value', before.variables, st.variables, patches))
-    }
-  },
-
-  /** The snapshot a live variable drag needs in order to be undoable. */
-  variableSnapshot() {
-    const st = get()
-    return {
-      variables: st.variables,
-      params: Object.fromEntries(st.objects.map((o) => [o.id, o.params])),
-    }
   },
 
   /** Live transform during a gizmo drag — deliberately outside the history. */

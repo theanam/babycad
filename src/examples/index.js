@@ -136,6 +136,100 @@ const diePips = (size, spacing, radius, out) => {
   )
 }
 
+
+/**
+ * Round glasses: two rims, a bridge, and two arms that hook behind the ear.
+ *
+ * Built from one set of numbers rather than from a set of positions, because
+ * on a thing like this the positions are all consequences. Where an arm goes
+ * is "flush with the outside of the rim"; where the bridge goes is "high
+ * enough to sit above a nose and low enough to still be touching both rims".
+ * Typed in as coordinates those facts are invisible, and the first change to
+ * the rim size quietly takes the glasses apart — which is what had happened to
+ * the pair this came from, where the arms ran through the rims rather than
+ * meeting them and the bridge met neither.
+ *
+ * The rims stand upright and rest on the plate, so the whole thing sits the
+ * way it would on a face.
+ */
+const GLASSES = {
+  rim: 12, // outer radius of a lens rim
+  wall: 2.5, // how much of that is rim rather than lens
+  thick: 3, // front to back
+  gap: 6, // clear air between the two rims, where a nose goes
+  bridgeUp: 7, // how far above the middle the bridge crosses
+  bridgeWide: 14,
+  armWide: 3,
+  armTall: 4,
+  armLong: 46,
+  hookLong: 14,
+  hookTilt: -45, // degrees: the tail end drops behind the ear
+}
+
+function glassesParts() {
+  const g = GLASSES
+  const rimX = g.rim + g.gap / 2 // so the two rims leave exactly `gap` between them
+  const rimY = g.rim // rested on the plate: the lowest point of the ring is zero
+  const face = g.thick / 2 // the front of everything, in depth
+
+  // The arm's outer face is flush with the outside of the rim, and it starts
+  // level with the front of the rim so the two are properly joined rather than
+  // touching at a line.
+  const armX = rimX + g.rim - g.armWide / 2
+  const armY = rimY + 2
+  const armZ = face - g.armLong / 2
+  const armEnd = face - g.armLong
+
+  // The hook carries on from where the arm stops. Turned about x, its far end
+  // swings back and down, so the end that meets the arm is the other one.
+  const tilt = (g.hookTilt * Math.PI) / 180
+  const reachY = -Math.sin(tilt) * (g.hookLong / 2)
+  const reachZ = Math.cos(tilt) * (g.hookLong / 2)
+
+  const rim = (x) => ({
+    type: 'pipe',
+    color: '#7C4DFF',
+    params: { radius: g.rim, wall: g.wall, height: g.thick, sides: 64, edge: 0.6 },
+    at: [x, 0],
+    y: rimY,
+    // A pipe stands on its end; a quarter turn about x lays its bore
+    // front-to-back, which is what makes it a lens rim rather than a cup.
+    rot: [-Math.PI / 2, 0, 0],
+  })
+
+  const arm = (side) => [
+    {
+      type: 'cube',
+      color: '#FFC93D',
+      params: { width: g.armWide, height: g.armTall, depth: g.armLong, edge: 0.6 },
+      at: [side * armX, armZ],
+      y: armY,
+    },
+    {
+      type: 'cube',
+      color: '#FFC93D',
+      params: { width: g.armWide, height: g.armTall, depth: g.hookLong, edge: 0.6 },
+      at: [side * armX, armEnd - reachZ],
+      y: armY - reachY,
+      rot: [tilt, 0, 0],
+    },
+  ]
+
+  return [
+    rim(-rimX),
+    rim(rimX),
+    {
+      type: 'cube',
+      color: '#7C4DFF',
+      params: { width: g.bridgeWide, height: g.thick, depth: g.thick, edge: 0.6 },
+      at: [0, 0],
+      y: rimY + g.bridgeUp,
+    },
+    ...arm(-1),
+    ...arm(1),
+  ]
+}
+
 export const EXAMPLES = [
   {
     id: 'rocket',
@@ -695,6 +789,13 @@ export const EXAMPLES = [
       { type: 'sphere', color: '#3A414F', params: { radius: 2.2, sides: 24, rings: 16 }, at: [12, -5], y: 8, hole: true },
       { type: 'sphere', color: '#3A414F', params: { radius: 2.2, sides: 24, rings: 16 }, at: [12, 5], y: 8, hole: true },
     ],
+  },
+  {
+    id: 'glasses',
+    name: 'Round glasses',
+    blurb: 'Two rims, a bridge over the nose and arms that hook behind the ear.',
+    teaches: 'building to a measurement rather than by eye',
+    parts: glassesParts(),
   },
 ]
 

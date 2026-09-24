@@ -98,6 +98,36 @@ console.log('\na combine inside a combine survives the round trip…')
   } else ok('undo takes the whole paste back')
 }
 
+/* ------------------------------------- what a combine remembers to undo -- */
+
+console.log('\nand a combine still remembers what its blocks were…')
+{
+  const a = block('cube', [0, 10, 0])
+  const b = block('sphere', [20, 10, 0])
+  a.parentGroupId = 'g'
+  b.parentGroupId = 'g'
+  a.color = '#FF0000'
+  b.color = '#00FF00'
+  // Combining paints the blocks one colour and keeps the old ones, by block,
+  // so splitting apart can give them back.
+  const group = { id: 'g', memberIds: [a.id, b.id], parentGroupId: null, childGroupIds: [],
+    colors: { [a.id]: '#FF0000', [b.id]: '#00FF00' } }
+  reset({ objects: [a, b], groups: [group] })
+
+  useScene.getState().setSelection([a.id, b.id])
+  useScene.getState().paste(useScene.getState().copyPayload())
+  const st = useScene.getState()
+  const pasted = st.groups.find((g) => g.id !== 'g')
+  const known = new Set(st.objects.map((o) => o.id))
+  const keys = Object.keys(pasted?.colors ?? {})
+  if (keys.length !== 2) fail(`the pasted group remembers ${keys.length} colours, expected 2`)
+  else if (!keys.every((id) => known.has(id))) {
+    fail('the pasted group remembers colours for blocks that are not in the scene')
+  } else if (keys.some((id) => id === a.id || id === b.id)) {
+    fail('the pasted group is still pointing at the blocks it was copied from')
+  } else ok('the colours to go back to are remembered against the new blocks')
+}
+
 /* ------------------------------------------------------------ variables -- */
 
 console.log('\nvariables come across, and join up with ones already there…')
