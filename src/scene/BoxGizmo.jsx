@@ -86,6 +86,13 @@ const EDGES_ALONG = {
   2: [[-1, -1, 0], [-1, 1, 0], [1, -1, 0], [1, 1, 0]],
 }
 
+/** The box's own axes, as directions, indexed by internal slot. */
+const AXIS_DIRS = [
+  new THREE.Vector3(1, 0, 0),
+  new THREE.Vector3(0, 1, 0),
+  new THREE.Vector3(0, 0, 1),
+]
+
 const axisOf = (slot) => AXES.find((a) => a.slot === slot)
 const AXIS_KEYS = ['x', 'y', 'z']
 /** A resize that touches one axis, before the shape has its say. */
@@ -1429,6 +1436,49 @@ export default function BoxGizmo() {
         if (div.style.color !== color) div.style.color = color
       }
 
+      /*
+       * The arrows on the edges, saying the same thing the lit numbers do.
+       *
+       * They sit on the edge the number for that axis has already chosen, so
+       * the two read as one annotation rather than two — and because that
+       * choice is frozen for the length of a drag (see `beside`), the arrow
+       * holds still while the block changes under it instead of hopping from
+       * one edge to another as the box grows past the camera.
+       *
+       * Laid out in the box's own space, which is what makes the whole thing
+       * three lines of arithmetic: the group is parented to the box frame, so
+       * the edge midpoint is just the half-extents with the drag axis zeroed,
+       * and pointing the arrow along the axis is one `setFromUnitVectors`.
+       *
+       * The heads take a fixed size on screen like every other piece of
+       * chrome, but never more than a third of the edge each — on a 2 mm plate
+       * two screen-sized arrowheads would otherwise meet in the middle and the
+       * shaft would invert.
+       */
+      const halves = [f.half.x, f.half.y, f.half.z]
+      for (let slot = 0; slot < 3; slot++) {
+        const node = handles.current[`edge${slot}`]
+        if (!node) continue
+        const reach = halves[slot]
+        const on = scaling && Boolean(d.mask[slot]) && reach > 1e-6
+        node.visible = on
+        if (!on) continue
+
+        const sign = EDGES_ALONG[slot][edgeChoice.current[slot] ?? 0]
+        node.position.set(sign[0] * f.half.x, sign[1] * f.half.y, sign[2] * f.half.z)
+        node.quaternion.setFromUnitVectors(UNIT_Y, AXIS_DIRS[slot])
+
+        const head = Math.min(k * 0.85, (reach * 2) / 3)
+        const [shaft, capUp, capDown] = node.children
+        shaft.scale.set(k * 0.075, Math.max(reach * 2 - head * 2, 1e-4), k * 0.075)
+        for (const [cap, way] of [[capUp, 1], [capDown, -1]]) {
+          cap.scale.set(k * 0.28, head, k * 0.28)
+          cap.position.y = way * (reach - head / 2)
+        }
+        const edgeColor = axisOf(slot).color
+        for (const child of node.children) child.material.color.set(edgeColor)
+      }
+
       // A turn in flight, or one that has been let go of and is still being
       // read. Same number either way: the dial without its angle is a ruler
       // with no markings, which is what made the angle impossible to work at.
@@ -1490,11 +1540,19 @@ export default function BoxGizmo() {
 
       for (const [key, node] of Object.entries(handles.current)) {
         if (!node || key === 'shell' || key === 'dial') continue
+        // The edge arrows are a drawing of what a drag is doing, not something
+        // to grab, so there is nothing to take away when they are out of
+        // reach — and their visibility is owned by the drag, a frame at a
+        // time. Written in both places the two took turns at the rate this is
+        // throttled to, and the arrows stayed on the box afterwards, blinking.
+        // The dial is skipped just above for the same reason.
+        if (node.userData.edge) continue
         // A locked block has no handles at all, and invisible is also
         // unhittable — R3F does not raycast what it does not draw. It is
         // settled here rather than every frame because this is the one place
-        // that owns `visible`: written in both, the two took turns, and the
-        // handles blinked at the rate this is throttled to.
+        // that owns `visible` for anything you can grab: written in both, the
+        // two took turns, and the handles blinked at the rate this is
+        // throttled to.
         if (lockedRef.current) {
           node.visible = false
           continue
@@ -1528,6 +1586,40 @@ export default function BoxGizmo() {
     <>
       {/* turns with the block */}
       <group ref={boxGroup}>
+        {/*
+          Which sides a resize is pulling, said on the block rather than only
+          in the numbers.
+          
+          A drag on a bottom corner changes two dimensions at once and a drag
+          on the top changes a third, and until you have learnt which handle is
+          which, the only way to find out is to pull one and watch. These are
+          the answer to "what is about to change": a double-headed arrow laid
+          along the edge of each axis the drag is actually pulling, in that
+          axis's own colour — the same colour its number takes at the same
+          moment, and the same colour the rail and the turn levers give it.
+          
+          Inside the box frame, so they turn with the block for free, and on
+          the same edge the number for that axis has chosen, so the arrow and
+          the millimetres are plainly about one thing. Not raycast: this is a
+          drawing of what is happening, not something to grab.
+        */}
+        {[0, 1, 2].map((slot) => (
+          <group key={slot} ref={bind(`edge${slot}`, { edge: true })} visible={false}>
+            <mesh renderOrder={3} raycast={() => null}>
+              <cylinderGeometry args={[1, 1, 1, 8]} />
+              <meshBasicMaterial transparent opacity={0.95} depthTest={false} toneMapped={false} />
+            </mesh>
+            <mesh renderOrder={3} raycast={() => null}>
+              <coneGeometry args={[1, 1, 14]} />
+              <meshBasicMaterial transparent opacity={0.95} depthTest={false} toneMapped={false} />
+            </mesh>
+            <mesh renderOrder={3} raycast={() => null} rotation={[Math.PI, 0, 0]}>
+              <coneGeometry args={[1, 1, 14]} />
+              <meshBasicMaterial transparent opacity={0.95} depthTest={false} toneMapped={false} />
+            </mesh>
+          </group>
+        ))}
+
         <lineSegments ref={bind('shell', {})} raycast={() => null}>
           <edgesGeometry args={[new THREE.BoxGeometry(1, 1, 1)]} />
           {/* Depth-tested on purpose. Drawn without it, all twelve edges came

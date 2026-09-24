@@ -165,6 +165,25 @@ ball puts a drawn rotate cursor on the canvas — CSS has no such cursor, and
 `grab` means "pick this up and move it", which is the one thing the ball does
 not do.
 
+**A resize says which sides it is pulling.** A drag on a bottom corner changes
+two dimensions at once and a drag on the top changes a third, and until you
+have learnt which handle is which the only way to find out is to pull one and
+watch. So each axis the drag's `mask` names gets a double-headed arrow laid
+along its edge, in that axis's own colour — the colour its number takes at the
+same moment, and the colour the rail and the turn levers already give it. The
+arrows are parented to the box frame, so they turn with the block for free and
+the whole layout is the half-extents with the drag axis zeroed; and they sit on
+the edge that axis's number has already chosen, which is frozen for the length
+of a drag, so the arrow holds still while the block changes under it.
+
+**Two writers for `visible` is the recurring bug in this file.** The occlusion
+pass owns `visible` for anything you can grab and runs on a throttle; anything
+else that writes it every frame will take turns with it and blink at that
+throttle's rate. Locking hit this once; the edge arrows hit it again and stayed
+on the box after the drag, flashing. The rule: chrome that is a *drawing* — the
+dial, the edge arrows — opts out of the occlusion pass (`userData.edge`) and
+owns its own visibility. Chrome you can *grab* leaves `visible` to that pass.
+
 **The lift cone is the one handle that gets no trim**, and `LIFT_SIZE` rather
 than `GIZMO_TRIM` is its dial. Every other handle has a direction you can miss
 it in and land on nothing; miss this one and you land on the block, which drags
