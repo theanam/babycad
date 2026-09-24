@@ -42,8 +42,8 @@ import { buildModel } from './builders/model'
  * There has to be a number here, because `coerce` clamps and something has to
  * stop a typo becoming a shape with no end to it. It does not have to be a
  * number anybody meets: it was 160, which is not a limit so much as an
- * opinion, and a wrong one — the plate alone is 200 mm across, so a block
- * could not be made to span the thing it stands on. Nothing is printed at ten
+ * opinion, and a wrong one — it was narrower than the plate itself, so a
+ * block could not be made to span the thing it stands on. Nothing is printed at ten
  * metres either, but at that size the number has stopped being a rule about
  * what you are allowed to build and gone back to being a guard against
  * nonsense, which is all it was ever for.

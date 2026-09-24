@@ -4,9 +4,9 @@
 
 # BabyCAD
 
-**3D modelling for absolute beginners, in the browser.** Drop shapes on a
-400 mm plate, give them real millimetres, and take the result away as an STL
-you can print.
+**3D modelling for absolute beginners, in the browser.** Drop shapes on the
+plate, give them real millimetres, and take the result away as an STL you can
+print.
 
 [**Open BabyCAD →**](https://theanam.github.io/babycad/)
 

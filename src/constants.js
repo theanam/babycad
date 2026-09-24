@@ -53,9 +53,8 @@ export const SNAP = {
   scale: 0.25,
 }
 
-// The build plate is a bounded 200x200 mm yard rather than an endless grid, so
-// the scene reads at a definite size and blocks always land somewhere
-// meaningful. Ten shape footprints across.
+// The build plate is a bounded yard rather than an endless grid, so the scene
+// reads at a definite size and blocks always land somewhere meaningful.
 /**
  * The grids the snap switch offers, finest first, and the one it starts on.
  *
@@ -87,9 +86,12 @@ export const angleStepFor = (mm) => SNAP_STEPS.find((s) => s.mm === mm)?.deg ?? 
  * leaves room to lay parts out beside what you are assembling rather than on
  * top of it.
  *
- * Everything that cares reads it from here — the floor, the grid, where a new
- * block is set down, and the sentence in the help sheet that tells you how big
- * it is — so this is the only number to change.
+ * Everything that cares reads it from here — the floor, the grid, and where a
+ * new block is set down — so this is the only number to change.
+ *
+ * It is deliberately not quoted at anybody. A number in the copy reads as the
+ * size of thing you are allowed to make, and it is not: it is where the
+ * drawn floor stops. Blocks can be built past it.
  */
 export const PLATE = 400
 export const PLATE_HALF = PLATE / 2

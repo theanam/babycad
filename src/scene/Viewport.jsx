@@ -47,7 +47,7 @@ function Rig() {
 }
 
 /**
- * The yard: a bounded 200x200 mm plate rather than an endless grid. A definite
+ * The yard: a bounded plate rather than an endless grid. A definite
  * edge gives the scene a sense of scale, and keeps new blocks somewhere the
  * camera is actually looking. The grid reads in millimetres: a cell is one
  * snap step, a heavier section line every 20 mm — one shape footprint.

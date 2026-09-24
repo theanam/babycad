@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { angleStepFor, PLATE, SNAP, SNAP_DEFAULT, SNAP_STEPS } from '../constants'
+import { angleStepFor, SNAP, SNAP_DEFAULT, SNAP_STEPS } from '../constants'
 import { FEEDBACK_EMAIL, FEEDBACK_MAILTO, ISSUES_URL, REPO_URL } from '../links'
 import { BugIcon, CloseIcon, ExternalIcon, GithubIcon, MailIcon } from './icons'
 
@@ -77,7 +77,7 @@ export default function HelpModal({ onClose, onShowWelcome, touch = false }) {
           <section>
             <h3>The plate</h3>
             <p>
-              You build on a {PLATE} × {PLATE} mm plate. One grid square is {SNAP.move} mm, the
+              You build on a plate marked out in millimetres. One grid square is {SNAP.move} mm, the
               heavier line every 20 mm marks out the footprint a freshly dropped shape takes up,
               and a new block lands on that grid. Every number in the app is millimetres, so an{' '}
               <strong>.stl</strong> exported from here arrives in a slicer at the size it says it

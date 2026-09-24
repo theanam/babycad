@@ -245,9 +245,12 @@ inside one another, and a copy appears half a footprint over. Snap is 5 mm,
 which is one grid cell and a quarter of a footprint. Scale — the SIZE row — is
 a multiplier, not a length, which is why it alone carries no mm.
 
-**The yard is a bounded 200x200 mm plate**, ten footprints across, not an
-endless grid, and the home camera is framed to it (`HOME_CAMERA` in
-`viewportApi.js`). New blocks are clamped to land on the plate.
+**The yard is a bounded plate** rather than an endless grid, and the home
+camera is framed to it (`HOME_CAMERA` in `viewportApi.js`). New blocks are
+clamped to land on it. `PLATE` in `constants.js` is how big it is, and that
+number stays out of the copy on purpose: quoted at somebody it reads as the
+size of thing they are allowed to make, and it is not one — it is where the
+drawn floor stops, and a build can run past it.
 
 **Builds saved before millimetres are scaled on the way in.** `migrate` in
 `persistence.js` multiplies positions and lengths by 20 for any scene below
