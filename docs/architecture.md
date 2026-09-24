@@ -372,6 +372,40 @@ gesture that is still warm and a slow export can outlast one, and both a
 refusal and a dismissal fall through to the download path rather than losing
 the file. Every caller keeps its old behaviour when sharing is off or refused.
 
+### Cutting, and what it costs
+
+**The live cut is bounded, because `three-bvh-csg` is not.** A hole subtracts
+itself from every solid it overlaps, synchronously, on the main thread. That is
+fine for the shapes this app builds — hundreds or a few thousand triangles, a
+cut lands in a frame or two — and it is not fine for an imported model, because
+the cost is not linear in the triangle count. Measured against a hollow printed
+part, where the cutting block passes through a lot of thin wall:
+
+```
+   6k tris  0.2s     18k tris  1.3s     37k tris   4.9s
+  12k tris  0.6s     25k tris  2.3s     48k tris   8.8s
+```
+
+That is an exponent of about 1.9. Extrapolated, a 200k-triangle STL — an
+ordinary download — is something like two minutes of locked tab. A convex mesh
+of the same size is thirty times cheaper, so there is no honest single number;
+`LIVE_CUT_TRIANGLES` in `shapes/csg` is set where the *worst* case is about two
+seconds. Past it `acquireShape` returns the block whole and the hole stays the
+grey ghost it already was.
+
+Nothing is lost from the file. `io/solidCut` cuts it again with Manifold on the
+way out — a different implementation and a far faster one — and that is the cut
+a printer sees. What the budget costs is the live preview, on the one kind of
+block that has no parameters to preview against anyway.
+
+**A hole whose every target was refused stays visible even when combined.**
+Combining is what normally puts the grey ghost away, and doing that here would
+leave a block that looks solid with nothing on screen to say a hole is in it,
+and nothing left to select. `isFinished` takes a second argument for this and
+`Viewport`'s `stalled` set works out who it applies to — a hole that reaches
+two blocks and gets through to one of them has done its job and still steps
+back.
+
 ## Performance
 
 Geometries are shared by type *and* parameters, and only materials are

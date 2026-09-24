@@ -25,7 +25,7 @@ const HOLE_COLOR = '#9AA3B4'
  * the cache key because a block with a hole through it is a different
  * geometry, and the key has to change when the hole moves or is resized.
  */
-function SceneObject({ object, selected, onSelect, holes, castShadow = true }) {
+function SceneObject({ object, selected, onSelect, holes, cutting = true, castShadow = true }) {
   const meshRef = useRef()
   /** When and where this block was last pressed, for spotting a double press. */
   const lastPress = useRef(null)
@@ -75,7 +75,7 @@ function SceneObject({ object, selected, onSelect, holes, castShadow = true }) {
   // solid with the bite taken out of it and nothing else. It is still here —
   // still cutting, still selectable through its group, still there to come
   // back when the piece is split apart — just not drawn.
-  const finished = isFinished(object)
+  const finished = isFinished(object, cutting)
 
   return (
     <mesh

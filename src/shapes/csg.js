@@ -29,6 +29,45 @@ import { onFaceLoaded } from './fontStore'
 
 const IDLE_MAX = 24
 
+/**
+ * How many triangles a solid may have and still be cut while you watch.
+ *
+ * The subtraction is synchronous and on the main thread, which is fine for
+ * every shape this app builds — they are hundreds or a few thousand triangles
+ * and a cut lands in a frame or two. An imported model is a different animal,
+ * and the cost is not linear in its size. Measured against a hollow printed
+ * part, where the cutting block passes through a lot of thin wall:
+ *
+ *      6k tris   0.2s        18k tris   1.3s        37k tris   4.9s
+ *     12k tris   0.6s        25k tris   2.3s
+ *
+ * That is an exponent of about 1.9 — near enough quadratic — so 200k
+ * triangles, which is an ordinary STL off a model site, is something like two
+ * minutes of locked-up tab. A convex mesh of the same size is thirty times
+ * cheaper, so there is no single honest number here; this one is set where the
+ * worst case is still about two seconds, which is a wait rather than a hang.
+ *
+ * Past it the block is simply drawn whole and the hole stays the grey ghost it
+ * already is. Nothing is lost from the file: `io/solidCut` cuts it again with
+ * Manifold on the way out, which is a different implementation and a far
+ * faster one, and that is the cut a printer sees.
+ */
+export const LIVE_CUT_TRIANGLES = 24_000
+
+/** Triangles in a shape, straight off the cache. */
+function triangleCount(object) {
+  const geometry = acquireGeometry(object.type, object.params)
+  const n = (geometry.getAttribute('position')?.count ?? 0) / 3
+  releaseGeometry(geometry)
+  return n
+}
+
+/**
+ * Whether this solid is too detailed to cut while you watch. Asked before the
+ * cut is attempted, so the first attempt can never be the two-minute one.
+ */
+export const tooHeavyToCut = (object) => triangleCount(object) > LIVE_CUT_TRIANGLES
+
 const evaluator = new Evaluator()
 // Our geometries carry position and normal; a brush pair whose attribute sets
 // disagree throws, so pin the evaluator to the two both are guaranteed to have.
@@ -144,7 +183,9 @@ export function forgetCutsOf(type) {
 
 export function acquireShape(object, holes) {
   const near = object.hole || !holes?.length ? [] : holes
-  if (!near.length) return acquireGeometry(object.type, object.params)
+  if (!near.length || tooHeavyToCut(object)) {
+    return acquireGeometry(object.type, object.params)
+  }
 
   const key = cutKey(object, near)
   let entry = entries.get(key)
@@ -214,8 +255,19 @@ export function cuttersByObject(objects) {
   return out
 }
 
-/** Whether a hole has been combined, and so has done its job and stepped back. */
-export const isFinished = (object) => Boolean(object.hole && object.parentGroupId)
+/**
+ * Whether a hole has been combined, and so has done its job and stepped back.
+ *
+ * `cutting` says whether the cut it was combined for actually happened. It
+ * usually did, and then the hole gets out of the way and leaves the solid with
+ * the bite taken out of it. Where the solid was too detailed to cut live it
+ * did not, and a hole that hid anyway would leave a block that looks whole,
+ * with nothing on screen to say a hole is in it and nothing left to select.
+ * It stays visible instead, which is exactly what an uncombined hole looks
+ * like, and is the truth: the cut is waiting for the export.
+ */
+export const isFinished = (object, cutting = true) =>
+  Boolean(object.hole && object.parentGroupId && cutting)
 
 // Words built while a typeface was still downloading are in the wrong face,
 // and nothing about their parameters says so. See `shapes/fontStore`.

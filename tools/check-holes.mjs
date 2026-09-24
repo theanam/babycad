@@ -198,5 +198,45 @@ console.log('\nand a hole that swallows the block leaves a finite box…')
   releaseShape(cut)
 }
 
+/*
+ * The live cut is synchronous and on the main thread, and against a hollow
+ * imported part its cost grows with about the 1.9th power of the triangle
+ * count — 48k triangles measured at 8.8 seconds, which extrapolates to a
+ * couple of minutes for an ordinary STL off a model site. Past the budget the
+ * block has to come back whole and instantly; the export cuts it properly with
+ * Manifold. See `LIVE_CUT_TRIANGLES`.
+ */
+console.log('\nand a model too detailed to cut live is left whole…')
+{
+  const { LIVE_CUT_TRIANGLES, tooHeavyToCut } = await import('../src/shapes/csg.js')
+  const { registerMesh } = await import('../src/shapes/meshStore.js')
+
+  // Two imported models either side of the budget, as plain triangle soup.
+  const soup = (tris) => {
+    const positions = new Float32Array(tris * 9)
+    for (let i = 0; i < tris; i++) {
+      const x = (i % 97) * 0.31
+      positions.set([x, 0, 0, x + 1, 0, 0, x, 1, 0], i * 9)
+    }
+    return registerMesh('test', positions)
+  }
+  const light = block('model', { id: 'light', params: { mesh: soup(500) } })
+  const heavy = block('model', { id: 'heavy', params: { mesh: soup(LIVE_CUT_TRIANGLES + 1000) } })
+
+  if (tooHeavyToCut(light)) fail('a 500-triangle model was refused a live cut')
+  else console.log('  ok  a small model is cut while you watch')
+  if (!tooHeavyToCut(heavy)) fail(`a ${LIVE_CUT_TRIANGLES + 1000}-triangle model was still cut live`)
+  else console.log('  ok  a model past the budget is not')
+
+  // And asking for the cut has to be instant, not merely refused in principle.
+  const drill = block('cube', { hole: true, params: { width: 60, height: 60, depth: 60 } })
+  const t0 = performance.now()
+  const out = acquireShape(heavy, [drill])
+  const ms = performance.now() - t0
+  if (ms > 250) fail(`the refused cut still took ${ms.toFixed(0)}ms`)
+  else console.log(`  ok  and it comes back whole in ${ms.toFixed(0)}ms`)
+  releaseShape(out)
+}
+
 console.log(problems ? `\n${problems} problem(s)` : '\nall clear')
 process.exitCode = problems ? 1 : 0
