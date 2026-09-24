@@ -157,7 +157,23 @@ it through.
 **Turn levers are a stick with a ball on the end**, one per axis, each pointing
 a different way so they never overlap (Y reaches along +X, X along +Z, Z along
 -X). They live inside the box frame, so they follow the block's orientation
-during a drag for free — no special case needed.
+during a drag for free — no special case needed. **Only the ball is the
+handle**: the stick is `raycast={() => null}`, because a grabbable line that
+crosses half the box turns a press meant for anything behind it into a turn,
+and at a grazing angle that line runs straight over the lift cone. Hovering the
+ball puts a drawn rotate cursor on the canvas — CSS has no such cursor, and
+`grab` means "pick this up and move it", which is the one thing the ball does
+not do.
+
+**The lift cone is the one handle that gets no trim**, and `LIFT_SIZE` rather
+than `GIZMO_TRIM` is its dial. Every other handle has a direction you can miss
+it in and land on nothing; miss this one and you land on the block, which drags
+it sideways — the wrong axis, and a change rather than a no-op. It is also seen
+end-on exactly when it is needed most, since a flat part is worked on from
+above and from above an upright cone is a disc the size of its own base. For
+the same reason it stands `3.6k` above the box rather than `2.2k`: the offset
+is vertical, and seen from above a vertical offset projects to nearly nothing,
+which put it on top of the height handle for anything short.
 
 **The turning dial appears on press and is world-fixed.** It stands up in the
 plane of rotation, in the lever's colour, ticked every 15 degrees to match the

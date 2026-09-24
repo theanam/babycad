@@ -138,6 +138,12 @@ const READOUT_MS = 90
  */
 const GIZMO_TRIM = 0.7
 
+/**
+ * The lift cone's own scale, in place of `GIZMO_TRIM`. See where it is used
+ * for why this one handle is the exception.
+ */
+const LIFT_SIZE = 1.0
+
 const HANDLE_SCREEN = 0.017
 
 /**
@@ -197,6 +203,28 @@ const floorGrab = (step) => step * 2
 // How often the "can I actually reach this handle" test runs. Every frame
 // would be wasted work: it only changes when the camera or the block moves.
 const OCCLUDE_MS = 70
+
+/**
+ * The cursor over a turn lever's ball.
+ *
+ * CSS has no rotate cursor — `grab` is the nearest stock answer and it means
+ * "pick this up and move it", which is the one thing the ball does not do. So
+ * it is drawn: a circular arrow, white with a dark outline so it reads on the
+ * plate and on a pale block alike, hot-spot in the middle. `grab` stays on the
+ * end of the list for anything that will not take a URL cursor.
+ *
+ * Inlined as a data URI rather than a file, because a cursor that arrives one
+ * network round-trip after the pointer does is a cursor that flickers.
+ */
+const ROTATE_CURSOR_SVG = encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">` +
+    `<g fill="none" stroke="#0B0D11" stroke-width="4.6" stroke-linecap="round" stroke-linejoin="round">` +
+    `<path d="M21.4 10.2A8.4 8.4 0 1 0 22.4 14"/><path d="M22.4 6.6v4.2h-4.2"/></g>` +
+    `<g fill="none" stroke="#FFFFFF" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">` +
+    `<path d="M21.4 10.2A8.4 8.4 0 1 0 22.4 14"/><path d="M22.4 6.6v4.2h-4.2"/></g>` +
+    `</svg>`
+)
+const ROTATE_CURSOR = `url("data:image/svg+xml,${ROTATE_CURSOR_SVG}") 14 14, grab`
 
 const euler = new THREE.Euler()
 const mat = new THREE.Matrix4()
@@ -341,6 +369,33 @@ export default function BoxGizmo() {
    * longer was.
    */
   const nearGap = useRef(null)
+
+  /**
+   * The canvas cursor while a turn lever is under the pointer.
+   *
+   * Written straight onto the canvas element rather than held in state: it
+   * changes on every pointer crossing, and a re-render of the whole gizmo tree
+   * to change a cursor is the one thing this file is careful not to do. The
+   * ref is what remembers we own it, so it is only ever put back if we set it.
+   */
+  const cursorOwned = useRef(false)
+  const setTurnCursor = useCallback(
+    (on) => {
+      const el = gl?.domElement
+      if (!el) return
+      if (on) {
+        el.style.cursor = ROTATE_CURSOR
+        cursorOwned.current = true
+      } else if (cursorOwned.current) {
+        el.style.cursor = ''
+        cursorOwned.current = false
+      }
+    },
+    [gl]
+  )
+  // A selection cleared, or the gizmo unmounted, with the pointer still over a
+  // ball: nothing is left to fire pointerout, so the cursor would stick.
+  useEffect(() => () => setTurnCursor(false), [setTurnCursor])
 
   const heldDial = useRef(null)
   // The lever the pointer is over, if any. A hover shows the dial so you can
@@ -1020,6 +1075,9 @@ export default function BoxGizmo() {
       if (!d) return
       drag.current = null
       if (controls) controls.enabled = true
+      // A turn swings the ball out from under the pointer, so the hover that
+      // set the cursor is long gone by the time the finger comes up.
+      if (d.kind === 'rotate') setTurnCursor(false)
       endDrag()
 
       const patches = []
@@ -1090,7 +1148,7 @@ export default function BoxGizmo() {
       window.removeEventListener('pointerup', onUp)
       window.removeEventListener('pointercancel', onUp)
     }
-  }, [rayAt, controls, stageTransform, commitTransform])
+  }, [rayAt, controls, stageTransform, commitTransform, setTurnCursor])
 
   /* --------------------------------------------------------- per frame -- */
 
@@ -1166,33 +1224,41 @@ export default function BoxGizmo() {
         node.material.color.set(on ? '#7C4DFF' : '#EDEFF4')
         node.material.opacity = quiet(on) ?? 0.72
       } else if (lift) {
-        node.position.set(0, topY + k * 2.2, 0)
-        // Taken in with everything else. The lift cone is not a grab target in
-        // the same sense as a corner — you can take hold of it anywhere along
-        // its silhouette — so it is trimmed directly rather than through
-        // `grabScale`, which would take it in twice over.
-        node.scale.setScalar(k * (on ? 1.35 : 1) * GIZMO_TRIM)
+        // Far enough above the box that it never crowds the height handle
+        // sitting on the top face. It used to stand 2.2k up, which on a tall
+        // block is plenty of daylight and on a flat one is none: the offset is
+        // vertical, the way anybody works on a flat part is from above, and
+        // seen from above a vertical offset projects to almost nothing. At
+        // 3.6k the two are still distinct from a steep angle, and it costs a
+        // tall block nothing — the offset is in screen units, so the cone does
+        // not drift further away as the box grows.
+        node.position.set(0, topY + k * 3.6, 0)
+        // The one handle that is deliberately bigger than the rest, and the
+        // only one that gets no trim at all.
+        //
+        // Every other handle has a direction you can miss it in and land on
+        // nothing. Miss this one and you land on the block, which drags it
+        // across the floor — the wrong axis, and a change rather than a
+        // no-op. It is also the one handle that is seen end-on exactly when it
+        // is most needed: a flat part is worked on from above, and from above
+        // an upright cone is a disc the size of its own base. Trimmed to seven
+        // tenths that disc was about sixteen pixels across.
+        node.scale.setScalar(k * (on ? 1.3 : 1) * LIFT_SIZE)
         node.material.color.set(on ? '#C8B6FF' : '#7C4DFF')
         node.material.opacity = quiet(on) ?? 0.9
       } else if (turn) {
         // Stick starts at the box surface; ball sits a little beyond it.
         const start = node.userData.along === 'z' ? f.half.z : f.half.x
         const end = start + k * 4
-        const [stick, ball, target] = node.children
+        const [stick, ball] = node.children
         const thin = (on ? 0.12 : 0.085) * GIZMO_TRIM
         stick.scale.set(k * thin, end - start, k * thin)
         stick.position.y = (start + end) / 2
-        // One radius drives the ball and its hit target, so what can be
-        // grabbed is exactly the ball that can be seen — never a halo of dead
-        // space around it. The target's coarse sphere inscribes the drawn one,
-        // so it always sits a shade inside the silhouette. It may follow the
-        // ball as it grows, because by then the turn is already under way and
-        // riding on window pointer events; this mesh is not raycast again.
+        // The ball is the whole of the handle — it is the only child that is
+        // raycast — so what can be grabbed is exactly what can be seen.
         const ballR = k * (on ? 0.85 : 0.6) * grab
         ball.scale.setScalar(ballR)
         ball.position.y = end
-        target.scale.setScalar(ballR)
-        target.position.y = end
         // The lever keeps its axis colour and goes white-hot at the ball when
         // it is the one turning; its colour is what says which axis, so it
         // must not change to say "active".
@@ -1499,13 +1565,21 @@ export default function BoxGizmo() {
             rotation={def.rotation}
             onPointerDown={(e) => startTurn(def, e)}
             onPointerOver={() => {
-              if (!drag.current) hoverDial.current = def
+              if (drag.current) return
+              hoverDial.current = def
+              setTurnCursor(true)
             }}
             onPointerOut={() => {
               if (hoverDial.current === def) hoverDial.current = null
+              if (!drag.current) setTurnCursor(false)
             }}
           >
-            <mesh renderOrder={2}>
+            {/* The stick is drawn, not grabbed. It is there to say which way
+                the ball reaches and what it swings about; taking hold of it
+                anywhere along its length made a line that crosses half the
+                box — and, at a grazing angle, crosses the lift cone — into a
+                turn you did not ask for. The ball is the handle. */}
+            <mesh renderOrder={2} raycast={() => null}>
               <cylinderGeometry args={[1, 1, 1, 6]} />
               <meshBasicMaterial
                 color={def.color}
@@ -1515,6 +1589,10 @@ export default function BoxGizmo() {
                 toneMapped={false}
               />
             </mesh>
+            {/* The ball is both what is seen and what is hit, so there is no
+                halo of dead space around it and nothing invisible to miss.
+                Round enough that its facets sit within a percent of the
+                silhouette they are standing in for. */}
             <mesh renderOrder={4}>
               <sphereGeometry args={[1, 18, 14]} />
               <meshBasicMaterial
@@ -1524,11 +1602,6 @@ export default function BoxGizmo() {
                 depthTest={false}
                 toneMapped={false}
               />
-            </mesh>
-            {/* the grab target, kept to the ball's own radius */}
-            <mesh>
-              <sphereGeometry args={[1, 8, 6]} />
-              <meshBasicMaterial visible={false} />
             </mesh>
           </group>
         ))}
