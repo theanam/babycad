@@ -264,16 +264,6 @@ button:disabled { cursor: default; }
 .tray-btn:active { background: var(--control-hi); }
 .tray-btn.on { background: var(--accent-soft); border-color: var(--accent); }
 
-.tray-home {
-  flex: none;
-  height: 52px;
-  border-radius: var(--r-control-lg);
-  background: var(--control);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
-}
-.tray-home:active { background: var(--control-hi); }
-.tray-home span { font-family: var(--mono); font-size: 9px; color: var(--muted-deep); }
-
 /* tray flyout */
 /* Three across rather than two: thirteen shapes in two columns runs off the
    bottom of the stage and into the view cube. The stage is `100vh − 56px` of

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { defaultParams, GENERATORS, SOLIDS } from '../shapes'
 import { useScene } from '../scene/sceneStore'
 import { viewport } from '../scene/viewportApi'
-import { ChevronUpIcon, ResetIcon, ShapeIcon } from './icons'
+import { ChevronUpIcon, ShapeIcon } from './icons'
 
 /**
  * Left rail of shapes. Tapping one drops it at the camera's look-at point,
@@ -13,6 +13,11 @@ import { ChevronUpIcon, ResetIcon, ShapeIcon } from './icons'
  * shapes you size, the generators are mechanisms you specify. The rail scrolls
  * rather than shrinking the buttons — the flyout is there for anyone who wants
  * the names as well as the pictures.
+ *
+ * Shapes and nothing else. It used to end in a Home button that put the camera
+ * back, which is the view cube's first button doing the same job a few inches
+ * below it — two ways to the same place, in a rail that is supposed to answer
+ * one question.
  */
 export default function ShapeTray() {
   const [open, setOpen] = useState(false)
@@ -72,16 +77,6 @@ export default function ShapeTray() {
           </div>
           {GENERATORS.map(trayButton)}
         </div>
-
-        <button
-          className="tray-home"
-          onClick={() => viewport.resetView()}
-          title="Put the camera back where it started"
-          aria-label="Reset the view"
-        >
-          <ResetIcon stroke="#8A93A5" />
-          <span>HOME</span>
-        </button>
       </nav>
 
       {open && (
