@@ -137,7 +137,32 @@ export function relativeCutters(object, holes) {
   }))
 }
 
+/**
+ * Past this, a cut is written to the console with its size and its cost.
+ *
+ * Not a limit — `LIVE_CUT_TRIANGLES` is the limit — but a witness. A cut that
+ * stalls the tab is indistinguishable, from the outside, from any other stall,
+ * and the report that comes back is "it froze". This is the line that turns
+ * that into "the cut on a 31k-triangle model took 14 seconds", or into its
+ * absence, which says just as much.
+ */
+const SLOW_CUT_MS = 500
+
 function buildCut(object, holes) {
+  const started = performance.now()
+  const cut = buildCutNow(object, holes)
+  const ms = performance.now() - started
+  if (ms > SLOW_CUT_MS) {
+    console.warn(
+      `[babycad] cutting a ${object.type} (${triangleCount(object).toLocaleString()} triangles) ` +
+        `with ${holes.length} hole${holes.length === 1 ? '' : 's'} took ${(ms / 1000).toFixed(1)}s ` +
+        `on the main thread`
+    )
+  }
+  return cut
+}
+
+function buildCutNow(object, holes) {
   const inverse = matrixOf(object, _a).clone().invert()
   let result = null
 

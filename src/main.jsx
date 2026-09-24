@@ -15,6 +15,31 @@ function hasWebGL() {
   }
 }
 
+/**
+ * Say when the main thread has been away for a long time, and for how long.
+ *
+ * A tab that stops answering for a minute and then comes back looks, from the
+ * outside, like a crash that changed its mind, and the report that reaches
+ * this project is "it froze". A long task carries no stack, so this cannot say
+ * *what* ran — the slow-cut warning in `shapes/csg` does that for the one
+ * thing known to — but it can say that something did, when, and for how long,
+ * which is the difference between a bug report and a mystery. Only for stalls
+ * past two seconds: a frame dropped here and there is not news.
+ */
+try {
+  if (typeof PerformanceObserver !== 'undefined') {
+    const watchdog = new PerformanceObserver((list) => {
+      for (const task of list.getEntries()) {
+        if (task.duration < 2000) continue
+        console.warn(`[babycad] the main thread was busy for ${(task.duration / 1000).toFixed(1)}s`)
+      }
+    })
+    watchdog.observe({ entryTypes: ['longtask'] })
+  }
+} catch {
+  // A browser without long-task timing has nothing to report, which is fine.
+}
+
 const root = createRoot(document.getElementById('root'))
 
 root.render(
