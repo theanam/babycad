@@ -26,6 +26,7 @@ import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg'
 import { acquireGeometry, measured, releaseGeometry } from './geometryCache'
 import { keyOfParams } from './index'
 import { onFaceLoaded } from './fontStore'
+import { mark, trace } from '../debug/trace'
 
 const IDLE_MAX = 24
 
@@ -208,14 +209,24 @@ export function forgetCutsOf(type) {
 
 export function acquireShape(object, holes) {
   const near = object.hole || !holes?.length ? [] : holes
-  if (!near.length || tooHeavyToCut(object)) {
+  if (!near.length) return acquireGeometry(object.type, object.params)
+  if (tooHeavyToCut(object)) {
+    mark(`cut skipped: ${object.type} is over the live budget (${triangleCount(object).toLocaleString()} tris)`)
     return acquireGeometry(object.type, object.params)
   }
 
   const key = cutKey(object, near)
   let entry = entries.get(key)
+  if (entry) mark(`cut cached: ${object.type} with ${near.length} hole(s)`)
   if (!entry) {
-    entry = { key, geometry: buildCut(object, near), refs: 0 }
+    entry = {
+      key,
+      geometry: trace(
+        `buildCut(${object.type}, ${triangleCount(object).toLocaleString()} tris, ${near.length} hole(s))`,
+        () => buildCut(object, near)
+      ),
+      refs: 0,
+    }
     entries.set(key, entry)
     byGeometry.set(entry.geometry, entry)
   }
@@ -261,6 +272,10 @@ function worldBox(object, target) {
  * Solids only — a hole is never cut, by another hole or by itself.
  */
 export function cuttersByObject(objects) {
+  return trace('cuttersByObject', () => cuttersNow(objects))
+}
+
+function cuttersNow(objects) {
   const holes = objects.filter((o) => o.hole)
   const out = new Map()
   if (!holes.length) return out

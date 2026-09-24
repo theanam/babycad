@@ -7,6 +7,7 @@ import { useScene } from './sceneStore'
 import { useFonts } from '../shapes/fontStore'
 import { dragBus } from './dragBus'
 import { useUI } from '../state/ui'
+import { mark } from '../debug/trace'
 
 // The outline shader offsets by this many *drawing-buffer* pixels, so scale it
 // by the device pixel ratio to land on the design's 4 CSS pixels.
@@ -68,7 +69,14 @@ function SceneObject({ object, selected, onSelect, holes, cutting = true, castSh
       ? `|${object.position}|${object.rotation}|${object.scale}` +
         holes.map((h) => `#${keyOfParams(h.type, h.params)}@${h.position}|${h.rotation}|${h.scale}`).join('')
       : '')
-  const geometry = useMemo(() => acquireShape(object, holes), [shapeKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  const geometry = useMemo(() => {
+    const g = acquireShape(object, holes)
+    mark(
+      `block geometry: ${object.type}${object.hole ? ' (hole)' : ''} → ${(g.getAttribute('position')?.count / 3 || 0).toLocaleString()} tris` +
+        (holes?.length ? `, cut by ${holes.length}` : '')
+    )
+    return g
+  }, [shapeKey]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => releaseShape(geometry), [geometry])
 
   // A combined hole has done its cutting and gets out of the way, leaving the

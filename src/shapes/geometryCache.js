@@ -13,6 +13,7 @@
  * it falls out of the pool.
  */
 import * as THREE from 'three'
+import { trace } from '../debug/trace'
 import { getShapeDef, keyOfParams, normalizeParams } from './index'
 import { onFaceLoaded } from './fontStore'
 
@@ -53,6 +54,10 @@ function nothingToDraw() {
  * left alone.
  */
 export function buildGeometry(type, params) {
+  return trace(`buildGeometry(${type})`, () => buildGeometryNow(type, params))
+}
+
+function buildGeometryNow(type, params) {
   const def = getShapeDef(type)
   let geometry
   try {

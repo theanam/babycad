@@ -7,6 +7,7 @@ import { adoptMeshes, meshesFor } from '../shapes/meshStore'
 import { defaultParams, normalizeParams, SHAPE_COLOR } from '../shapes'
 import { resizeToParams } from '../shapes/resize'
 import { measure, restingHeight } from '../shapes/geometryCache'
+import { mark, trace } from '../debug/trace'
 import { alignBounds, alignOffsets } from './align'
 import { evaluate } from './expression'
 import { meshes } from './meshRegistry'
@@ -265,6 +266,7 @@ export const useScene = create((set, get) => ({
 
   /** Run a command and record it. */
   apply(command) {
+    trace(`store.apply(${command.label ?? command.kind ?? 'command'})`, () =>
     set((st) => {
       const next = command.forward({
         objects: st.objects,
@@ -278,7 +280,7 @@ export const useScene = create((set, get) => ({
         past: [...st.past, command].slice(-MAX_HISTORY),
         future: [],
       }
-    })
+    }))
   },
 
   /** Record a command whose effect is already on screen (live drags). */
@@ -785,8 +787,12 @@ export const useScene = create((set, get) => ({
    * inside it.
    */
   alignSelection(slot, mode) {
+    return trace(`alignSelection(${['x', 'y', 'z'][slot]}, ${mode})`, () => get()._alignSelection(slot, mode))
+  },
+  _alignSelection(slot, mode) {
     const st = get()
     const sel = st.selectedObjects()
+    mark('align: selection', sel.map((o) => `${o.type}${o.hole ? '(hole)' : ''}`).join(', '))
     if (sel.length < 2) return false
     // `alignOffsets` already leaves out anything locked — a locked block is
     // what the rest line up against — so nothing more is needed here than

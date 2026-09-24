@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
+import { mark, trace } from '../debug/trace'
 import { Html } from '@react-three/drei'
 import { useScene } from './sceneStore'
 import { ALIGN_MODES, alignBounds, alignOffsets } from './align'
@@ -143,8 +144,9 @@ export default function AlignGizmo() {
 
   const enter = (key, slot, mode) => {
     setHover(key)
-    const offsets = alignOffsets(selected, meshes, slot, mode)
-    const { units } = alignBounds(selected, meshes)
+    mark(`align hover: ${key}`)
+    const offsets = trace('align hover: alignOffsets', () => alignOffsets(selected, meshes, slot, mode))
+    const { units } = trace('align hover: alignBounds', () => alignBounds(selected, meshes))
     const axis = AXIS_KEY[slot]
     setGhosts(
       units

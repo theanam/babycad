@@ -23,6 +23,7 @@ import DocsSheet from './ui/touch/DocsSheet'
 import SelectionSheet from './ui/touch/SelectionSheet'
 import VariablesSheet from './ui/touch/VariablesSheet'
 import { useDevice } from './state/device'
+import { mark, trace } from './debug/trace'
 
 /**
  * Arrow key -> [how far away from the camera, how far to its right], before
@@ -144,8 +145,8 @@ export default function App() {
   const docsKey = docs.map((d) => `${d.id}:${d.name}`).join('|')
   useEffect(() => {
     const id = setTimeout(() => {
-      useDocs.getState().touch()
-      writeSession(useDocs.getState().snapshot())
+      trace('autosave: touch()', () => useDocs.getState().touch())
+      trace('autosave: writeSession()', () => writeSession(useDocs.getState().snapshot()))
     }, 600)
     return () => clearTimeout(id)
   }, [objects, activeId, docsKey])
@@ -548,6 +549,7 @@ export default function App() {
     for (const file of files) {
       try {
         const model = await readModelFile(file)
+        mark(`imported ${model.name}: ${model.triangles.toLocaleString()} triangles`)
         const params = { mesh: model.id }
         const at = viewport.placementPoint('model', useScene.getState().objects, params)
         const object = useScene.getState().addShape('model', at, params)
