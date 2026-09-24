@@ -320,9 +320,16 @@ button:disabled { cursor: default; }
   padding: 8px;
   animation: fade var(--fade);
 }
-.tools-row { display: flex; gap: 6px; }
+/* Snap takes a row to itself, and Align and Mirror share the next one.
+   Three across a 300px rail gave the snap switch about eighty pixels for a
+   word, a number and a unit — it wrapped to three lines inside a 44px button
+   and spilled out of its own corners. Align and Mirror are one word each and
+   are comfortable at half. With nothing selected there is only the one row,
+   which is what it always was. */
+.tools-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.tools-row > .tools-btn { flex: 1 1 0; }
 .tools-btn {
-  flex: 1; height: var(--tap);
+  flex: 1; min-width: 0; white-space: nowrap; height: var(--tap);
   border-radius: var(--r-control);
   background: var(--control);
   display: flex; align-items: center; justify-content: center; gap: 8px;
@@ -337,7 +344,7 @@ button:disabled { cursor: default; }
 /* The snap switch and its grid menu. The arrow is a second, narrower button
    glued to the switch's right edge, for choosing the grid without a right
    mouse button; the menu drops down beneath both. */
-.tools-snap { flex: 1; position: relative; display: flex; }
+.tools-snap { flex: 1 1 100%; min-width: 0; position: relative; display: flex; }
 .tools-snap .tools-btn { border-radius: var(--r-control) 0 0 var(--r-control); }
 .tools-chevron {
   width: 30px; height: var(--tap); flex: none;
