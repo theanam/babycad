@@ -408,7 +408,14 @@ function ShapeSection({ sel }) {
  * Mid-drag it reads the live values, since the scene store deliberately doesn't
  * update until the drag ends.
  */
-export default function PropertiesPanel() {
+/**
+ * `embedded` is the touch shell: the panel is the body of a bottom sheet that
+ * already names what is selected and already has a way out, so it drops its
+ * own header and its rounded card and simply fills what it is given. Nothing
+ * else about it changes — the numbers, the swatches and the actions are the
+ * same ones the desktop rail shows, because they are the same job.
+ */
+export default function PropertiesPanel({ embedded = false }) {
   const objects = useScene((s) => s.objects)
   const selectedIds = useScene((s) => s.selectedIds)
   const transformSelection = useScene((s) => s.transformSelection)
@@ -425,9 +432,11 @@ export default function PropertiesPanel() {
 
   const sel = objects.filter((o) => selectedIds.includes(o.id))
 
+  const shell = `props${embedded ? ' embedded' : ''}`
+
   if (!sel.length) {
     return (
-      <aside className="props resting" aria-label="Block properties">
+      <aside className={`${shell} resting`} aria-label="Block properties">
         <div className="props-empty">
           <div className="props-empty-art" aria-hidden="true">
             <i /><i /><i />
@@ -523,29 +532,31 @@ export default function PropertiesPanel() {
   }
 
   return (
-    <aside className="props" aria-label="Block properties">
-      <div className="props-head">
-        {multi ? (
-          <div className="sel-stack">
-            {sel.slice(0, 3).map((o) => (
-              <i key={o.id} style={{ background: o.color }} />
-            ))}
-          </div>
-        ) : (
-          <ColorDot color={primary.color} type={primary.type} size={28} />
-        )}
-        <div className="props-title">
-          <div className="sel-name">
-            {multi ? `${sel.length} blocks` : (SHAPE_LABEL[primary.type] ?? 'Block')}
-          </div>
-          <div className="sel-sub">
-            {multi
-              ? sel.slice(0, 3).map((o) => SHAPE_LABEL[o.type]?.toLowerCase()).join(' · ') +
-                (sel.length > 3 ? ' · …' : '')
-              : '1 selected'}
+    <aside className={shell} aria-label="Block properties">
+      {!embedded && (
+        <div className="props-head">
+          {multi ? (
+            <div className="sel-stack">
+              {sel.slice(0, 3).map((o) => (
+                <i key={o.id} style={{ background: o.color }} />
+              ))}
+            </div>
+          ) : (
+            <ColorDot color={primary.color} type={primary.type} size={28} />
+          )}
+          <div className="props-title">
+            <div className="sel-name">
+              {multi ? `${sel.length} blocks` : (SHAPE_LABEL[primary.type] ?? 'Block')}
+            </div>
+            <div className="sel-sub">
+              {multi
+                ? sel.slice(0, 3).map((o) => SHAPE_LABEL[o.type]?.toLowerCase()).join(' · ') +
+                  (sel.length > 3 ? ' · …' : '')
+                : '1 selected'}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="props-body">
         {multi && (

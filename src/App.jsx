@@ -13,6 +13,16 @@ import VariablesPanel from './ui/VariablesPanel'
 import ConfirmDialog from './ui/ConfirmDialog'
 import WelcomeScreen from './ui/WelcomeScreen'
 import ErrorBoundary from './ui/ErrorBoundary'
+import TouchTopBar from './ui/touch/TouchTopBar'
+import TouchBar from './ui/touch/TouchBar'
+import ShapeSheet from './ui/touch/ShapeSheet'
+import SnapSheet from './ui/touch/SnapSheet'
+import ViewSheet from './ui/touch/ViewSheet'
+import MoreSheet from './ui/touch/MoreSheet'
+import DocsSheet from './ui/touch/DocsSheet'
+import SelectionSheet from './ui/touch/SelectionSheet'
+import VariablesSheet from './ui/touch/VariablesSheet'
+import { useDevice } from './state/device'
 
 /**
  * Arrow key -> [how far away from the camera, how far to its right], before
@@ -52,6 +62,13 @@ export default function App() {
 
   const [sheet, setSheet] = useState(null) // 'export' | 'help' | null
   const [closing, setClosing] = useState(null) // a tab with unsaved changes
+  // Which shell to draw. `touch` is about the pointer, not the screen size —
+  // see state/device — and it swaps the rails, the tray and the menus for a
+  // bottom bar and a stack of sheets. `compact` is a phone rather than a
+  // tablet, and only tightens what the touch shell already is.
+  const { touch, compact } = useDevice()
+  // The one sheet the bottom bar has open, if any.
+  const [bar, setBar] = useState(null) // 'shapes' | 'snap' | 'view' | 'more' | 'docs'
   // Variables aren't a sheet: they take over the right rail, so the build they
   // are reshaping stays in full view while a value is dragged. The state is in
   // the UI store because a variable's name is clickable from inside the canvas
@@ -401,21 +418,40 @@ export default function App() {
     }
   }, [])
 
-  const save = useCallback(async (saveAs) => {
-    const store = useDocs.getState()
-    const doc = store.active()
-    if (!doc) return
-    const text = JSON.stringify(useScene.getState().serialize(), null, 2)
-    let result
-    try {
-      result = await saveToDisk({ handle: doc.handle, name: doc.name, text, saveAs })
-    } catch {
-      return toast("That save didn't work — try Save as", 'warn')
-    }
-    if (!result) return // the dialog was dismissed; nothing to report
-    store.markSaved(doc.id, result)
-    toast(result.downloaded ? `Downloaded ${result.name}.babycad` : `Saved ${result.name}.babycad`)
-  }, [])
+  /**
+   * Write the build out.
+   *
+   * On a touch device this goes to the system's share sheet rather than to a
+   * file picker that isn't there or a downloads folder nobody opens — Save to
+   * Files, AirDrop, send it on. Where the device won't take a `.babycad` the
+   * old paths still run underneath, and the toast says which one did, because
+   * "saved", "sent" and "downloaded" leave the file in three different places
+   * and only one of them can be written back to.
+   */
+  const save = useCallback(
+    async (saveAs) => {
+      const store = useDocs.getState()
+      const doc = store.active()
+      if (!doc) return
+      const text = JSON.stringify(useScene.getState().serialize(), null, 2)
+      let result
+      try {
+        result = await saveToDisk({ handle: doc.handle, name: doc.name, text, saveAs, share: touch })
+      } catch {
+        // "Save as" is a desktop-only way out; on a handheld there is only the
+        // one Save, so pointing at the other one would be pointing at nothing.
+        return toast(
+          touch ? "That save didn't work — try again" : "That save didn't work — try Save as",
+          'warn'
+        )
+      }
+      if (!result) return // the dialog was dismissed; nothing to report
+      store.markSaved(doc.id, result)
+      const verb = result.shared ? 'Sent' : result.downloaded ? 'Downloaded' : 'Saved'
+      toast(`${verb} ${result.name}.babycad`)
+    },
+    [touch]
+  )
 
   const onSave = useCallback(() => save(false), [save])
   const onSaveAs = useCallback(() => save(true), [save])
@@ -531,68 +567,45 @@ export default function App() {
   saveRef.current = (shift) => save(Boolean(shift))
   openRef.current = onOpen
 
-  return (
-    <div className="app">
-      <TopBar
-        onNew={onNew}
-        onSave={onSave}
-        onSaveAs={onSaveAs}
-        onOpen={onOpen}
-        onImport={onImport}
-        onExport={() => setSheet('export')}
-        onVariables={toggleVariables}
-        onHelp={() => setSheet('help')}
-        variablesOpen={showVariables}
-      />
-
-      <TabStrip onNew={onNew} onCloseRequest={onCloseRequest} />
-
-      <div className="stage">
-        {/* The plate and the panels fail apart from one another. Whichever of
-            the two stops, the other is still there to save the work with. */}
-        <ErrorBoundary
-          what="the 3D view"
-          fallback={(error, retry) => (
-            <div className="panel-crash stage-crash">
-              <b>The plate stopped drawing.</b>
-              <span>Your blocks are still here.</span>
-              <button className="crash-btn" onClick={retry}>
-                Try again
-              </button>
-            </div>
-          )}
-        >
-          <Viewport />
-        </ErrorBoundary>
-
-        {!objects.length && <div className="empty-hint">pick a shape to start</div>}
-
-        <ShapeTray />
-        {/* The right rail: the scene-wide switches (snapping, aligning) in a
-            strip of their own, then whichever panel is showing beneath. */}
-        <div className="rail">
-          {objects.length > 0 && <ViewTools />}
-          <ErrorBoundary
-            what="the panel"
-            fallback={(error, retry) => (
-              <div className="panel-crash">
-                <b>This panel stopped working.</b>
-                <span>The block itself is fine — try again, or pick something else.</span>
-                <button className="crash-btn" onClick={retry}>
-                  Try again
-                </button>
-              </div>
-            )}
-          >
-            {showVariables ? <VariablesPanel onClose={closeVariables} /> : <PropertiesPanel />}
-          </ErrorBoundary>
+  /* The plate itself, which both shells put in the same place and neither
+     changes. It fails apart from the panels around it: whichever of the two
+     stops, the other is still there to save the work with. */
+  const plate = (
+    <ErrorBoundary
+      what="the 3D view"
+      fallback={(error, retry) => (
+        <div className="panel-crash stage-crash">
+          <b>The plate stopped drawing.</b>
+          <span>Your blocks are still here.</span>
+          <button className="crash-btn" onClick={retry}>
+            Try again
+          </button>
         </div>
-        <ViewCube />
-      </div>
+      )}
+    >
+      <Viewport />
+    </ErrorBoundary>
+  )
 
+  const panelCrash = (error, retry) => (
+    <div className="panel-crash">
+      <b>This panel stopped working.</b>
+      <span>The block itself is fine — try again, or pick something else.</span>
+      <button className="crash-btn" onClick={retry}>
+        Try again
+      </button>
+    </div>
+  )
+
+  /* Everything that is a centred modal on either shell, and the welcome
+     screen, which is its own full-page thing. Shared rather than duplicated:
+     they are already sized off the viewport and already reachable. */
+  const overlays = (
+    <>
       {sheet === 'export' && <ExportMenu onClose={() => setSheet(null)} />}
       {sheet === 'help' && (
         <HelpModal
+          touch={touch}
           onClose={() => setSheet(null)}
           onShowWelcome={() => {
             setSheet(null)
@@ -625,6 +638,105 @@ export default function App() {
       )}
 
       <Toasts />
+    </>
+  )
+
+  /**
+   * The touch shell.
+   *
+   * Same scene, same stores, same panels — a different place to put them. The
+   * two rails and every drop-down menu become sheets that come up from the
+   * bottom edge, because that is the half of a handheld a thumb can reach, and
+   * the tab strip becomes a name in the top bar, because a 96px tab with a
+   * 20px close button inside it is not a target a finger has.
+   *
+   * What is picked gets an attached sheet rather than a modal one: the block
+   * being edited has to stay visible and stay draggable while its numbers are
+   * on screen. See ui/touch/SelectionSheet.
+   */
+  if (touch) {
+    const closeBar = () => setBar(null)
+    return (
+      <div className={`app touch${compact ? ' compact' : ''}`}>
+        <TouchTopBar compact={compact} onMore={() => setBar('more')} onDocs={() => setBar('docs')} />
+
+        <div className="stage">
+          {plate}
+          {!objects.length && <div className="empty-hint">tap shapes to start</div>}
+          {/* The cube earns its corner on a tablet, where it is a good target
+              and dragging it turns the view. A phone has no corner to spare,
+              and gets the View sheet instead. */}
+          {!compact && <ViewCube />}
+        </div>
+
+        <ErrorBoundary what="the panel" fallback={panelCrash}>
+          {showVariables ? <VariablesSheet onClose={closeVariables} /> : <SelectionSheet />}
+        </ErrorBoundary>
+
+        <TouchBar open={bar} onOpen={setBar} />
+
+        {bar === 'shapes' && <ShapeSheet onClose={closeBar} />}
+        {bar === 'snap' && <SnapSheet onClose={closeBar} />}
+        {bar === 'view' && <ViewSheet onClose={closeBar} />}
+        {bar === 'more' && (
+          <MoreSheet
+            sharing={touch}
+            onClose={closeBar}
+            onSave={onSave}
+            onImport={onImport}
+            onExport={() => setSheet('export')}
+            onVariables={toggleVariables}
+            onHelp={() => setSheet('help')}
+          />
+        )}
+        {bar === 'docs' && (
+          <DocsSheet
+            onClose={closeBar}
+            onNew={onNew}
+            onOpen={onOpen}
+            onCloseDoc={onCloseRequest}
+          />
+        )}
+
+        {overlays}
+      </div>
+    )
+  }
+
+  return (
+    <div className="app">
+      <TopBar
+        onNew={onNew}
+        onSave={onSave}
+        onSaveAs={onSaveAs}
+        onOpen={onOpen}
+        onImport={onImport}
+        onExport={() => setSheet('export')}
+        onVariables={toggleVariables}
+        onHelp={() => setSheet('help')}
+        variablesOpen={showVariables}
+      />
+
+      <TabStrip onNew={onNew} onCloseRequest={onCloseRequest} />
+
+      <div className="stage">
+        {plate}
+
+        {!objects.length && <div className="empty-hint">pick a shape to start</div>}
+
+        <ShapeTray />
+        {/* The right rail: the scene-wide switches (snapping, aligning) in a
+            strip of their own, then whichever panel is showing beneath. */}
+        <div className="rail">
+          {objects.length > 0 && <ViewTools />}
+          <ErrorBoundary what="the panel" fallback={panelCrash}>
+            {showVariables ? <VariablesPanel onClose={closeVariables} /> : <PropertiesPanel />}
+          </ErrorBoundary>
+        </div>
+        <ViewCube />
+      </div>
+
+      {overlays}
     </div>
   )
 }

@@ -1,4 +1,9 @@
 @import './tokens.css';
+/* The touch shell. Every rule in it is behind `.app.touch`, which both scopes
+   it away from the desktop chrome and gives it the extra specificity to win
+   over the rule it is replacing — so it can be imported here, where CSS
+   requires imports to be, rather than needing to come last or say !important. */
+@import './touch.css';
 
 * { box-sizing: border-box; }
 

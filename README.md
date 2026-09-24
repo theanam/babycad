@@ -45,6 +45,10 @@ is a solid mesh a slicer will accept. It is only the *way in* that is simple.
 - **Words as solids.** Type them, pick a typeface — two bundled, a dozen more
   from Google Fonts — and they come out as raised lettering.
 - **Bring your own models.** Import an STL, OBJ or 3MF and build around it.
+- **Built for a finger as well as a mouse.** On a phone or a tablet the rails
+  become a bottom bar and sheets that come up under your thumb, the handles
+  grow for a fingertip, and Save hands the build to the device's own share
+  sheet instead of a downloads folder nobody opens.
 - **Take it away.** STL for printing, glTF for everything else. Builds are
   ordinary files you keep wherever you like.
 
@@ -63,9 +67,26 @@ is a solid mesh a slicer will accept. It is only the *way in* that is simple.
 | Measure | **Measure** in the top bar, then press two places |
 | Turn the view | right-drag |
 | Slide the view | middle-drag, or Shift + right-drag |
-| Zoom | scroll — on a touchscreen, one finger turns and two pinch and slide |
+| Zoom | scroll |
 
-There is a **How this works** sheet inside the app with the rest of it.
+### On a phone or tablet
+
+The same program, laid out for a thumb: the shape rail and the properties rail
+become a bar along the bottom and sheets that come up from it, and the tabs
+become the build's name at the top.
+
+| | |
+|---|---|
+| Pick a block | tap it |
+| Pick several | **Pick more**, then tap them |
+| Move it | drag the block itself |
+| Its colour and numbers | the sheet that comes up — pull it higher for the millimetres |
+| Turn the view | drag one finger on bare plate |
+| Zoom and slide | two fingers |
+| Save | **⋯ → Share this build**, which opens your device's share sheet |
+
+There is a **How this works** sheet inside the app with the rest of it, and it
+says whichever of these two applies to what you are holding.
 
 ## Running it yourself
 

@@ -266,8 +266,61 @@ Matching the spec's v1 boundary:
 - **No Move/Turn/Size mode switch.** Replaced by direct manipulation on the
   bounding box, plus a numeric properties panel. This is a deliberate departure
   from the design doc's state 02.
-- **Phones are not a target.** Tablet-and-up, per the spec; the chrome tightens
-  below 860px but isn't designed for a phone.
+
+### The touch shell
+
+**There are two shells, and the pointer picks between them.** `state/device`
+asks `(pointer: coarse)` — what is doing the pointing, not how wide the window
+is — so a laptop with a touchscreen and a mouse in hand gets the desktop
+chrome, and a narrow desktop window still gets rails rather than a bottom bar.
+`compact` is a second, narrower question about width, and only tightens what
+the touch shell already is. Both are subscribed to rather than read once, so a
+convertible folded into a tablet or a phone turned on its side changes shells
+on the spot.
+
+**`App` branches once, and everything below the branch is shared.** The scene,
+the stores, the properties panel, the variables panel, the modals and the
+welcome screen are the same components in both. What differs is where they are
+put: the two rails and every drop-down become sheets along the bottom edge,
+because that is the half of a handheld a thumb reaches, and the tab strip
+becomes the build's name in the top bar, because a 96px tab with a 20px close
+button inside it is not a target a finger has. `PropertiesPanel` takes one
+prop, `embedded`, which drops its own header and card so a sheet can be the
+card; nothing else in it knows which shell it is in.
+
+**Every touch rule is behind `.app.touch` in `styles/touch.css`.** That scopes
+it away from the desktop chrome *and* gives it the specificity to win over the
+rule it replaces, which is why the file can be `@import`ed at the top of
+`global.css` — where CSS demands imports live — without coming last or saying
+`!important`. Keep new rules behind that prefix.
+
+**The selection sheet is attached, not modal, and it has rungs.** No scrim and
+nothing dimmed: the block being edited has to stay visible and stay draggable
+while its numbers are on screen, which is the same reasoning the variables
+panel already gives for taking the rail instead of opening over the scene. It
+stops at three heights — a 220px bar of modes and actions, then the colours,
+then the millimetres — and it starts at the shortest, because picking a block
+up should cost a strip of the plate rather than the plate. On a short, wide
+screen (a phone on its side) the drawer becomes a panel down the right-hand
+side instead, where there is width to spare and no height at all.
+
+**Two gestures have no touch equivalent, and both are answered with a switch.**
+Shift-click becomes `pickMore` in `state/ui`, a sticky mode that makes a tap
+add to the selection; the drag-a-box-over-empty-plate route is simply gone,
+because one finger dragging on bare plate is how a touchscreen turns the view
+and that cannot be both. Everything else already worked: `scene/orbit` has read
+one finger as an orbit and two as pinch-and-pan since it was written, and
+`gizmoMath`'s `grabScale` has grown the handles for a coarse pointer for as
+long.
+
+**Save means share.** `io/share` offers the file to `navigator.share`, because
+a handheld has no file picker to point at and no downloads folder anybody opens
+— Save to Files, AirDrop, mail it on. Three things about it are load-bearing
+and written up in that file: `canShare` is asked with the real file and answers
+per type (Chrome will not take a `.babycad`, iOS will), a share needs a user
+gesture that is still warm and a slow export can outlast one, and both a
+refusal and a dismissal fall through to the download path rather than losing
+the file. Every caller keeps its old behaviour when sharing is off or refused.
 
 ## Performance
 

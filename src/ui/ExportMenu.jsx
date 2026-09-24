@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useDevice } from '../state/device'
 import { useScene } from '../scene/sceneStore'
 import { useDocs } from '../state/documents'
 import { exportGLB, exportSTL } from '../io/exporters'
@@ -22,6 +23,9 @@ export default function ExportMenu({ onClose }) {
   const objects = useScene((s) => s.objects)
   const groups = useScene((s) => s.groups)
   const name = useDocs((s) => s.active()?.name)
+  // On a touch device the file goes to the share sheet, which is the only
+  // place a phone has to put one. See io/share.
+  const { touch } = useDevice()
 
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
@@ -34,18 +38,22 @@ export default function ExportMenu({ onClose }) {
       const file = name || 'babycad-build'
       const result =
         id === 'glb'
-          ? await exportGLB(objects, groups, file)
-          : await exportSTL(objects, groups, file)
+          ? await exportGLB(objects, groups, file, { share: touch })
+          : await exportSTL(objects, groups, file, { share: touch })
+      // Dismissed the save dialog: nothing to say, and the menu stays up.
+      if (!result) return
+
+      const verb = { saved: 'Saved', shared: 'Sent', downloaded: 'Downloaded' }[result.how]
       // A part with a hole in it is rebuilt as a proper solid on the way out.
       // If that could not be done the file is still worth having, but a
       // printer may refuse it, and it is better to say so than to let it be
       // discovered at the printer.
-      if (result?.rough)
+      if (result.rough)
         toast(
-          `Downloaded your ${id.toUpperCase()} — but ${result.rough} cut ${result.rough === 1 ? 'piece' : 'pieces'} may not print cleanly`,
+          `${verb} your ${id.toUpperCase()} — but ${result.rough} cut ${result.rough === 1 ? 'piece' : 'pieces'} may not print cleanly`,
           'warn'
         )
-      else toast(`Downloaded your ${id.toUpperCase()}`)
+      else toast(`${verb} your ${id.toUpperCase()}`)
       onClose()
     } catch {
       toast("That export didn't work — try again", 'warn')

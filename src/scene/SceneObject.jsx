@@ -6,6 +6,7 @@ import { registerMesh } from './meshRegistry'
 import { useScene } from './sceneStore'
 import { useFonts } from '../shapes/fontStore'
 import { dragBus } from './dragBus'
+import { useUI } from '../state/ui'
 
 // The outline shader offsets by this many *drawing-buffer* pixels, so scale it
 // by the device pixel ratio to land on the design's 4 CSS pixels.
@@ -115,7 +116,12 @@ function SceneObject({ object, selected, onSelect, holes, castShadow = true }) {
           return
         }
 
-        onSelect(object.id, e.shiftKey || e.nativeEvent?.shiftKey)
+        // Shift adds, and so does the touch shell's "pick more" mode, which
+        // is what a finger has instead of a modifier key — see state/ui.
+        onSelect(
+          object.id,
+          e.shiftKey || e.nativeEvent?.shiftKey || useUI.getState().pickMore
+        )
         // Dragging a block's body slides it along the floor. A press that
         // never moves is just a selection click, which costs nothing.
         dragBus.startBodyMove?.(e.nativeEvent)

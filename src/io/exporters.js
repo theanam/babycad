@@ -11,6 +11,7 @@ import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js'
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js'
 import { acquireShape, cuttersByObject, relativeCutters, releaseShape } from '../shapes/csg'
 import { cutForExport } from './solidCut'
+import { fileFrom, shareFile } from './share'
 
 /**
  * Build the export scene, plus the function that hands its geometries back.
@@ -163,6 +164,62 @@ function download(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000)
 }
 
+/**
+ * Ask where the file should go, before anything is built.
+ *
+ * Before, rather than after, because the picker needs the click that opened it
+ * to still be fresh, and building the scene can take a moment — a die is cut
+ * again with Manifold on the way out. Asked afterwards, a big build would
+ * spend its activation and the picker would be refused.
+ *
+ * Returns a handle to write to, `null` where the browser has no picker and a
+ * download is the answer, or `false` if the dialog was dismissed — which is
+ * somebody changing their mind, not a failure.
+ */
+async function askWhere(filename, type, extension) {
+  if (typeof window === 'undefined' || typeof window.showSaveFilePicker !== 'function') return null
+  try {
+    return await window.showSaveFilePicker({
+      suggestedName: filename,
+      types: [{ description: extension.slice(1).toUpperCase(), accept: { [type]: [extension] } }],
+    })
+  } catch (error) {
+    if (error?.name === 'AbortError') return false
+    // Any other trouble with the picker is not worth losing the export over;
+    // fall back to a download, which always works.
+    return null
+  }
+}
+
+/**
+ * Put the bytes where `askWhere` said — or, on a touch device, into the share
+ * sheet.
+ *
+ * The share is offered after the file is built rather than before, which is
+ * the opposite of what `askWhere` does and for the opposite reason: a picker
+ * can be opened early and written to late, a share sheet needs the bytes in
+ * hand. That costs it the tap's activation on a build slow enough to matter,
+ * and a share refused on those grounds quietly becomes a download — see
+ * io/share. Backing out of the sheet is a change of mind and says so.
+ *
+ * @returns 'saved' | 'shared' | 'downloaded' | null (dismissed)
+ */
+async function writeOut(handle, blob, filename, { share = false, type } = {}) {
+  if (share && !handle) {
+    const result = await shareFile(fileFrom(blob, filename, type), { title: filename })
+    if (result === 'dismissed') return null
+    if (result === 'shared') return 'shared'
+  }
+  if (!handle) {
+    download(blob, filename)
+    return 'downloaded'
+  }
+  const stream = await handle.createWritable()
+  await stream.write(blob)
+  await stream.close()
+  return 'saved'
+}
+
 const safeName = (name) =>
   (name || 'babycad-build').trim().replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '') ||
   'babycad-build'
@@ -172,19 +229,25 @@ const safeName = (name) =>
  * Left in the internal Y-up frame on purpose — that is what the glTF spec asks
  * for. See `Z_UP_X_ROTATION`.
  */
-export async function exportGLB(objects, groups, name) {
+export async function exportGLB(objects, groups, name, { share = false } = {}) {
+  const filename = `${safeName(name)}.glb`
+  // A share sheet wants the bytes, so there is nothing to ask first.
+  const where = share ? null : await askWhere(filename, 'model/gltf-binary', '.glb')
+  if (where === false) return null
+
   const { root, rough, done } = await buildExportScene(objects, groups)
-  return new Promise((resolve, reject) => {
-    new GLTFExporter().parse(
-      root,
-      (result) => {
-        download(new Blob([result], { type: 'model/gltf-binary' }), `${safeName(name)}.glb`)
-        resolve({ rough })
-      },
-      reject,
-      { binary: true }
-    )
-  }).finally(done)
+  try {
+    const bytes = await new Promise((resolve, reject) => {
+      new GLTFExporter().parse(root, resolve, reject, { binary: true })
+    })
+    const how = await writeOut(where, new Blob([bytes], { type: 'model/gltf-binary' }), filename, {
+      share,
+      type: 'model/gltf-binary',
+    })
+    return how ? { rough, how } : null
+  } finally {
+    done()
+  }
 }
 
 /**
@@ -192,14 +255,21 @@ export async function exportGLB(objects, groups, name) {
  * is turned Z-up on the way out so it lands on the slicer's plate the way it
  * sat on the plate here. See `Z_UP_X_ROTATION`.
  */
-export async function exportSTL(objects, groups, name) {
+export async function exportSTL(objects, groups, name, { share = false } = {}) {
+  const filename = `${safeName(name)}.stl`
+  const where = share ? null : await askWhere(filename, 'model/stl', '.stl')
+  if (where === false) return null
+
   const { root, rough, done } = await buildExportScene(objects, groups)
   try {
     root.rotation.x = Z_UP_X_ROTATION
     root.updateMatrixWorld(true)
     const stl = new STLExporter().parse(root, { binary: true })
-    download(new Blob([stl], { type: 'model/stl' }), `${safeName(name)}.stl`)
-    return { rough }
+    const how = await writeOut(where, new Blob([stl], { type: 'model/stl' }), filename, {
+      share,
+      type: 'model/stl',
+    })
+    return how ? { rough, how } : null
   } finally {
     done()
   }

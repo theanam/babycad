@@ -13,7 +13,15 @@
  * and Open to a file input; a download cannot overwrite in place, so there
  * every save lands a fresh copy in the downloads folder. The app says which
  * of the two it is doing rather than pretending they are the same.
+ *
+ * On a touch device there is a third way, and it is the good one: the share
+ * sheet. A phone has no downloads folder anybody goes looking in, so Save
+ * hands the build to the system instead — Save to Files, AirDrop, mail it to
+ * yourself — and only falls back to a download where the device won't take it.
+ * See io/share.
  */
+
+import { fileFrom, shareFile } from './share'
 
 const EXT = '.babycad'
 
@@ -49,18 +57,38 @@ function download(text, filename) {
 /**
  * Write a build out.
  *
- * @returns `{ handle, name, downloaded }` on success, or null if the person
- *          backed out of the dialog — which is not a failure and should not
- *          be reported as one.
+ * `share` asks for the device's share sheet first, which is what Save means on
+ * a touch device. It is tried ahead of everything else because on a phone the
+ * alternatives are a picker that isn't there and a folder nobody opens — but
+ * it is only ever an offer: a device that won't take a `.babycad` falls
+ * straight through to the paths below, and nothing is lost.
+ *
+ * A shared build keeps no handle, because there is nothing to write back to:
+ * the file has gone wherever it was sent, and the next Save offers it again.
+ *
+ * @returns `{ handle, name, downloaded, shared }` on success, or null if the
+ *          person backed out of the dialog — which is not a failure and should
+ *          not be reported as one.
  */
-export async function saveToDisk({ handle, name, text, saveAs = false }) {
+export async function saveToDisk({ handle, name, text, saveAs = false, share = false }) {
+  const filename = withExt(name || 'build')
+
+  if (share) {
+    const result = await shareFile(
+      fileFrom(new Blob([text], { type: 'application/json' }), filename, 'application/json'),
+      { title: baseName(filename), text: 'A BabyCAD build' }
+    )
+    if (result === 'dismissed') return null
+    if (result === 'shared') return { handle: null, name: baseName(filename), shared: true }
+  }
+
   if (canUseFileSystem()) {
     let target = saveAs ? null : handle
     if (target && !(await writable(target))) target = null
     if (!target) {
       try {
         target = await window.showSaveFilePicker({
-          suggestedName: withExt(name || 'build'),
+          suggestedName: filename,
           types: TYPES,
         })
       } catch (error) {
@@ -74,8 +102,8 @@ export async function saveToDisk({ handle, name, text, saveAs = false }) {
     return { handle: target, name: baseName(target.name), downloaded: false }
   }
 
-  download(text, withExt(name || 'build'))
-  return { handle: null, name: baseName(name || 'build'), downloaded: true }
+  download(text, filename)
+  return { handle: null, name: baseName(filename), downloaded: true }
 }
 
 /** Read builds in. Several at once, since tabs can hold several. */

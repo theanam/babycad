@@ -2,7 +2,15 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <!--
+      `viewport-fit=cover` lets the plate run under the notch and the home
+      indicator; the bars add `env(safe-area-inset-*)` back on themselves so
+      nothing you have to press ends up beneath either. See styles/touch.css.
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
     <meta name="theme-color" content="#0E1014" />
 
     <title>BabyCAD — 3D modelling for kids, in the browser</title>

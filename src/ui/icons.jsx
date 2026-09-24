@@ -250,6 +250,52 @@ export const GithubIcon = ({ size = 20, fill = 'currentColor', ...rest }) => (
 )
 
 /** Braces: the variables themselves. */
+/* --- the touch shell's own handful --------------------------------------- */
+
+/** The overflow menu, which on a handheld is where most of the top bar went. */
+export const MoreIcon = ({ width = 3, ...p }) => (
+  // Dots drawn as round-capped zero-length strokes, so they take the same
+  // `stroke` every other icon here does rather than needing a fill.
+  <Svg width={width} {...p}>
+    <path d="M5 12h.01M12 12h.01M19 12h.01" />
+  </Svg>
+)
+
+/** Hand it to the device: Save to Files, AirDrop, mail it on. */
+export const ShareIcon = (p) => (
+  <Svg {...p}>
+    <path d="M12 16V4" />
+    <path d="m8 8 4-4 4 4" />
+    <path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" />
+  </Svg>
+)
+
+/** Tap blocks to add them to the selection — touch's shift-click. */
+export const AddPickIcon = (p) => (
+  <Svg {...p}>
+    <rect x="3" y="3" width="10" height="10" rx="2" />
+    <rect x="11" y="11" width="10" height="10" rx="2" />
+    <path d="M16 14v4M14 16h4" />
+  </Svg>
+)
+
+/** The shape tray, folded into one button. */
+export const ShapesIcon = (p) => (
+  <Svg {...p}>
+    <rect x="3" y="12" width="9" height="9" rx="1.5" />
+    <circle cx="17" cy="16.5" r="4.5" />
+    <path d="M12 3 7 11h10z" />
+  </Svg>
+)
+
+/** A build, in the list of open ones. */
+export const BuildIcon = (p) => (
+  <Svg {...p}>
+    <path d="M12 3 4 7.5v9L12 21l8-4.5v-9z" />
+    <path d="M4 7.5 12 12l8-4.5M12 12v9" />
+  </Svg>
+)
+
 export const VariableIcon = (p) => (
   <Svg width={2.2} {...p}>
     <path d="M9 4c-2 0-2.5 1.2-2.5 3S6 10.5 4.5 10.5C6 10.5 6.5 12 6.5 14s.5 3 2.5 3" />

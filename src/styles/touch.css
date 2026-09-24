@@ -1,0 +1,462 @@
+/**
+ * The touch shell.
+ *
+ * Every rule in here is behind `.app.touch`, which is set only when the
+ * primary pointer is coarse — see state/device. The desktop chrome is not
+ * touched by any of it, on purpose: a laptop with a touchscreen, a narrow
+ * desktop window and a browser zoomed in all still get exactly the layout
+ * they had.
+ *
+ * Three ideas run through the whole thing.
+ *
+ * **The bottom half belongs to the thumbs.** Every menu, rail and drop-down
+ * becomes a sheet that comes up from the bottom edge. Nothing that is used
+ * while building lives in the top bar.
+ *
+ * **Nothing is revealed by hovering.** A finger has no hover, so every label
+ * a tooltip used to carry is either written on the control or gone.
+ *
+ * **Safe areas are real estate, not padding.** A notch, a home indicator and
+ * a rounded corner each take a strip of screen that a fixed bar would sit
+ * underneath. `env(safe-area-inset-*)` is added to the bars rather than to the
+ * page, so the plate still runs edge to edge behind them.
+ */
+
+.app.touch {
+  /* The bottom bar's full height, home indicator included. Everything that
+     has to sit above the bar measures itself against this. */
+  --bar-h: calc(64px + env(safe-area-inset-bottom, 0px));
+  /* The top bar's full height, notch included — what anything absolutely
+     positioned in the shell has to start below. */
+  --topbar-h: calc(54px + env(safe-area-inset-top, 0px));
+  --gutter-l: max(10px, env(safe-area-inset-left, 0px));
+  --gutter-r: max(10px, env(safe-area-inset-right, 0px));
+}
+
+/* ------------------------------------------------------------- top bar -- */
+
+.app.touch .topbar {
+  flex: none;
+  height: var(--topbar-h);
+  padding: env(safe-area-inset-top, 0px) var(--gutter-r) 0 var(--gutter-l);
+  gap: 8px;
+}
+
+/* The name of the open build, and the way to the rest of them. */
+.touch-doc {
+  display: flex; align-items: center; gap: 8px;
+  min-width: 0; max-width: 52%;
+  height: 40px; padding: 0 10px 0 12px;
+  border-radius: var(--r-control);
+  background: var(--control);
+  font-size: 15px; font-weight: 800; color: var(--ink);
+}
+.touch-doc:active { background: var(--control-hi); }
+.touch-doc-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.touch-doc-count {
+  flex: none;
+  min-width: 20px; height: 20px; padding: 0 5px;
+  border-radius: 10px; background: var(--control-hi);
+  font-family: var(--mono); font-size: 11px; color: var(--muted);
+  display: flex; align-items: center; justify-content: center;
+}
+
+.touch-topbar-right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+
+/* ---------------------------------------------------------- bottom bar -- */
+
+.touchbar {
+  flex: none;
+  height: var(--bar-h);
+  display: flex; gap: 6px; align-items: flex-start;
+  padding: 6px var(--gutter-r) 0 var(--gutter-l);
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+}
+
+.touchbar-btn {
+  flex: 1; min-width: 0; height: 52px;
+  border-radius: var(--r-control-lg);
+  background: transparent;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  font-size: 11.5px; font-weight: 800; color: var(--muted);
+  transition: background var(--fade), color var(--fade);
+}
+.touchbar-btn:active { background: var(--control); }
+.touchbar-btn.on { background: var(--accent-soft); color: var(--accent-ink); }
+/* Shapes is the one thing somebody came here to do, and it says so. */
+.touchbar-btn.primary { background: var(--accent); color: #fff; }
+.touchbar-btn.primary:active { background: #6b3df0; }
+.touchbar-btn.primary.on { background: #6b3df0; color: #fff; }
+.touchbar-btn span {
+  max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Four buttons across a phone still leaves room for the words, and the words
+   are the whole difference between a toolbar and a row of glyphs. Only the
+   type comes down. */
+.app.touch.compact .touchbar-btn { font-size: 10.5px; }
+
+/* --------------------------------------------------------------- sheet -- */
+
+.sheet-scrim {
+  position: fixed; inset: 0;
+  z-index: 38;
+  background: #07080bcc;
+  display: flex; align-items: flex-end;
+  animation: fade var(--fade);
+}
+
+.sheet {
+  width: 100%;
+  display: flex; flex-direction: column;
+  background: var(--panel-raised);
+  border-top: 1px solid var(--line-raised);
+  border-radius: var(--r-modal) var(--r-modal) 0 0;
+  box-shadow: 0 -24px 60px -30px #000;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* Only ever animated between detents and back from a drag; the drag itself
+     turns this off and writes the transform directly. */
+  transition: transform 180ms cubic-bezier(0.22, 0.8, 0.3, 1);
+  animation: sheet-rise 220ms cubic-bezier(0.22, 0.8, 0.3, 1);
+}
+@keyframes sheet-rise {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet { animation: fade var(--fade); transition: none; }
+}
+
+/* A modal sheet is as tall as it needs and no taller than the screen. */
+.sheet-scrim .sheet { max-height: calc(100% - 44px); }
+
+/* An attached sheet stands on the bottom bar rather than on the screen edge,
+   and leaves the plate above it alone: no scrim, nothing dimmed, the block
+   still there to drag while its numbers are on screen. */
+.sheet-attached {
+  position: absolute;
+  left: 0; right: 0; bottom: var(--bar-h);
+  z-index: 20;
+  border-radius: var(--r-panel) var(--r-panel) 0 0;
+  padding-bottom: 0;
+}
+/* The three rungs. `peek` is a deliberate 224px and not a percentage: it is
+   exactly the grab bar, the header, the modes row and the actions, so it is as
+   short as it can be while still being the whole of what a block's *chrome*
+   is. Picking something up should cost you a strip of the plate, not the
+   plate. The two above it are proportions, because what they add — swatches,
+   then numbers — is a list that is worth as much room as there is. */
+/* At the bottom rung the scrolling body is not squeezed to a sliver, it is
+   taken out — a half-cut section heading above the actions reads as a panel
+   drawn wrong rather than as one there is more of. With nothing to squeeze,
+   the height is simply whatever the bar, the header, the modes and the
+   actions come to. */
+.sheet-attached.sheet-peek { height: auto; }
+.sheet-attached.sheet-peek .props-body { display: none; }
+/* Enough for the whole of what a block *is* — solid or hole, and its colour —
+   without the millimetres. Sized so that pair clears the actions at the foot
+   on a phone as well as a tablet; short of that the rung adds a cut-off
+   heading and nothing else, which is not a rung. */
+.sheet-attached.sheet-mid { height: clamp(360px, 56%, 560px); }
+.sheet-attached.sheet-tall { height: min(72%, calc(100% - var(--bar-h) - 104px)); }
+/* Nothing spills out of the rounded box on the way down to a shorter rung. */
+.sheet-attached { overflow: hidden; }
+
+.sheet-grab {
+  flex: none;
+  height: 28px;
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  touch-action: none; /* the bar is dragged, not scrolled */
+  cursor: grab;
+}
+.sheet-grab i { width: 42px; height: 4px; border-radius: 2px; background: var(--line-raised); }
+.sheet-grab:active i { background: var(--muted-deep); }
+
+.sheet-head {
+  flex: none;
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 16px 12px;
+}
+.sheet-title { flex: 1; min-width: 0; font-size: 19px; font-weight: 900; letter-spacing: -0.01em; }
+.sheet-title em {
+  display: block; margin-top: 2px;
+  font-style: normal; font-size: 12.5px; font-weight: 700; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sheet-close {
+  flex: none;
+  width: var(--tap); height: var(--tap);
+  border-radius: var(--r-control-lg);
+  background: var(--control);
+  display: flex; align-items: center; justify-content: center;
+}
+.sheet-close:active { background: var(--control-hi); }
+
+.sheet-body {
+  padding: 0 16px 16px;
+  overflow-y: auto; overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+/* The child does its own scrolling and pins its own footer. */
+.sheet-body.flush {
+  flex: 1; min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+}
+
+.sheet-section + .sheet-section { margin-top: 18px; }
+.sheet-label {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+  color: var(--muted-deep);
+  padding: 4px 2px 8px;
+}
+
+.sheet-list { display: flex; flex-direction: column; gap: 4px; }
+.sheet-row {
+  width: 100%;
+  display: flex; align-items: center; gap: 12px;
+  min-height: 54px; padding: 0 14px;
+  border-radius: var(--r-control-lg);
+  background: var(--control);
+  text-align: left; text-decoration: none;
+  font-size: 15.5px; font-weight: 700; color: var(--ink-dim);
+  transition: background var(--fade), color var(--fade);
+}
+.sheet-row:active { background: var(--control-hi); }
+.sheet-row.on { background: var(--accent-soft); color: var(--accent-ink); font-weight: 800; }
+.sheet-row:disabled { opacity: 0.45; }
+.sheet-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sheet-row em {
+  flex: none;
+  font-style: normal; font-family: var(--mono); font-size: 12px; color: var(--muted-deep);
+}
+.sheet-row.on em { color: var(--accent-ink); }
+
+/* --------------------------------------------------------- shape sheet -- */
+
+/* As many across as the width will take, which on a tablet is most of them at
+   once — the desktop rail's scroll only exists because a rail is narrow. */
+.shape-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(94px, 1fr));
+  gap: 8px;
+}
+.shape-cell {
+  height: 94px;
+  border-radius: var(--r-control-lg);
+  background: var(--control);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
+  font-size: 12.5px; font-weight: 700; color: var(--ink-dim);
+  transition: background var(--fade);
+}
+.shape-cell:active { background: var(--control-hi); }
+
+/* ---------------------------------------------------------- view sheet -- */
+
+.view-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.view-cell {
+  min-height: 58px; padding: 8px 6px;
+  border-radius: var(--r-control-lg);
+  background: var(--control);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  font-size: 13px; font-weight: 800; color: var(--ink-dim);
+  text-align: center; line-height: 1.25;
+  transition: background var(--fade);
+}
+.view-cell:active { background: var(--control-hi); }
+
+/* ---------------------------------------------------------- docs sheet -- */
+
+.doc-row { display: flex; align-items: center; gap: 4px; }
+.doc-pick {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 12px;
+  min-height: 54px; padding: 0 14px;
+  border-radius: var(--r-control-lg);
+  background: var(--control);
+  font-size: 15.5px; font-weight: 700; color: var(--ink-dim);
+}
+.doc-row.on .doc-pick { background: var(--accent-soft); color: var(--accent-ink); }
+.doc-name {
+  flex: 1; min-width: 0; text-align: left;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.doc-name-field {
+  flex: 1; min-width: 0; height: 36px;
+  border-radius: 8px;
+  background: #0f1218;
+  border: 1px solid var(--accent-edge);
+  padding: 0 9px;
+  font-family: var(--sans); font-size: 16px; font-weight: 700; color: var(--ink);
+}
+.doc-name-field:focus { outline: none; border-color: var(--accent); }
+.doc-close {
+  flex: none;
+  width: var(--tap); height: var(--tap);
+  border-radius: var(--r-control-lg);
+  background: var(--control);
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ----------------------------------------------------- selection sheet -- */
+
+/* Pick more, Line up and Flip: the three things that are a *mode* rather than
+   a value, kept out of the scrolling body so turning one on never scrolls the
+   thing it turns on out of view. */
+.sel-modes {
+  flex: none;
+  display: flex; gap: 6px;
+  padding: 0 14px 12px;
+}
+.sel-mode {
+  flex: 1; min-width: 0; height: var(--tap);
+  border-radius: var(--r-control);
+  background: var(--control);
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  font-size: 13.5px; font-weight: 800; color: var(--muted);
+  transition: background var(--fade), color var(--fade);
+}
+.sel-mode.on { background: var(--accent); color: #fff; }
+
+.sel-legend {
+  flex: none;
+  margin: 0 14px 12px;
+  padding: 10px 12px;
+  border-top: 0;
+  border-radius: var(--r-control);
+  background: var(--control);
+}
+
+/* The properties panel, with its card taken off — the sheet is the card. */
+.props.embedded {
+  flex: 1; min-height: 0;
+  border: 0; border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  animation: none;
+}
+
+/* --------------------------------------------------- touch-sized parts -- */
+
+/* Everything below is the same control the desktop draws, grown for a
+   fingertip. 16px is the floor on anything typed into: below it iOS zooms the
+   page on focus and leaves it zoomed. */
+.app.touch .props-body {
+  /* The bottom padding is wider than the fade below it on purpose: scrolled
+     all the way down, the last row clears the fade and is drawn solid. */
+  padding: 0 16px 26px;
+  /* Anything still passing the bottom edge fades out, so a section clipped by
+     the actions below reads as "keep scrolling" rather than as a panel drawn
+     wrong. The shape rail does the same thing for the same reason. */
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 20px), transparent);
+}
+.app.touch .props-foot { padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px)); }
+.app.touch .sheet-attached .props-foot { padding-bottom: 12px; }
+
+.app.touch .numfield { height: 48px; border-radius: var(--r-control); }
+.app.touch .numfield input { font-size: 16px; }
+.app.touch .param-top .numfield { height: 42px; }
+.app.touch .prop-fields { gap: 8px; }
+
+/* Twelve swatches across a rail is a 20px cell; across a sheet, six across in
+   two rows is a target you can actually hit. */
+.app.touch .color-grid { grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.app.touch .color-cell { border-radius: 10px; }
+
+.app.touch .param-seg-btn { height: var(--tap); font-size: 14px; }
+.app.touch .prop-seg .param-seg-btn { height: var(--tap-lg); font-size: 15px; }
+.app.touch .param-toggle { height: var(--tap); font-size: 14px; }
+
+/* A 14px slider thumb is a cursor's target. This one is a thumb's. */
+.app.touch .param-slider { height: 34px; margin-top: 4px; }
+.app.touch .param-slider::-webkit-slider-thumb {
+  width: 24px; height: 24px; margin-top: -10px;
+  border-width: 3px;
+}
+.app.touch .param-slider::-moz-range-thumb { width: 24px; height: 24px; border-width: 3px; }
+
+.app.touch .param-menu-btn { width: 34px; height: 38px; }
+.app.touch .param-top { grid-template-columns: 1fr 96px 34px; }
+
+.app.touch .var-row { padding: 12px; }
+.app.touch .vars-panel { flex: 1; min-height: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.app.touch .vars-panel .props-head { padding: 0 16px 12px; border-bottom: 0; }
+
+/* A short, wide screen — a phone on its side, mostly — has no height to give
+   a drawer and plenty of width to spare, so the attached sheet stops being a
+   drawer and becomes a panel down the side. Same markup, same detents; the
+   detents simply stop meaning anything, because a panel that runs the full
+   height is already at every one of them. The grab bar stays as the handle
+   that puts it away. */
+@media (max-height: 560px) and (min-width: 620px) {
+  .sheet-attached,
+  .sheet-attached.sheet-peek,
+  .sheet-attached.sheet-mid,
+  .sheet-attached.sheet-tall {
+    left: auto;
+    right: env(safe-area-inset-right, 0px);
+    top: var(--topbar-h);
+    bottom: var(--bar-h);
+    width: min(360px, 42%);
+    height: auto;
+    border-radius: var(--r-panel) 0 0 var(--r-panel);
+    border-left: 1px solid var(--line-raised);
+    border-top: 0;
+    box-shadow: -24px 0 60px -30px #000;
+  }
+  /* A panel that already runs the full height is at every rung at once, so
+     the rungs stop meaning anything: the body is always shown, and the grab
+     bar — which is only a way between heights — goes. The ✕ closes it. */
+  .sheet-attached.sheet-peek .props-body { display: block; }
+  .sheet-attached .sheet-grab { display: none; }
+  .sheet-attached .sheet-head { padding-top: 14px; }
+}
+
+/* ---------------------------------------------------------- the stage -- */
+
+/* The numbers the gizmo paints beside a block are drei `Html`, which puts real
+   DOM over the canvas at a z-index of its own (up to 25). They belong over the
+   plate and under the sheet, and the way to say that once — rather than
+   out-bidding them and then out-bidding whatever comes next — is to give the
+   stage its own stacking context. Everything the canvas draws is then ordered
+   inside it, and the sheet is simply the next thing along. */
+.app.touch .stage { isolation: isolate; z-index: 0; }
+
+/* The cube moves out from behind the shape rail it used to clear, and up out
+   of the way of the sheet that now owns the bottom of the screen. */
+.app.touch .viewcube {
+  left: var(--gutter-l); top: 12px; bottom: auto;
+  gap: 6px;
+}
+.app.touch .viewcube-art { width: 96px; height: 96px; }
+.app.touch .vc-btn { width: 44px; height: 44px; }
+
+/* Above the bar and above a peeking sheet, so a message is never delivered
+   underneath the thing it is about. */
+.app.touch .toasts { bottom: calc(var(--bar-h) + 16px); }
+.app.touch .empty-hint { top: 38%; }
+
+/* A full-screen page still has to clear the notch and the home indicator. */
+.app.touch .welcome {
+  padding:
+    calc(24px + env(safe-area-inset-top, 0px))
+    var(--gutter-r)
+    calc(24px + env(safe-area-inset-bottom, 0px))
+    var(--gutter-l);
+}
+.app.touch .scrim {
+  padding:
+    calc(16px + env(safe-area-inset-top, 0px))
+    var(--gutter-r)
+    calc(16px + env(safe-area-inset-bottom, 0px))
+    var(--gutter-l);
+}
+.app.touch .modal { padding: 22px; }
+
+/* Anything typed into, anywhere in the touch shell. Same reason as above. */
+.app.touch input[type='text'],
+.app.touch input[type='number'],
+.app.touch textarea,
+.app.touch select { font-size: 16px; }

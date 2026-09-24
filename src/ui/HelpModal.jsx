@@ -27,6 +27,26 @@ const SHORTCUTS = [
 ]
 
 /**
+ * The same sheet, for a device with no keyboard and no mouse buttons.
+ *
+ * Not a translation of the shortcut list — most of it has no touch equivalent
+ * and pretending otherwise would waste a child's time. These are the gestures
+ * that exist, including the two that replace things a finger cannot do: the
+ * "pick more" switch standing in for Shift-click, and the plain fact that a
+ * selection box has to give way to the one-finger drag that turns the view.
+ */
+const GESTURES = [
+  ['Tap a block', 'Pick it'],
+  ['Pick more', 'Then tap blocks to add them to the selection'],
+  ['Drag a block', 'Slide it across the floor'],
+  ['Drag one finger', 'Turn the view'],
+  ['Two fingers', 'Pinch to zoom, slide to move the view'],
+  ['Double-tap words', 'Change what they say'],
+  ['Pull the grab bar up', 'Show the numbers for what’s picked'],
+  ['Tap bare plate', 'Let go of everything'],
+]
+
+/**
  * How the thing works, in one sheet.
  *
  * Written to be read once by somebody who has never used a CAD program, in the
@@ -35,7 +55,7 @@ const SHORTCUTS = [
  * that Z is up, that resizing writes into the shape's own millimetres, that
  * everything lives in this browser and nowhere else.
  */
-export default function HelpModal({ onClose, onShowWelcome }) {
+export default function HelpModal({ onClose, onShowWelcome, touch = false }) {
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose()
     document.addEventListener('keydown', onKey)
@@ -72,21 +92,54 @@ export default function HelpModal({ onClose, onShowWelcome }) {
             </p>
           </section>
 
+          {touch && (
+            <section>
+              <h3>Where things are</h3>
+              <p>
+                <strong>Shapes</strong> at the bottom left is everything you can put down.{' '}
+                <strong>Grid</strong> beside it is how finely things place, <strong>Measure</strong>{' '}
+                is the tape, and <strong>View</strong> is where you look from.
+              </p>
+              <p>
+                Pick a block and a panel comes up over the bottom of the screen with its colour,
+                its numbers and what you can do to it. Drag the little bar at its top upwards for
+                the numbers, or down to put it away. The name of your build is at the top, and
+                tapping it lists everything you have open; the <strong>⋯</strong> beside it holds
+                saving, exporting, importing and variables.
+              </p>
+            </section>
+          )}
+
           <section>
             <h3>Looking around</h3>
-            <ul className="help-list">
-              <li>
-                <b>Right-drag</b> to turn the view round the build.
-              </li>
-              <li>
-                <b>Middle-drag</b> to slide the view sideways — or <b>Shift + right-drag</b>, if
-                your mouse or trackpad has no middle button.
-              </li>
-              <li>
-                <b>Scroll</b> to zoom. On a touchscreen, one finger turns, two fingers pinch and
-                slide.
-              </li>
-            </ul>
+            {touch ? (
+              <ul className="help-list">
+                <li>
+                  <b>Drag one finger</b> on bare plate to turn the view round the build.
+                </li>
+                <li>
+                  <b>Two fingers</b> pinch to zoom and slide to move the view sideways.
+                </li>
+                <li>
+                  <b>View</b> in the bottom bar looks at the build from any of its six sides, fits
+                  it to the screen, or puts the camera back where it started.
+                </li>
+              </ul>
+            ) : (
+              <ul className="help-list">
+                <li>
+                  <b>Right-drag</b> to turn the view round the build.
+                </li>
+                <li>
+                  <b>Middle-drag</b> to slide the view sideways — or <b>Shift + right-drag</b>, if
+                  your mouse or trackpad has no middle button.
+                </li>
+                <li>
+                  <b>Scroll</b> to zoom. On a touchscreen, one finger turns, two fingers pinch and
+                  slide.
+                </li>
+              </ul>
+            )}
           </section>
 
           <section>
@@ -323,20 +376,43 @@ export default function HelpModal({ onClose, onShowWelcome }) {
 
           <section>
             <h3>Files and tabs</h3>
-            <p>
-              A build is a file. <strong>Save</strong> writes a <strong>.babycad</strong> wherever
-              you keep your things and <strong>Open</strong> reads one back — no account, no
-              server, nothing uploaded, and nothing kept in the browser for a cleared cache to
-              take away. <strong>Save as…</strong> is under the arrow beside Save.
-              <em> Ctrl/⌘ + S</em> saves, <em>Ctrl/⌘ + O</em> opens.
-            </p>
-            <p>
-              Several builds can be open at once, one per <strong>tab</strong> along the top. Each
-              keeps its own undo history. A dot on a tab means it has changes that aren&apos;t in
-              a file yet; double-click a tab&apos;s name to rename it. Your open tabs come back
-              after a refresh, but that is a safety net, not a filing cabinet — the file is the
-              thing that lasts.
-            </p>
+            {touch ? (
+              <>
+                <p>
+                  A build is a file. <strong>Share this build</strong> under the{' '}
+                  <strong>⋯</strong> hands it to your device as a{' '}
+                  <strong>.babycad</strong> — save it to Files, send it to another machine, mail
+                  it to somebody — and <strong>Open a file</strong> reads one back. No account, no
+                  server, nothing uploaded, and nothing kept in the browser for a cleared cache to
+                  take away.
+                </p>
+                <p>
+                  Several builds can be open at once. Tap the name at the top for the list of
+                  them; each keeps its own undo history, a dot means it has changes not in a file
+                  yet, and the open one&apos;s name can be typed over right there. They come back
+                  after a refresh, but that is a safety net, not a filing cabinet — the file is
+                  the thing that lasts.
+                </p>
+              </>
+            ) : (
+              <>
+                <p>
+                  A build is a file. <strong>Save</strong> writes a <strong>.babycad</strong>{' '}
+                  wherever you keep your things and <strong>Open</strong> reads one back — no
+                  account, no server, nothing uploaded, and nothing kept in the browser for a
+                  cleared cache to take away. <strong>Save as…</strong> is under the arrow beside
+                  Save.
+                  <em> Ctrl/⌘ + S</em> saves, <em>Ctrl/⌘ + O</em> opens.
+                </p>
+                <p>
+                  Several builds can be open at once, one per <strong>tab</strong> along the top.
+                  Each keeps its own undo history. A dot on a tab means it has changes that
+                  aren&apos;t in a file yet; double-click a tab&apos;s name to rename it. Your open
+                  tabs come back after a refresh, but that is a safety net, not a filing cabinet —
+                  the file is the thing that lasts.
+                </p>
+              </>
+            )}
             <p>
               <strong>Export</strong> is for taking a build somewhere else:{' '}
               <strong>.glb</strong> keeps the colours for a 3D viewer, and <strong>.stl</strong>{' '}
@@ -345,9 +421,9 @@ export default function HelpModal({ onClose, onShowWelcome }) {
           </section>
 
           <section>
-            <h3>Keyboard</h3>
+            <h3>{touch ? 'Gestures' : 'Keyboard'}</h3>
             <dl className="help-keys">
-              {SHORTCUTS.map(([keys, what]) => (
+              {(touch ? GESTURES : SHORTCUTS).map(([keys, what]) => (
                 <div key={keys}>
                   <dt>{keys}</dt>
                   <dd>{what}</dd>
