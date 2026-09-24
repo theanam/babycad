@@ -218,17 +218,19 @@ export default function HelpModal({ onClose, onShowWelcome, touch = false }) {
             <h3>Holes</h3>
             <p>
               Any block can be a <strong>hole</strong> instead of a solid — the switch is at the
-              top of the rail. A hole goes grey and see-through. On its own it is a tool and cuts
-              nothing: push it into a solid, pick both, and <strong>Combine</strong>. That takes the
-              hole&apos;s shape out of that solid, puts the grey ghost away, and leaves just the
-              block with the bite taken out of it.
+              top of the rail. A hole goes grey and see-through, and it cuts its shape out of every
+              solid it overlaps, straight away. Push a tube through a cube and the cube has a
+              tube-shaped hole in it while you are still pushing. The one exception is a model you
+              have imported: that is cut once, when you <strong>Combine</strong> the two, because
+              cutting a big model is slow and a hole being lined up moves a hundred times first.
             </p>
             <p>
-              A combined hole cuts only the piece it belongs to — not the block sitting next
-              door, however far it reaches. Nothing is destroyed by combining:{' '}
-              <strong>Split apart</strong> brings the ghost back, cutting nothing again, yours to
-              move or resize and combine somewhere else. Holes never end up in an exported file;
-              they are the tool, not the part.
+              <strong>Combine</strong> is how you finish: it puts the grey ghost away and leaves
+              just the solid with the bite taken out of it. A combined hole cuts only the piece it
+              belongs to — not the block sitting next door, however far it reaches. Nothing is
+              destroyed by combining: <strong>Split apart</strong> brings the hole back, still
+              cutting, still yours to move or resize. Holes never end up in an exported file; they
+              are the tool, not the part.
             </p>
             <p>
               Combining also makes the parts one colour: whichever of them covers the most plate

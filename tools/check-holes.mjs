@@ -111,11 +111,23 @@ console.log('\nwho cuts whom…')
   const G = [{ id: 'g', memberIds: ['s', 'h'] }]
   const inG = (over) => ({ ...over, parentGroupId: 'g' })
 
-  // Overlapping and not combined with anything: it cuts nothing. A hole is a
-  // tool until it is combined — that is what keeps a heavy import from being
-  // cut afresh on every nudge while the hole is still being lined up.
+  // Overlapping and not combined with anything: it still cuts. That is the
+  // whole point — the cut is what you see while you are lining the hole up.
   const loose = [block('cube', { id: 's' }), block('cube', { id: 'h', hole: true })]
-  if (cuttersByObject(loose, []).size) fail('a hole that is not combined with anything cut a block')
+  if (cuttersByObject(loose, []).get('s')?.length !== 1) fail('an overlapping loose hole did not cut a block')
+
+  // Except an imported model, which waits for Combine: cutting one is the one
+  // expensive thing here, and a hole being lined up moves a hundred times.
+  const { registerMesh } = await import('../src/shapes/meshStore.js')
+  const tri = registerMesh('t', new Float32Array([0, 0, 0, 10, 0, 0, 0, 10, 0]))
+  const overModel = [block('model', { id: 'm', params: { mesh: tri } }), block('cube', { id: 'h', hole: true })]
+  if (cuttersByObject(overModel, []).has('m')) fail('a loose hole cut an imported model before Combine')
+  const GM = [{ id: 'gm', memberIds: ['m', 'h'] }]
+  const combinedModel = [
+    block('model', { id: 'm', params: { mesh: tri }, parentGroupId: 'gm' }),
+    block('cube', { id: 'h', hole: true, parentGroupId: 'gm' }),
+  ]
+  if (cuttersByObject(combinedModel, GM).get('m')?.length !== 1) fail('a combined hole did not cut the model it was combined with')
 
   // Combined with the block it sits in: it cuts that block.
   const joined = [block('cube', inG({ id: 's' })), block('cube', inG({ id: 'h', hole: true }))]

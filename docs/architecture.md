@@ -374,13 +374,16 @@ the file. Every caller keeps its old behaviour when sharing is off or refused.
 
 ### Cutting, and what it costs
 
-**A hole cuts only once it is combined, and only its own piece.** It used to cut
-whatever it overlapped, the moment it overlapped it — which on an imported
-model meant a fresh cut on every nudge, and which let a combined hole carve
-its way into the block next door. `cuttersByObject` now pairs a hole only with
-solids in the same root group; a hole in no group cuts nothing and is drawn as
-its ghost. The example builder is the one caller that pairs by overlap alone
-(`loose: true`), because it is discovering the groups it is about to make.
+**A loose hole cuts live, except through an imported model; a combined hole
+cuts only its own piece.** The live cut is the trick the app is built around
+and is cheap on anything it builds itself. On an imported model it is the
+freeze: the cut is cached by where the hole sits relative to the block, so
+every nudge is a fresh one, and a heavy STL locked the tab for minutes at a
+time. So `cuttersByObject` lets a loose hole pass a model by — the ghost shows
+over it, and the model is cut once, at Combine. Once combined, a hole is paired
+only with solids in its own root group, never the block next door. The example
+builder is the one caller that pairs by overlap alone (`loose: true`), because
+it is discovering the groups it is about to make.
 
 **The cut at Combine is still bounded, because `three-bvh-csg` is not.** A hole
 subtracts itself from the solids in its piece, synchronously, on the main

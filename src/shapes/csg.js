@@ -1,24 +1,24 @@
 /**
  * Cutting holes out of solids.
  *
- * A block is either a solid or a hole. A hole is a tool: on its own it cuts
- * nothing and is drawn as a grey ghost, so you can see where it is and push it
- * about; `Combine` it with a solid and it takes its own volume out of that
- * solid — and only that solid, and the others in the same piece. A combined
- * hole stops being drawn, so what is left on screen is the solid with the
- * bite taken out of it. Split apart and the ghost comes back, cutting nothing
- * again, free to move.
+ * A block is either a solid or a hole, and a hole cuts every solid it reaches
+ * into — straight away, while you are still pushing it around. Drop a tube
+ * through a cube and the cube has a tube-shaped hole in it. That is the trick
+ * the app is built around, and it is cheap on the shapes the app builds, which
+ * are hundreds or a few thousand triangles.
  *
- * It used to cut the moment it overlapped anything, while you were still
- * pushing it around, and a combined hole kept cutting whatever else it happened
- * to reach. That was two problems. The cut is expensive on an imported model,
- * and every nudge of the hole was a fresh one — a heavy STL locked the tab for
- * as long as the cut took, on every move, and at a couple of minutes a time
- * that reads as a crash. And a hole that carves its way through the block
- * beside the one it belongs to is not what anybody means by combining it with
- * something. Cutting at Combine, and only inside the piece, answers both: the
- * cut happens once, when you ask for it, and a piece moved as a piece keeps
- * its hole where it sits, so it is never cut again.
+ * An imported model is the exception, and the reason there is one. The cut is
+ * cached by where the hole sits relative to the block, so every nudge of the
+ * hole is a fresh cut, and on a heavy STL each one locked the tab for as long
+ * as it took — at a couple of minutes a time, which reads as a crash. So a
+ * loose hole passes an imported model by: it is drawn as its grey ghost over
+ * the model, and the model is cut once, when the two are combined.
+ *
+ * `Combine` is where a hole settles. Once combined it cuts its own piece —
+ * the solids it was combined with, up to the top group — and nothing else,
+ * however far it reaches into the block next door. It stops being drawn, so
+ * what is left on screen is the solid with the bite taken out of it. Split
+ * apart and the ghost comes back, cutting as a loose hole does, free to move.
  *
  * The subtraction is done per solid rather than once per group, which sounds
  * like more work and is the same answer: (A ∪ B) − H is (A − H) ∪ (B − H).
@@ -281,16 +281,19 @@ function rootGroupOf(groupId, groups) {
 /**
  * Which holes cut which solids, worked out once for the whole scene.
  *
- * A hole cuts only the solids it has been combined with — the ones in its own
- * piece, up to the top of the group it is in — and a hole in no group cuts
- * nothing. `groups` is what says which piece is which, and without it every
- * hole is loose and the map comes back empty.
+ * Three rules, in the order they are asked:
  *
- * `loose` is the one exception: pair by overlap alone, whether or not anything
- * is combined. The example builder uses it to *find* the groups it is about to
- * make — it has holes sitting in blocks and no groups yet, and "which does this
- * hole reach into" is exactly the question. Nothing that draws or exports
- * should ask it.
+ *   - A combined hole cuts its own piece — the solids in the same top group —
+ *     and nothing outside it. `groups` is what says which piece is which.
+ *   - A loose hole cuts every solid it overlaps, live, *except* an imported
+ *     model. The model waits for Combine: cutting it is the one expensive
+ *     thing here, and a hole being lined up moves a hundred times before it is
+ *     where it is going.
+ *   - `loose` mode pairs by overlap alone, whatever is combined with what. The
+ *     example builder uses it to *find* the groups it is about to make — it
+ *     has holes sitting in blocks and no groups yet, and "which does this hole
+ *     reach into" is exactly the question. Nothing that draws or exports
+ *     should ask it.
  *
  * Boxes first, and only then geometry: ten holes among a hundred blocks is a
  * thousand pairs, and all but a handful of them are nowhere near each other.
@@ -305,7 +308,7 @@ export function cuttersByObject(objects, groups = [], { loose = false } = {}) {
 }
 
 function cuttersNow(objects, groups, loose) {
-  const holes = objects.filter((o) => o.hole && (loose || o.parentGroupId))
+  const holes = objects.filter((o) => o.hole)
   const out = new Map()
   if (!holes.length) return out
 
@@ -315,12 +318,19 @@ function cuttersNow(objects, groups, loose) {
 
   for (const object of objects) {
     if (object.hole) continue
-    const piece = loose ? null : pieceOf(object)
-    if (!loose && !piece) continue
+    const piece = pieceOf(object)
     worldBox(object, _boxB)
     let near = null
     for (let i = 0; i < holes.length; i++) {
-      if (!loose && holePieces[i] !== piece) continue
+      if (!loose) {
+        if (holePieces[i]) {
+          // Combined: its own piece, and only that.
+          if (holePieces[i] !== piece) continue
+        } else if (object.type === 'model') {
+          // Loose over an import: the ghost, and the cut waits for Combine.
+          continue
+        }
+      }
       if (!_boxB.intersectsBox(holeBoxes[i])) continue
       ;(near ??= []).push(holes[i])
     }
