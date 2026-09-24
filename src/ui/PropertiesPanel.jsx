@@ -606,8 +606,8 @@ export default function PropertiesPanel({ embedded = false }) {
           </div>
           {looseHole && (
             <div className="prop-hint">
-              It&apos;s already cutting whatever it overlaps. <strong>Combine</strong> it with that
-              block to put the grey away and leave just the cut.
+              A hole cuts nothing on its own. Push it into a block, pick both, and{' '}
+              <strong>Combine</strong> — that takes its shape out of the block and puts the grey away.
             </div>
           )}
         </div>

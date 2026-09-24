@@ -119,13 +119,14 @@ function StartPad() {
 
 function Blocks() {
   const objects = useScene((s) => s.objects)
+  const groups = useScene((s) => s.groups)
   const selectedIds = useScene((s) => s.selectedIds)
   const select = useScene((s) => s.select)
 
   const selected = useMemo(() => new Set(selectedIds), [selectedIds])
   // Which holes cut what, worked out once for the scene rather than once per
   // block testing itself against every hole in the yard.
-  const cutters = useMemo(() => cuttersByObject(objects), [objects])
+  const cutters = useMemo(() => cuttersByObject(objects, groups), [objects, groups])
 
   /*
    * Holes that are overlapping something and getting nowhere.

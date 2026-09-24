@@ -48,7 +48,7 @@ for (const example of EXAMPLES) {
   // moment somebody drags it, at which point the solid walks out of its own
   // holes and leaves them hanging in the air. That is precisely the bug this
   // catches: every hole must share a group with a solid it actually cuts.
-  const cutters = cuttersByObject(scene.objects)
+  const cutters = cuttersByObject(scene.objects, scene.groups)
   const cutBy = new Map() // hole id -> ids of the solids it cuts
   for (const [solidId, holes] of cutters) {
     for (const hole of holes) {

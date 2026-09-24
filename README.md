@@ -30,8 +30,9 @@ which is what makes it a reasonable first CAD program at any age.
 - **Shapes with numbers, not just handles.** Drag a cube wider and its Width
   says 30 mm. Type 30 mm and it does the same thing. A tube has a radius, a
   gear has teeth and a module, a screw has a pitch.
-- **Holes that cut.** Mark any block as a hole and it takes its own volume out
-  of whatever it overlaps — a tray, a bore, the pips on a die.
+- **Holes that cut.** Mark any block as a hole, push it into a solid and
+  Combine the two — it takes its own volume out of that solid. A tray, a bore,
+  the pips on a die.
 - **Variables.** Point several numbers at one variable and drag it; everything
   that follows it moves together.
 - **Copy and paste that travels.** Blocks go on the real clipboard — with the

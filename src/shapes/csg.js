@@ -1,15 +1,24 @@
 /**
  * Cutting holes out of solids.
  *
- * A block is either a solid or a hole, and a hole cuts every solid it reaches
- * into — straight away, while you are still pushing it around. There is no
- * step to perform and nothing to commit before the hole is a hole: drop a tube
- * through a cube and the cube has a tube-shaped hole in it.
+ * A block is either a solid or a hole. A hole is a tool: on its own it cuts
+ * nothing and is drawn as a grey ghost, so you can see where it is and push it
+ * about; `Combine` it with a solid and it takes its own volume out of that
+ * solid — and only that solid, and the others in the same piece. A combined
+ * hole stops being drawn, so what is left on screen is the solid with the
+ * bite taken out of it. Split apart and the ghost comes back, cutting nothing
+ * again, free to move.
  *
- * `Combine` doesn't do the cutting, then. What it does is finish the job: a
- * hole that has been combined with something stops being drawn, so all that is
- * left on screen is the solid with the bite taken out of it. Split apart and
- * the grey ghost comes back, still cutting, still movable.
+ * It used to cut the moment it overlapped anything, while you were still
+ * pushing it around, and a combined hole kept cutting whatever else it happened
+ * to reach. That was two problems. The cut is expensive on an imported model,
+ * and every nudge of the hole was a fresh one — a heavy STL locked the tab for
+ * as long as the cut took, on every move, and at a couple of minutes a time
+ * that reads as a crash. And a hole that carves its way through the block
+ * beside the one it belongs to is not what anybody means by combining it with
+ * something. Cutting at Combine, and only inside the piece, answers both: the
+ * cut happens once, when you ask for it, and a piece moved as a piece keeps
+ * its hole where it sits, so it is never cut again.
  *
  * The subtraction is done per solid rather than once per group, which sounds
  * like more work and is the same answer: (A ∪ B) − H is (A − H) ∪ (B − H).
@@ -260,8 +269,28 @@ function worldBox(object, target) {
   return target
 }
 
+/** The top of a group's ancestry, so nested combines count as one piece. */
+function rootGroupOf(groupId, groups) {
+  const byId = new Map(groups.map((g) => [g.id, g]))
+  let g = byId.get(groupId)
+  let guard = 0
+  while (g?.parentGroupId && byId.has(g.parentGroupId) && guard++ < 64) g = byId.get(g.parentGroupId)
+  return g?.id ?? groupId
+}
+
 /**
  * Which holes cut which solids, worked out once for the whole scene.
+ *
+ * A hole cuts only the solids it has been combined with — the ones in its own
+ * piece, up to the top of the group it is in — and a hole in no group cuts
+ * nothing. `groups` is what says which piece is which, and without it every
+ * hole is loose and the map comes back empty.
+ *
+ * `loose` is the one exception: pair by overlap alone, whether or not anything
+ * is combined. The example builder uses it to *find* the groups it is about to
+ * make — it has holes sitting in blocks and no groups yet, and "which does this
+ * hole reach into" is exactly the question. Nothing that draws or exports
+ * should ask it.
  *
  * Boxes first, and only then geometry: ten holes among a hundred blocks is a
  * thousand pairs, and all but a handful of them are nowhere near each other.
@@ -271,22 +300,27 @@ function worldBox(object, target) {
  *
  * Solids only — a hole is never cut, by another hole or by itself.
  */
-export function cuttersByObject(objects) {
-  return trace('cuttersByObject', () => cuttersNow(objects))
+export function cuttersByObject(objects, groups = [], { loose = false } = {}) {
+  return trace('cuttersByObject', () => cuttersNow(objects, groups, loose))
 }
 
-function cuttersNow(objects) {
-  const holes = objects.filter((o) => o.hole)
+function cuttersNow(objects, groups, loose) {
+  const holes = objects.filter((o) => o.hole && (loose || o.parentGroupId))
   const out = new Map()
   if (!holes.length) return out
 
+  const pieceOf = (o) => (o.parentGroupId ? rootGroupOf(o.parentGroupId, groups) : null)
+  const holePieces = holes.map(pieceOf)
   const holeBoxes = holes.map((hole) => worldBox(hole, new THREE.Box3()))
 
   for (const object of objects) {
     if (object.hole) continue
+    const piece = loose ? null : pieceOf(object)
+    if (!loose && !piece) continue
     worldBox(object, _boxB)
     let near = null
     for (let i = 0; i < holes.length; i++) {
+      if (!loose && holePieces[i] !== piece) continue
       if (!_boxB.intersectsBox(holeBoxes[i])) continue
       ;(near ??= []).push(holes[i])
     }

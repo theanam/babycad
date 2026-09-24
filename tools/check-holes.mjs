@@ -108,26 +108,56 @@ console.log('\nthe cut comes back in the block’s own space…')
 
 console.log('\nwho cuts whom…')
 {
-  // Overlapping and not combined with anything: it still cuts. That is the
-  // whole point — the cut is what you see while you are lining the hole up.
+  const G = [{ id: 'g', memberIds: ['s', 'h'] }]
+  const inG = (over) => ({ ...over, parentGroupId: 'g' })
+
+  // Overlapping and not combined with anything: it cuts nothing. A hole is a
+  // tool until it is combined — that is what keeps a heavy import from being
+  // cut afresh on every nudge while the hole is still being lined up.
   const loose = [block('cube', { id: 's' }), block('cube', { id: 'h', hole: true })]
-  const cutters = cuttersByObject(loose)
-  if (cutters.get('s')?.length !== 1) fail('an overlapping hole did not cut a block it was not combined with')
+  if (cuttersByObject(loose, []).size) fail('a hole that is not combined with anything cut a block')
+
+  // Combined with the block it sits in: it cuts that block.
+  const joined = [block('cube', inG({ id: 's' })), block('cube', inG({ id: 'h', hole: true }))]
+  const cutters = cuttersByObject(joined, G)
+  if (cutters.get('s')?.length !== 1) fail('a combined hole did not cut the block it was combined with')
   if (cutters.has('h')) fail('a hole was handed a cutter of its own')
 
+  // Combined, and reaching into a block that is *not* in its piece: leaves it
+  // alone. Combining a hole with something is what says what it is for.
+  const bystander = [
+    block('cube', inG({ id: 's' })),
+    block('cube', inG({ id: 'h', hole: true })),
+    block('cube', { id: 'other', position: [8, 0, 0] }),
+  ]
+  const scoped = cuttersByObject(bystander, G)
+  if (scoped.has('other')) fail('a combined hole cut a block outside its own piece')
+  if (scoped.get('s')?.length !== 1) fail('scoping to the piece lost the cut inside it')
+
+  // Nested pieces are one piece: a hole in an inner group cuts the outer one's block.
+  const nested = [
+    block('cube', { id: 's', parentGroupId: 'outer' }),
+    block('cube', { id: 'h', hole: true, parentGroupId: 'inner' }),
+  ]
+  const NG = [{ id: 'outer', memberIds: ['s'] }, { id: 'inner', memberIds: ['h'], parentGroupId: 'outer' }]
+  if (cuttersByObject(nested, NG).get('s')?.length !== 1) fail('a hole in a nested piece did not cut the outer block')
+
+  // `loose` pairs by overlap alone, which is how the example builder finds the
+  // groups it is about to make — and is for nothing else.
+  if (cuttersByObject(loose, [], { loose: true }).get('s')?.length !== 1) {
+    fail('loose pairing did not report an overlapping, uncombined hole')
+  }
+
   // Far enough away that the boxes never meet, so no subtraction is even tried.
-  const apart = [block('cube', { id: 's' }), block('cube', { id: 'h', hole: true, position: [200, 10, 0] })]
-  if (cuttersByObject(apart).has('s')) fail('a hole 200 mm away was offered as a cutter')
+  const apart = [block('cube', inG({ id: 's' })), block('cube', inG({ id: 'h', hole: true, position: [200, 10, 0] }))]
+  if (cuttersByObject(apart, G).has('s')) fail('a hole 200 mm away was offered as a cutter')
 
   // A hole is never cut by another hole.
-  const two = [
-    block('cube', { id: 'h1', hole: true }),
-    block('cube', { id: 'h2', hole: true }),
-  ]
-  if (cuttersByObject(two).size) fail('one hole was set to cut another')
+  const two = [block('cube', inG({ id: 'h1', hole: true })), block('cube', inG({ id: 'h2', hole: true }))]
+  if (cuttersByObject(two, [{ id: 'g', memberIds: ['h1', 'h2'] }]).size) fail('one hole was set to cut another')
 
   // A scene with no holes in it does no work at all.
-  if (cuttersByObject([block('cube'), block('sphere')]).size) fail('a scene with no holes produced cutters')
+  if (cuttersByObject([block('cube'), block('sphere')], []).size) fail('a scene with no holes produced cutters')
 
   // Combining is what retires the ghost, and only for a hole.
   if (isFinished(block('cube', { hole: true }))) fail('an uncombined hole counted as finished')

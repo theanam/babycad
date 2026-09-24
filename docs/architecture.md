@@ -374,9 +374,17 @@ the file. Every caller keeps its old behaviour when sharing is off or refused.
 
 ### Cutting, and what it costs
 
-**The live cut is bounded, because `three-bvh-csg` is not.** A hole subtracts
-itself from every solid it overlaps, synchronously, on the main thread. That is
-fine for the shapes this app builds — hundreds or a few thousand triangles, a
+**A hole cuts only once it is combined, and only its own piece.** It used to cut
+whatever it overlapped, the moment it overlapped it — which on an imported
+model meant a fresh cut on every nudge, and which let a combined hole carve
+its way into the block next door. `cuttersByObject` now pairs a hole only with
+solids in the same root group; a hole in no group cuts nothing and is drawn as
+its ghost. The example builder is the one caller that pairs by overlap alone
+(`loose: true`), because it is discovering the groups it is about to make.
+
+**The cut at Combine is still bounded, because `three-bvh-csg` is not.** A hole
+subtracts itself from the solids in its piece, synchronously, on the main
+thread. That is fine for the shapes this app builds — hundreds or a few thousand triangles, a
 cut lands in a frame or two — and it is not fine for an imported model, because
 the cost is not linear in the triangle count. Measured against a hollow printed
 part, where the cutting block passes through a lot of thin wall:

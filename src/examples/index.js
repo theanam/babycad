@@ -870,7 +870,8 @@ export function buildExample(example) {
       const rb = find(b)
       if (ra !== rb) parent.set(ra, rb)
     }
-    for (const [solidId, holes] of cuttersByObject(objects)) {
+    // By overlap alone: the groups are what this loop is about to make.
+    for (const [solidId, holes] of cuttersByObject(objects, [], { loose: true })) {
       for (const hole of holes) union(solidId, hole.id)
     }
 

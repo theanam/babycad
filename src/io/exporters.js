@@ -42,7 +42,7 @@ async function buildExportScene(objects, groups) {
     root.add(node)
   }
 
-  const cutters = cuttersByObject(objects)
+  const cutters = cuttersByObject(objects, groups ?? [])
 
   for (const o of objects) {
     // A hole is a cutting tool, not a part. It shapes what it is combined with

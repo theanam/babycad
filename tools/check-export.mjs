@@ -120,8 +120,8 @@ for (const type of SWEPT) {
 
 console.log('\nevery example exports as a closed, properly joined solid…')
 for (const example of EXAMPLES) {
-  const { objects } = buildExample(example)
-  const cutters = cuttersByObject(objects)
+  const { objects, groups } = buildExample(example)
+  const cutters = cuttersByObject(objects, groups ?? [])
   let parts = 0
   let cut = 0
   for (const o of objects) {
