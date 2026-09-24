@@ -1029,7 +1029,7 @@ button:disabled { cursor: default; }
 /* copy / delete, pinned below the scroll */
 .props-foot {
   flex: none;
-  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
   padding: 12px 14px;
   border-top: 1px solid var(--line-soft);
 }
@@ -1447,3 +1447,40 @@ a.foot-btn, a.icon-btn { text-decoration: none; }
   color: var(--accent); background: var(--panel-2);
   padding: 1px 4px; border-radius: 4px;
 }
+
+/* Shown over a locked block in place of its handles: enough to explain why
+   there is nothing to take hold of, quiet enough not to become the subject. */
+.live-lock {
+  font: 800 11px/1 'JetBrains Mono', ui-monospace, monospace;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: #8A93A5;
+  background: rgba(11, 13, 17, 0.82);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 10px;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  user-select: none;
+}
+
+/* The tape measure's reading, on the line it measures. The big number is the
+   straight-line distance; the small one under it is the three sides of it. */
+.measure-tip {
+  font: 800 13px/1.25 'JetBrains Mono', ui-monospace, monospace;
+  color: #E4DBFF;
+  background: rgba(11, 13, 17, 0.88);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 6px 9px;
+  white-space: nowrap;
+  text-align: center;
+  transform: translate(-50%, -50%);
+  user-select: none;
+}
+.measure-tip em {
+  display: block; margin-top: 3px;
+  font-style: normal; font-size: 11px; font-weight: 600;
+  color: var(--muted);
+}
+
+.props-act.on { background: var(--accent-soft); color: var(--ink); }

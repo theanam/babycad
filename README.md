@@ -40,6 +40,8 @@ is a solid mesh a slicer will accept. It is only the *way in* that is simple.
   is a nicer object than one with a knife edge.
 - **Line up and flip.** Align brings a set of blocks' faces together; Mirror
   turns one block or a whole selection over, and exports the right way out.
+- **Lock what's finished**, and Align brings everything else to it.
+- **A tape measure**: press two points and read the distance.
 - **Words as solids.** Type them, pick a typeface — two bundled, a dozen more
   from Google Fonts — and they come out as raised lettering.
 - **Bring your own models.** Import an STL, OBJ or 3MF and build around it.
@@ -57,6 +59,8 @@ is a solid mesh a slicer will accept. It is only the *way in* that is simple.
 | Resize it | drag a corner handle, or type a size straight onto the box |
 | Turn it | swing one of the coloured balls, or type an angle onto the dial it leaves |
 | Flip it | switch on **Mirror** and tap an arrow plate — works on one block or many |
+| Hold it still | the padlock in the panel — Align then brings others to it |
+| Measure | **Measure** in the top bar, then press two places |
 | Turn the view | right-drag |
 | Slide the view | middle-drag, or Shift + right-drag |
 | Zoom | scroll — on a touchscreen, one finger turns and two pinch and slide |

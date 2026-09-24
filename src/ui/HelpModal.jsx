@@ -231,6 +231,23 @@ export default function HelpModal({ onClose, onShowWelcome }) {
           </section>
 
           <section>
+            <h3>Locking</h3>
+            <p>
+              The padlock at the bottom of the panel holds a block where it is — no handles, and
+              the arrow keys pass it by. It can still be picked, and <strong>Align</strong> brings
+              the others to it rather than moving it.
+            </p>
+          </section>
+
+          <section>
+            <h3>Measuring</h3>
+            <p>
+              <strong>Measure</strong> in the top bar: press two places, on a block or on bare
+              plate, and read the distance. A third press starts again.
+            </p>
+          </section>
+
+          <section>
             <h3>Typefaces</h3>
             <p>
               Words come in a <b>Typeface</b> of your choosing. Two ship with the app and are

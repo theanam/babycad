@@ -50,6 +50,11 @@ export function makeObject(type, position = [], color, params) {
     scale: [1, 1, 1],
     color: color ?? SHAPE_COLOR[type] ?? '#FFC93D',
     hole: false, // a hole cuts the solids it is combined with — see shapes/csg
+    // A locked block can be picked, looked at and lined up against, and cannot
+    // be moved, turned, resized or flipped. It is for the part of a build that
+    // is settled — the plate everything else is measured from — so that the
+    // fiddly work going on around it cannot nudge it.
+    locked: false,
     parentGroupId: null,
   }
 }
@@ -235,6 +240,16 @@ export const useScene = create((set, get) => ({
   // floor instead of landing on the copy already sitting there.
   pasteRun: null,
   mirroring: false, // the flip handles are showing instead of the box handles
+  /**
+   * The tape measure: the points picked so far, in world millimetres.
+   *
+   * Empty means nothing has been picked yet; one point means a measurement is
+   * half made and following the pointer; two means it is standing there to be
+   * read. A third press starts again, so the tool never has to be switched off
+   * and on between measurements.
+   */
+  measuring: false,
+  measurePoints: [],
   freeMove: false, // Alt held: temporarily ignore the snap grid
   aligning: false, // the align targets are showing instead of the box handles
   past: [],
@@ -346,7 +361,12 @@ export const useScene = create((set, get) => ({
    * an align target wants to sit to be visible.
    */
   toggleAlign() {
-    set((st) => ({ aligning: !st.aligning && st.selectedIds.length > 1, mirroring: false }))
+    set((st) => ({
+      aligning: !st.aligning && st.selectedIds.length > 1,
+      mirroring: false,
+      measuring: false,
+      measurePoints: [],
+    }))
   },
 
   /**
@@ -355,7 +375,38 @@ export const useScene = create((set, get) => ({
    * be showing.
    */
   toggleMirror() {
-    set((st) => ({ mirroring: !st.mirroring && st.selectedIds.length > 0, aligning: false }))
+    set((st) => ({
+      mirroring: !st.mirroring && st.selectedIds.length > 0,
+      aligning: false,
+      measuring: false,
+      measurePoints: [],
+    }))
+  },
+
+  /**
+   * The tape measure. Unlike aligning and flipping it is not about the
+   * selection at all — it measures between two places, whether or not there is
+   * anything at either of them — so it needs nothing picked and does not put
+   * the selection away when it opens.
+   */
+  toggleMeasure() {
+    set((st) => ({
+      measuring: !st.measuring,
+      measurePoints: [],
+      aligning: false,
+      mirroring: false,
+    }))
+  },
+
+  /** Take a point. The third one begins a fresh measurement. */
+  addMeasurePoint(point) {
+    set((st) => ({
+      measurePoints: st.measurePoints.length >= 2 ? [point] : [...st.measurePoints, point],
+    }))
+  },
+
+  clearMeasure() {
+    set({ measurePoints: [] })
   },
 
   setFreeMove(freeMove) {
@@ -609,6 +660,21 @@ export const useScene = create((set, get) => ({
     )
   },
 
+  /**
+   * The blocks in the selection that are free to move.
+   *
+   * Everything that transforms asks this rather than testing the flag itself,
+   * so there is one answer to what locking means and one place to change it.
+   */
+  movableSelection() {
+    return get().selectedObjects().filter((o) => !o.locked)
+  },
+
+  /** Is anything picked held down? Used to put the handles away and say why. */
+  lockedInSelection() {
+    return get().selectedObjects().filter((o) => o.locked)
+  },
+
   /** Live transform during a gizmo drag — deliberately outside the history. */
   stageTransform(patches) {
     set((st) => {
@@ -722,6 +788,9 @@ export const useScene = create((set, get) => ({
     const st = get()
     const sel = st.selectedObjects()
     if (sel.length < 2) return false
+    // `alignOffsets` already leaves out anything locked — a locked block is
+    // what the rest line up against — so nothing more is needed here than
+    // trusting it not to hand back an offset for one.
     const offsets = alignOffsets(sel, meshes, slot, mode, st.groups)
     if (!offsets.size) return false
 
@@ -768,6 +837,10 @@ export const useScene = create((set, get) => ({
     const st = get()
     const sel = st.selectedObjects()
     if (!sel.length) return false
+    // A flip moves every block in the selection, about the middle of all of
+    // them, so it cannot be done to only the free ones without taking the
+    // shape apart. With anything locked it is simply not done.
+    if (sel.some((o) => o.locked)) return false
     const { whole } = alignBounds(sel, meshes, st.groups)
     if (whole.isEmpty()) return false
 
@@ -828,6 +901,21 @@ export const useScene = create((set, get) => ({
     const sel = st.selectedObjects().filter((o) => Boolean(o.hole) !== hole)
     if (!sel.length) return
     st.apply(cmd.markHoles(sel.map((o) => ({ id: o.id, before: Boolean(o.hole), after: hole }))))
+  },
+
+  /**
+   * Lock or unlock what is picked.
+   *
+   * Locking is per block. Locking a combined thing locks every block in it,
+   * because the selection is the whole group anyway — there is no way to pick
+   * one piece of a combine and no way to move one either, so a lock on the
+   * group and a lock on all of its pieces are the same lock.
+   */
+  setLocked(locked) {
+    const st = get()
+    const sel = st.selectedObjects().filter((o) => Boolean(o.locked) !== locked)
+    if (!sel.length) return
+    st.apply(cmd.markLocked(sel.map((o) => ({ id: o.id, before: Boolean(o.locked), after: locked }))))
   },
 
   setColor(color) {

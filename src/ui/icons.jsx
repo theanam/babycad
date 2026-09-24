@@ -191,6 +191,21 @@ export const AlignIcon = (p) => (
     <rect x="8" y="14.5" width="7" height="4.5" rx="1.2" />
   </Svg>
 )
+/** A padlock. `open` draws the shackle swung clear, for the unlocked state. */
+export const LockIcon = ({ open, ...p }) => (
+  <Svg {...p}>
+    <rect x="5" y="11" width="14" height="9" rx="2" />
+    {open ? <path d="M8 11V8a4 4 0 0 1 7.5-2" /> : <path d="M8 11V8a4 4 0 0 1 8 0v3" />}
+  </Svg>
+)
+/** A tape between two points, with a tick at each end. */
+export const MeasureIcon = (p) => (
+  <Svg {...p}>
+    <path d="M4 18 L20 6" />
+    <path d="M2.5 15.5 L6.5 19.5" />
+    <path d="M17.5 4.5 L21.5 8.5" />
+  </Svg>
+)
 /** Flip it over: a shape and its reflection, either side of the plane. */
 export const MirrorIcon = (p) => (
   <Svg {...p}>

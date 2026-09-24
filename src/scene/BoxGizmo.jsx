@@ -129,6 +129,15 @@ const clampScale = (value) =>
 const READOUT_MS = 90
 // Handles hold this size on screen regardless of how far away the block is.
 // Kept small: zoomed out, a scene is mostly gizmo otherwise.
+/**
+ * How much every handle is taken in by, over and above whatever it was.
+ *
+ * `grabScale` carries the same number for the things you grab; this is for the
+ * few that are drawn rather than grabbed — the lift cone and the turn levers —
+ * which would be trimmed twice if they went through it.
+ */
+const GIZMO_TRIM = 0.7
+
 const HANDLE_SCREEN = 0.017
 
 /**
@@ -270,6 +279,7 @@ export default function BoxGizmo() {
   // The box's size along each axis as of the last frame, so a typed number
   // has something to be measured against.
   const liveSize = useRef([0, 0, 0])
+  const lockedRef = useRef(false)
   const [editing, setEditing] = useState(null)
 
   /**
@@ -333,6 +343,10 @@ export default function BoxGizmo() {
   const nearGap = useRef(null)
 
   const heldDial = useRef(null)
+  // The lever the pointer is over, if any. A hover shows the dial so you can
+  // see what you are about to turn about; moving off puts it away again,
+  // unless a turn was actually made, in which case `heldDial` keeps it up.
+  const hoverDial = useRef(null)
   /** The turn currently on show, so typing starts from the number being read. */
   const liveTurn = useRef(0)
   // The ref is what the frame loop reads; the state is what mounts the readout
@@ -503,6 +517,33 @@ export default function BoxGizmo() {
 
   const multi = selectedIds.length > 1
 
+  /**
+   * Is anything picked locked?
+   *
+   * If so the handles stand down altogether rather than moving only the free
+   * blocks: the box is drawn around the whole selection, so handles that moved
+   * some of what they enclose and not the rest would be lying about their own
+   * reach. The outline and the measurements stay — a locked block is still
+   * worth looking at and lining up against — and a quiet chip says why there
+   * is nothing to take hold of.
+   */
+  const locked = useScene((s) => {
+    const picked = new Set(s.selectedIds)
+    return s.objects.some((o) => picked.has(o.id) && o.locked)
+  })
+  // The frame loop runs outside React's render, so it reads the flag from a
+  // ref rather than closing over a value that may be a frame out of date.
+  lockedRef.current = locked
+  // Locking is a decision, not a camera move: it has to show on the next frame
+  // rather than whenever the visibility pass next comes round.
+  useEffect(() => {
+    occludeAt.current = 0
+    if (locked) {
+      hoverDial.current = null
+      hold(null)
+    }
+  }, [locked, hold])
+
   // The shape of the one block picked, if it is one block. Which handles are
   // worth drawing depends on what its shape can tell apart.
   const soleType = useScene((s) =>
@@ -561,6 +602,10 @@ export default function BoxGizmo() {
   const begin = (kind, extra, event) => {
     const selected = useScene.getState().selectedObjects()
     if (!selected.length) return
+    // The handles are already hidden when anything is locked; this is the
+    // belt to that pair of braces, for a pointer that was already down when
+    // the lock went on.
+    if (selected.some((o) => o.locked)) return
     // Whatever is about to happen, the dial standing there is about to be
     // either out of date or beside the point. `startTurn` claims it back.
     hold(null)
@@ -748,7 +793,7 @@ export default function BoxGizmo() {
       event
     )
     // Set after `begin`, which clears it: this is the turn whose dial stays.
-    hold({ radius, slot: def.slot, axis: def.axis })
+    hold({ radius, slot: def.slot, axis: def.axis, color: def.color, along: def.along })
   }
 
   /* ---------------------------------------------------------- drag move -- */
@@ -1089,9 +1134,17 @@ export default function BoxGizmo() {
     if (dial) {
       const d = drag.current
       const turning = d?.kind === 'rotate'
-      const held = turning ? { radius: d.dialRadius } : heldDial.current
-      dial.visible = Boolean(held)
-      if (held) dial.scale.setScalar(held.radius)
+      const shown = turning ? null : heldDial.current ?? hoverDial.current
+      dial.visible = turning || Boolean(shown)
+      if (turning) dial.scale.setScalar(d.dialRadius)
+      else if (shown) {
+        // Placed each frame rather than once, so the dial keeps up with a box
+        // that is being turned or resized under it.
+        const axis = new THREE.Vector3(...shown.axis).applyQuaternion(f.quat).normalize()
+        dial.quaternion.setFromUnitVectors(UNIT_Z, axis)
+        for (const child of dial.children) child.material.color.set(shown.color)
+        dial.scale.setScalar((shown.along === 'z' ? f.half.z : f.half.x) + k * 4)
+      }
     }
 
     // While a handle is being dragged it lights up and grows, and every other
@@ -1114,7 +1167,11 @@ export default function BoxGizmo() {
         node.material.opacity = quiet(on) ?? 0.72
       } else if (lift) {
         node.position.set(0, topY + k * 2.2, 0)
-        node.scale.setScalar(k * (on ? 1.35 : 1))
+        // Taken in with everything else. The lift cone is not a grab target in
+        // the same sense as a corner — you can take hold of it anywhere along
+        // its silhouette — so it is trimmed directly rather than through
+        // `grabScale`, which would take it in twice over.
+        node.scale.setScalar(k * (on ? 1.35 : 1) * GIZMO_TRIM)
         node.material.color.set(on ? '#C8B6FF' : '#7C4DFF')
         node.material.opacity = quiet(on) ?? 0.9
       } else if (turn) {
@@ -1122,7 +1179,8 @@ export default function BoxGizmo() {
         const start = node.userData.along === 'z' ? f.half.z : f.half.x
         const end = start + k * 4
         const [stick, ball, target] = node.children
-        stick.scale.set(k * (on ? 0.12 : 0.085), end - start, k * (on ? 0.12 : 0.085))
+        const thin = (on ? 0.12 : 0.085) * GIZMO_TRIM
+        stick.scale.set(k * thin, end - start, k * thin)
         stick.position.y = (start + end) / 2
         // One radius drives the ball and its hit target, so what can be
         // grabbed is exactly the ball that can be seen — never a halo of dead
@@ -1200,6 +1258,11 @@ export default function BoxGizmo() {
         tagOut.set(sign[0], sign[1], sign[2]).applyQuaternion(f.quat).normalize()
         return out.addScaledVector(tagOut, k * 2)
       }
+
+      // The chip that says why there is nothing to grab, over the block where
+      // the handles would otherwise be.
+      const lockGroup = tagGroups.current.lock
+      if (lockGroup) lockGroup.position.set(f.center.x, f.center.y + topY + k * 2.4, f.center.z)
 
       // The words editor sits where the readout sits: over the block, clear of
       // its top.
@@ -1361,6 +1424,15 @@ export default function BoxGizmo() {
 
       for (const [key, node] of Object.entries(handles.current)) {
         if (!node || key === 'shell' || key === 'dial') continue
+        // A locked block has no handles at all, and invisible is also
+        // unhittable — R3F does not raycast what it does not draw. It is
+        // settled here rather than every frame because this is the one place
+        // that owns `visible`: written in both, the two took turns, and the
+        // handles blinked at the rate this is throttled to.
+        if (lockedRef.current) {
+          node.visible = false
+          continue
+        }
         // A lever is grabbed by the ball on its end, not by the stick.
         const grabbable = node.userData.turn ? node.children[1] : node
         grabbable.getWorldPosition(reachPoint)
@@ -1426,6 +1498,12 @@ export default function BoxGizmo() {
             ref={bind(def.key, { turn: def.key, along: def.along, color: def.color })}
             rotation={def.rotation}
             onPointerDown={(e) => startTurn(def, e)}
+            onPointerOver={() => {
+              if (!drag.current) hoverDial.current = def
+            }}
+            onPointerOut={() => {
+              if (hoverDial.current === def) hoverDial.current = null
+            }}
           >
             <mesh renderOrder={2}>
               <cylinderGeometry args={[1, 1, 1, 6]} />
@@ -1547,6 +1625,18 @@ export default function BoxGizmo() {
       <lineSegments ref={gapLine} geometry={gapGeometry} visible={false} raycast={() => null}>
         <lineBasicMaterial color="#C8B6FF" transparent opacity={0.95} depthTest={false} />
       </lineSegments>
+
+      {locked && (
+        <group
+          ref={(g) => {
+            tagGroups.current.lock = g
+          }}
+        >
+          <Html zIndexRange={[25, 15]} style={{ pointerEvents: 'none' }}>
+            <div className="live-lock">Locked</div>
+          </Html>
+        </group>
+      )}
 
       {(
         <group

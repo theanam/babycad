@@ -7,6 +7,7 @@ import {
   GithubIcon,
   HelpIcon,
   ImportIcon,
+  MeasureIcon,
   OpenIcon,
   PlusIcon,
   RedoIcon,
@@ -26,6 +27,9 @@ export default function TopBar({
   onHelp,
   variablesOpen,
 }) {
+  const measuring = useScene((s) => s.measuring)
+  const toggleMeasure = useScene((s) => s.toggleMeasure)
+
   const undo = useScene((s) => s.undo)
   const redo = useScene((s) => s.redo)
   const canUndo = useScene((s) => s.past.length > 0)
@@ -105,6 +109,15 @@ export default function TopBar({
         >
           <ImportIcon size={18} stroke="#8A93A5" />
           Import
+        </button>
+        <button
+          className={`bar-btn${measuring ? ' on' : ''}`}
+          onClick={toggleMeasure}
+          aria-pressed={measuring}
+          title="Measure between two points"
+        >
+          <MeasureIcon size={18} stroke={measuring ? '#fff' : '#8A93A5'} />
+          Measure
         </button>
 
         <div className="bar-save" ref={saveWrap}>

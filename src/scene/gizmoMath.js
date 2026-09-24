@@ -127,5 +127,16 @@ const COARSE_POINTER =
     ? window.matchMedia('(pointer: coarse)')
     : null
 
+/**
+ * Everything drawn as a handle, taken in by this much.
+ *
+ * The handles were sized when the plate was 200 mm and a block filled a good
+ * part of the view. They are furniture, not the work, and at the old size a
+ * selected block was wearing more gizmo than block. Seven tenths keeps every
+ * one of them comfortably hittable and hands the view back to what is being
+ * built.
+ */
+const GIZMO_TRIM = 0.7
+
 /** Multiplier on every handle you can hit: full for fingers, trimmed for a cursor. */
-export const grabScale = () => (COARSE_POINTER?.matches ? 1 : 0.62)
+export const grabScale = () => (COARSE_POINTER?.matches ? 1 : 0.62) * GIZMO_TRIM

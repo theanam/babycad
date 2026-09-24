@@ -3,6 +3,7 @@ import { Edges, Outlines } from '@react-three/drei'
 import { keyOfParams } from '../shapes'
 import { acquireShape, isFinished, releaseShape } from '../shapes/csg'
 import { registerMesh } from './meshRegistry'
+import { useScene } from './sceneStore'
 import { useFonts } from '../shapes/fontStore'
 import { dragBus } from './dragBus'
 
@@ -90,6 +91,10 @@ function SceneObject({ object, selected, onSelect, holes, castShadow = true }) {
         // something dragged it across the plate instead.
         const button = e.button ?? e.nativeEvent?.button ?? 0
         if (button !== 0) return
+        // With the tape measure out, a press on a block is a point on that
+        // block and nothing else. Left to select, every measurement would also
+        // pick something up and swap the panel out from under you.
+        if (useScene.getState().measuring) return
         e.stopPropagation()
 
         // Two quick presses on the same spot open a text block for editing.

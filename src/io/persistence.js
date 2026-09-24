@@ -157,6 +157,9 @@ export function migrate(scene) {
       // Anything older than v5 predates holes, so `hole` is simply absent and
       // every block comes back solid — which is what it was.
       hole: o.hole === true,
+      // Older files predate locking, so every block comes back free to move,
+      // which is what it was.
+      locked: o.locked === true,
       parentGroupId: o.parentGroupId ?? null,
     }))
 

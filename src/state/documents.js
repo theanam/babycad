@@ -53,7 +53,7 @@ const captureSession = () => {
 const restoreSession = (session) => {
   // Aligning is cleared on the way in: its targets belong to a selection in
   // the build that was showing a moment ago.
-  useScene.setState({ ...emptySession(), ...session, aligning: false, mirroring: false })
+  useScene.setState({ ...emptySession(), ...session, aligning: false, mirroring: false, measuring: false, measurePoints: [] })
 }
 
 /**

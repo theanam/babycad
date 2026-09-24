@@ -13,7 +13,7 @@
     "check:align": "node tools/check-align.mjs",
     "check:holes": "node tools/check-holes.mjs",
     "check:reseat": "node tools/check-reseat.mjs",
-    "check": "npm run check:shapes && npm run check:resize && npm run check:examples && npm run check:align && npm run check:holes && npm run check:reseat && npm run check:export && npm run check:fonts && npm run check:clipboard && npm run check:mirror && npm run check:neighbour && npm run check:marquee && npm run check:expression && npm run check:variables",
+    "check": "npm run check:shapes && npm run check:resize && npm run check:examples && npm run check:align && npm run check:holes && npm run check:reseat && npm run check:export && npm run check:fonts && npm run check:clipboard && npm run check:mirror && npm run check:neighbour && npm run check:marquee && npm run check:expression && npm run check:variables && npm run check:lock",
     "shots": "node tools/render-examples.mjs",
     "check:export": "node tools/check-export.mjs",
     "check:fonts": "node tools/check-fonts.mjs",
@@ -22,7 +22,8 @@
     "check:neighbour": "node tools/check-neighbour.mjs",
     "check:marquee": "node tools/check-marquee.mjs",
     "check:expression": "node tools/check-expression.mjs",
-    "check:variables": "node tools/check-variables.mjs"
+    "check:variables": "node tools/check-variables.mjs",
+    "check:lock": "node tools/check-lock.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^9.122.0",

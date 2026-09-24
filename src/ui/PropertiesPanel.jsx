@@ -4,7 +4,7 @@ import { AXES } from '../scene/axes'
 import { useLive } from '../scene/liveStore'
 import { angleStepFor, COLOR_NAME, PALETTE, SNAP } from '../constants'
 import { getShapeDef, SHAPE_LABEL } from '../shapes'
-import { ColorDot, CombineIcon, CopyIcon, ResetIcon, SplitIcon, TrashIcon } from './icons'
+import { ColorDot, CombineIcon, CopyIcon, LockIcon, ResetIcon, SplitIcon, TrashIcon } from './icons'
 import ParamMenu from './ParamMenu'
 import { useUI } from '../state/ui'
 import { meshInfo } from '../shapes/meshStore'
@@ -415,6 +415,7 @@ export default function PropertiesPanel() {
   const snapStep = useScene((s) => s.snapStep)
   const setColor = useScene((s) => s.setColor)
   const setHole = useScene((s) => s.setHole)
+  const setLocked = useScene((s) => s.setLocked)
   const duplicate = useScene((s) => s.duplicate)
   const deleteSelection = useScene((s) => s.deleteSelection)
   const combine = useScene((s) => s.combine)
@@ -453,6 +454,7 @@ export default function PropertiesPanel() {
   const color = allSame((o) => o.color) ? primary.color : null
   // A mixed selection reads as neither, and picking either makes it all one.
   const isHole = allSame((o) => Boolean(o.hole)) ? Boolean(primary.hole) : null
+  const isLocked = allSame((o) => Boolean(o.locked)) ? Boolean(primary.locked) : null
   // A hole cuts the moment it overlaps something; combining is what tidies the
   // ghost away afterwards. Worth saying, since nothing on screen suggests
   // there is a second step available.
@@ -716,6 +718,15 @@ export default function PropertiesPanel() {
       </div>
 
       <div className="props-foot">
+        <button
+          className={`props-act${isLocked ? ' on' : ''}`}
+          onClick={() => setLocked(!isLocked)}
+          aria-pressed={Boolean(isLocked)}
+          title={isLocked ? 'Locked — press to free it' : 'Lock it where it is'}
+        >
+          <LockIcon size={20} stroke={isLocked ? '#FFC93D' : '#C3CAD9'} open={!isLocked} />
+          {isLocked ? 'Locked' : 'Lock'}
+        </button>
         <button className="props-act" onClick={duplicate} title="Make another one just like this">
           <CopyIcon size={20} stroke="#C3CAD9" />
           Copy

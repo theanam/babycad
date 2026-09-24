@@ -63,6 +63,7 @@ const AXIS_KEY = ['x', 'y', 'z']
 /**
  * Plaque size and stand-off, both held constant on screen.
  *
+ * Taken in by the same seven tenths as every other handle — see `grabScale`.
  * A plaque reaches 1.35 of its own scale to either side, so at 0.019 it is
  * 0.026 wide from the middle — about the size of a fingertip on a phone and a
  * comfortable target with a mouse, without being a slab across the view. The
@@ -74,7 +75,7 @@ const AXIS_KEY = ['x', 'y', 'z']
  * another — so it can stay small and keep them beside the block they belong
  * to rather than floating off across the plate.
  */
-const PLAQUE_SCREEN = 0.019
+const PLAQUE_SCREEN = 0.019 * 0.7
 const GAP_SCREEN = 0.09
 const HOVER_GROW = 1.25
 

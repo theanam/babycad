@@ -159,7 +159,10 @@ export default function App() {
 
   const nudge = useCallback((key, big) => {
     const store = useScene.getState()
-    const sel = store.selectedObjects()
+    // Only what is free to move. A locked block stays where it is, and a
+    // selection that is entirely locked does nothing at all — the arrow keys
+    // are a transform like any other.
+    const sel = store.movableSelection()
     if (!sel.length || !viewport.camera) return false
 
     // The camera's heading, flattened onto the plate and snapped to an axis.
@@ -255,6 +258,10 @@ export default function App() {
         // clears the selection once there is no mode left to leave.
         if (store.aligning) store.toggleAlign()
         else if (store.mirroring) store.toggleMirror()
+        // Escape drops a half-made measurement first, and puts the tape away
+        // only once there is nothing half-made to drop.
+        else if (store.measuring && store.measurePoints.length) store.clearMeasure()
+        else if (store.measuring) store.toggleMeasure()
         else store.clearSelection()
       }
     }

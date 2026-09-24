@@ -73,6 +73,13 @@ export function alignBounds(objects, meshes, groups = []) {
 /**
  * How far each block has to travel to bring the selection into line.
  *
+ * **A locked block is what the others line up against.** Normally the edge
+ * everything meets at comes from the selection as a whole, which is fair when
+ * nothing has been singled out. Lock one, though, and you have said which one
+ * is right: the edge then comes from the locked blocks alone and only the free
+ * ones travel. That is the whole use of locking something and then aligning to
+ * it — a baseplate you have finished with, and a row of parts brought to it.
+ *
  * @param slot  internal axis index — 0 is x, 1 is up, 2 is depth
  * @param mode  one of ALIGN_MODES
  * @returns  Map of object id to the distance it moves along that axis. Empty
@@ -85,9 +92,20 @@ export function alignOffsets(objects, meshes, slot, mode, groups = []) {
   // against itself.
   if (units.length < 2) return new Map()
 
-  const target = edgeOf(whole, axis, mode)
+  const held = units.filter((u) => u.members.some((o) => o.locked))
+  const free = units.filter((u) => !u.members.some((o) => o.locked))
+  // Everything held down: there is nothing left that may move.
+  if (held.length && !free.length) return new Map()
+
+  let anchor = whole
+  if (held.length) {
+    anchor = new THREE.Box3().makeEmpty()
+    for (const u of held) anchor.union(u.box)
+  }
+
+  const target = edgeOf(anchor, axis, mode)
   const offsets = new Map()
-  for (const { members, box } of units) {
+  for (const { members, box } of held.length ? free : units) {
     const delta = target - edgeOf(box, axis, mode)
     if (Math.abs(delta) < 1e-6) continue
     for (const o of members) offsets.set(o.id, delta)

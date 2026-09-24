@@ -152,16 +152,6 @@ export default function ViewTools() {
       {/* Nine dots with nothing written on them is a puzzle; this is the key
           to it, and it sits here rather than in the scene so it never covers
           the blocks it's talking about. */}
-      {mirroring && any && (
-        <div className="tools-legend" role="note">
-          Tap an arrow plate to flip what&apos;s picked over —{' '}
-          <i style={{ color: '#FF5A47' }}>X</i> left to right,{' '}
-          <i style={{ color: '#35C46B' }}>Y</i> front to back,{' '}
-          <i style={{ color: '#2E7DF6' }}>Z</i> top to bottom. Several blocks flip as one, so
-          they swap sides too.
-        </div>
-      )}
-
       {aligning && multi && (
         <div className="tools-legend" role="note">
           Each row of dots is one axis — <i style={{ color: '#FF5A47' }}>X</i>,{' '}

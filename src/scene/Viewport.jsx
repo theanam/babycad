@@ -7,6 +7,7 @@ import ErrorBoundary from '../ui/ErrorBoundary'
 import BoxGizmo from './BoxGizmo'
 import AlignGizmo from './AlignGizmo'
 import MirrorGizmo from './MirrorGizmo'
+import MeasureTool from './MeasureTool'
 import { OrbitCamera } from './orbit'
 import { useScene } from './sceneStore'
 import { HOME_CAMERA, viewport } from './viewportApi'
@@ -207,8 +208,12 @@ function Lighting() {
 function Handles() {
   const aligning = useScene((s) => s.aligning)
   const mirroring = useScene((s) => s.mirroring)
+  const measuring = useScene((s) => s.measuring)
   const any = useScene((s) => s.selectedIds.length > 0)
   const multi = useScene((s) => s.selectedIds.length > 1)
+  // The tape measure takes the whole scene's presses, so the handles stand
+  // aside for it — a corner handle in the way is a place you cannot measure.
+  if (measuring) return <MeasureTool />
   if (mirroring && any) return <MirrorGizmo />
   return aligning && multi ? <AlignGizmo /> : <BoxGizmo />
 }
