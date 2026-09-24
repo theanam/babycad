@@ -66,11 +66,27 @@ export function buildGeometry(type, params) {
     geometry = nothingToDraw()
   }
 
+  return measured(geometry)
+}
+
+/**
+ * Give a geometry its bounds, and never infinite ones.
+ *
+ * An empty geometry measures as a box from +infinity to -infinity, and that
+ * spreads: anything that reads the box gets NaN out of it — `restingHeight`
+ * turns it into a NaN position, and a block with a NaN transform takes the
+ * renderer with it. Every arrangement that reads bounds is downstream of this,
+ * so the infinity is stopped here rather than guarded against in each of them.
+ *
+ * Exported because there are two ways to arrive at an empty geometry and they
+ * are in different files: a builder that produced nothing (just above), and a
+ * hole big enough to swallow the solid it is cutting, which leaves a cut with
+ * no triangles in it at all (`shapes/csg`). Both have to be pinned, and a
+ * second copy of the reasoning is a second chance to fix only one of them.
+ */
+export function measured(geometry) {
   geometry.computeBoundingBox()
   geometry.computeBoundingSphere()
-  // An empty geometry measures as a box from +infinity to -infinity, and that
-  // spreads: `restingHeight` reads it, the position becomes NaN, and a block
-  // with a NaN transform takes the renderer with it. Pin it to a point.
   const box = geometry.boundingBox
   if (!box || !Number.isFinite(box.min.x) || !Number.isFinite(box.max.x)) {
     box?.min.set(0, 0, 0)

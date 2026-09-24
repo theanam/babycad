@@ -171,5 +171,32 @@ console.log('\na hole right through, and a round one…')
   releaseShape(cut)
 }
 
+/*
+ * A hole big enough to swallow the solid leaves a cut with no triangles in it,
+ * and an empty geometry measures as a box from +infinity to -infinity. Every
+ * arrangement in the app reads that box — align, the clearance readout, the
+ * gizmo's frame — and the first sum any of them does on it is NaN, which ends
+ * up in a transform and takes the renderer with it. It has to come back finite.
+ */
+console.log('\nand a hole that swallows the block leaves a finite box…')
+{
+  const solid = block('cube')
+  const swallow = block('cube', { hole: true, params: { width: 60, height: 60, depth: 60 } })
+  const cut = acquireShape(solid, [swallow])
+  const box = cut.boundingBox
+  if (!box) fail('the swallowed cube came back with no bounding box at all')
+  else if (![box.min.x, box.min.y, box.min.z, box.max.x, box.max.y, box.max.z].every(Number.isFinite)) {
+    fail(`the swallowed cube's box is not finite: ${box.min.toArray()} .. ${box.max.toArray()}`)
+  } else if (!Number.isFinite(cut.boundingSphere?.radius)) {
+    fail(`the swallowed cube's bounding sphere is ${cut.boundingSphere?.radius}`)
+  } else {
+    // And the sum align would do with it has to be a number.
+    const centre = (box.min.x + box.max.x) / 2
+    if (!Number.isFinite(centre)) fail('the centre of the swallowed cube is NaN')
+    else console.log('  ok  nothing left, and the box is still a number')
+  }
+  releaseShape(cut)
+}
+
 console.log(problems ? `\n${problems} problem(s)` : '\nall clear')
 process.exitCode = problems ? 1 : 0

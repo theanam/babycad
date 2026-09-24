@@ -23,7 +23,7 @@
  */
 import * as THREE from 'three'
 import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg'
-import { acquireGeometry, releaseGeometry } from './geometryCache'
+import { acquireGeometry, measured, releaseGeometry } from './geometryCache'
 import { keyOfParams } from './index'
 import { onFaceLoaded } from './fontStore'
 
@@ -118,9 +118,11 @@ function buildCut(object, holes) {
     result = cut.geometry
   }
 
-  result.computeBoundingBox()
-  result.computeBoundingSphere()
-  return result
+  // A hole can be bigger than the thing it cuts, and then there is nothing
+  // left: an empty geometry, whose box measures from +infinity to -infinity.
+  // Align, the clearance readout and the gizmo all read that box, and the
+  // first arithmetic any of them does on it is NaN. See `measured`.
+  return measured(result)
 }
 
 /**
