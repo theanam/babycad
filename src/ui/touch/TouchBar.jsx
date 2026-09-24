@@ -11,7 +11,7 @@ import { IsoIcon, MeasureIcon, ShapesIcon, SnapIcon } from '../icons'
  * the thumb and a menu drops down away from it.
  *
  * Deliberately not contextual. A bar whose buttons move when a block is
- * selected costs a child the one thing a toolbar is for, which is knowing
+ * selected costs a beginner the one thing a toolbar is for, which is knowing
  * where the button was last time. Everything to do with the selection is in
  * the sheet that appears above this bar instead.
  */
@@ -23,7 +23,7 @@ export default function TouchBar({ open, onOpen }) {
 
   // Four, and they keep their words on a phone: the type comes down in
   // styles/touch.css rather than the labels coming off, because a row of bare
-  // glyphs is a puzzle and this is a tool for children.
+  // glyphs is a puzzle, and this is somebody's first CAD program.
   const item = (id, label, icon, { on = false, onClick } = {}) => (
     <button
       className={`touchbar-btn${on ? ' on' : ''}`}

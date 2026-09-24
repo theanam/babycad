@@ -30,7 +30,7 @@ const SHORTCUTS = [
  * The same sheet, for a device with no keyboard and no mouse buttons.
  *
  * Not a translation of the shortcut list — most of it has no touch equivalent
- * and pretending otherwise would waste a child's time. These are the gestures
+ * and pretending otherwise would waste the reader's time. These are the gestures
  * that exist, including the two that replace things a finger cannot do: the
  * "pick more" switch standing in for Shift-click, and the plain fact that a
  * selection box has to give way to the one-finger drag that turns the view.

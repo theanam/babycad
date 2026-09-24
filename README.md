@@ -4,8 +4,9 @@
 
 # BabyCAD
 
-**3D modelling for kids, in the browser.** Drop shapes on a 400 mm plate, give
-them real millimetres, and take the result away as an STL you can print.
+**3D modelling for absolute beginners, in the browser.** Drop shapes on a
+400 mm plate, give them real millimetres, and take the result away as an STL
+you can print.
 
 [**Open BabyCAD →**](https://theanam.github.io/babycad/)
 
@@ -17,13 +18,14 @@ No account. No cloud. Nothing you build ever leaves your device.
 
 ## What it is
 
-Most CAD is built for people who already know CAD. BabyCAD is for a child who
-wants a thing — a name tag, a phone stand, a die with real pips — and a printer
-in the corner of the room.
+Most CAD is built for people who already know CAD. BabyCAD is for somebody who
+has never opened one and wants a thing — a name tag, a phone stand, a die with
+real pips — and has a printer in the corner of the room.
 
 It is a real modelling tool underneath. Everything is in millimetres, every
 shape keeps its own numbers rather than a scale multiplier, and what comes out
-is a solid mesh a slicer will accept. It is only the *way in* that is simple.
+is a solid mesh a slicer will accept. It is only the *way in* that is simple —
+which is what makes it a reasonable first CAD program at any age.
 
 - **Shapes with numbers, not just handles.** Drag a cube wider and its Width
   says 30 mm. Type 30 mm and it does the same thing. A tube has a radius, a
