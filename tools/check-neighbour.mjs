@@ -37,6 +37,27 @@ const block = (position, size = [20, 20, 20], visible = true) => {
   return mesh
 }
 
+/**
+ * A block that is switched on and draws nothing: an imported model whose
+ * triangles are not in the store, or any shape whose builder threw.
+ *
+ * Its box is a point rather than empty, exactly as `shapes/geometryCache`
+ * pins it — leaving it at infinity would put NaN into `restingHeight` and take
+ * the renderer with it. That pinned point is what used to read as a perfectly
+ * good neighbour standing on bare plate.
+ */
+const ghost = (position) => {
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3))
+  geometry.computeBoundingBox()
+  geometry.boundingBox.min.set(0, 0, 0)
+  geometry.boundingBox.max.set(0, 0, 0)
+  const mesh = new THREE.Mesh(geometry)
+  mesh.position.set(...position)
+  mesh.updateMatrixWorld()
+  return mesh
+}
+
 const scene = (spec) => {
   const objects = []
   const meshes = new Map()
@@ -108,6 +129,26 @@ console.log('\nand it picks the right neighbour…')
   const past = nearestNeighbour(['a'], hidden.objects, hidden.meshes)
   if (past?.id !== 'real') fail(`measured to a block nobody can see — got ${past?.id}`)
   else console.log('  ok  a block that is not drawn is not measured to')
+
+  // Switched on and drawing nothing is not the same as switched off, and it
+  // used to slip through: "54 mm to the model", with the line running out to
+  // bare plate. An imported model whose triangles did not survive a refresh is
+  // how one of these turns up; a builder that threw is the other.
+  const withGhost = scene([
+    ['a', 'cube', [0, 10, 0]],
+    ['real', 'cube', [80, 10, 0]],
+  ])
+  withGhost.objects.splice(1, 0, { id: 'empty', type: 'model' })
+  withGhost.meshes.set('empty', ghost([40, 10, 0]))
+  const skipped = nearestNeighbour(['a'], withGhost.objects, withGhost.meshes)
+  if (skipped?.id !== 'real') {
+    fail(`measured to a block with no triangles in it — got ${skipped?.id}`)
+  } else console.log('  ok  a block that draws nothing is not measured to')
+
+  // And moving the ghost itself has nothing to measure from.
+  const fromGhost = nearestNeighbour(['empty'], withGhost.objects, withGhost.meshes)
+  if (fromGhost) fail('a block with no triangles was measured *from*')
+  else console.log('  ok  nor measured from')
 
   // Several moved at once are one box, so the gap is to the outside of them.
   const many = scene([

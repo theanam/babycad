@@ -10,7 +10,7 @@
  */
 import { SCENE_VERSION } from '../constants'
 import { getShapeDef, normalizeParams } from '../shapes'
-import { adoptMeshes, meshesFor } from '../shapes/meshStore'
+import { adoptMeshes, hasMesh, meshesFor } from '../shapes/meshStore'
 import { resolvePatches, sanitizeVariables } from '../scene/variables'
 
 const SESSION_KEY = 'babycad.session.v1'
@@ -58,14 +58,67 @@ export function writeSession(snapshot) {
   writeJSON(SESSION_KEY, snapshot)
 }
 
-/** The tabs from last time, each build brought up to the current schema. */
+/**
+ * Drop blocks whose imported model did not survive the refresh.
+ *
+ * The session cache carries objects, groups and variables — not an imported
+ * model's triangles, which are in `shapes/meshStore` beside the scene and are
+ * megabytes rather than kilobytes. localStorage has a few megabytes for
+ * everything, so putting them in would not save one big build and would take
+ * the whole cache down with it when it overflowed. The file is where a model
+ * lives; the session cache has never been the filing cabinet.
+ *
+ * What it must not do is bring the block back without it. A model with no
+ * triangles builds as `nothingToDraw()`, which is a real object, visible,
+ * selectable, and drawing nothing — a ghost that the clearance readout
+ * measures to, Align lines things up against and a drag box catches. It cannot
+ * be drawn, exported or cut with, and nothing anybody does will bring its
+ * triangles back, so it is not a block any more. It goes, and the count goes
+ * back so somebody can be told why.
+ *
+ * Memberships go with it, or a combine is left holding an id for a block that
+ * is not there.
+ */
+export function dropGhostModels(snapshot) {
+  let dropped = 0
+  const docs = (snapshot?.docs ?? []).map((d) => {
+    const objects = d.scene?.objects ?? []
+    const gone = new Set(
+      objects.filter((o) => o?.type === 'model' && !hasMesh(o?.params?.mesh)).map((o) => o.id)
+    )
+    if (!gone.size) return d
+    dropped += gone.size
+    return {
+      ...d,
+      scene: {
+        ...d.scene,
+        objects: objects.filter((o) => !gone.has(o.id)),
+        groups: (d.scene.groups ?? [])
+          .map((g) => ({ ...g, memberIds: (g.memberIds ?? []).filter((id) => !gone.has(id)) }))
+          .filter((g) => g.memberIds.length > 1),
+      },
+    }
+  })
+  return { snapshot: snapshot ? { ...snapshot, docs } : snapshot, dropped }
+}
+
+/**
+ * The tabs from last time, each build brought up to the current schema.
+ *
+ * Returns `{ session, droppedModels }` — the second being how many imported
+ * blocks could not come back, which is worth saying out loud rather than
+ * leaving as a gap in the build.
+ */
 export function readSession() {
   const saved = readJSON(SESSION_KEY, null)
   const docs = (saved?.docs ?? [])
     .map((d) => ({ ...d, scene: migrate(d.scene) }))
     .filter((d) => d.scene)
-  if (!docs.length) return null
-  return { activeId: saved.activeId, docs }
+  if (!docs.length) return { session: null, droppedModels: 0 }
+  // After `migrate`, which is what would have adopted any triangles the cache
+  // did carry — so this asks the store only once it is as full as it will get.
+  const { snapshot, dropped } = dropGhostModels({ activeId: saved.activeId, docs })
+  return { session: snapshot, droppedModels: dropped }
 }
 
 /**

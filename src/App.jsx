@@ -96,8 +96,19 @@ export default function App() {
     started.current = true
 
     const store = useDocs.getState()
-    const session = readSession()
+    const { session, droppedModels } = readSession()
     let restored = store.restore(session ?? {})
+    // An imported model's triangles are far too big for the session cache and
+    // live in the build's file instead, so a refresh cannot bring one back —
+    // see io/persistence. Saying so beats leaving a hole in the build.
+    if (droppedModels) {
+      toast(
+        droppedModels > 1
+          ? `${droppedModels} imported models couldn't come back after the refresh — open the build's file for those`
+          : "An imported model couldn't come back after the refresh — open the build's file for it",
+        'warn'
+      )
+    }
 
     // First run since builds stopped living in the browser: whatever was in
     // the old library opens as tabs, so nothing is stranded somewhere the app

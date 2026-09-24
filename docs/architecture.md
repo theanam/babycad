@@ -272,7 +272,19 @@ Matching the spec's v1 boundary:
   *threaded hole* is waiting on: the screw generator makes an external thread,
   and cutting a matching internal one out of a block needs a real subtraction.
 - **The undo stack resets on refresh.** The *build* doesn't: it autosaves to
-  localStorage and comes back. That's the split the spec asks for.
+  localStorage and comes back. That's the split the spec asks for. One thing
+  cannot come back with it — an **imported model's triangles**. They live in
+  `shapes/meshStore` beside the scene and are megabytes where the rest of a
+  build is kilobytes, and localStorage has a few megabytes for everything; a
+  cache that tried to carry one would not save the big build and would take
+  itself down with it when it overflowed. So `readSession` drops those blocks
+  and says how many, rather than restoring them without their triangles. A
+  model with none builds as `nothingToDraw()`, which is a live, visible,
+  selectable object that draws nothing — and whose bounding box the geometry
+  cache deliberately pins to a point, so the clearance readout measured to it
+  and reported a gap to bare plate. Anything else that walks the meshes
+  (`scene/neighbour` does, and now asks for a vertex count rather than
+  `visible`) should assume a mesh can be switched on and still be empty.
 - **Import is a `.babycad` file, not `.glb`.** The design's footer button reads
   "Open a .glb", but reading an arbitrary GLB back would produce meshes that
   don't map onto the primitive data model. The button opens the scene JSON that

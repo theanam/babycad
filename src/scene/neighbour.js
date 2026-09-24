@@ -23,6 +23,25 @@
  */
 import * as THREE from 'three'
 
+/**
+ * Is there anything here to measure to?
+ *
+ * `visible` is not enough. A block whose builder threw, and an imported model
+ * whose triangles are not in the store, both come back from
+ * `shapes/geometryCache` as `nothingToDraw()` — a real mesh, visible, with an
+ * empty position buffer. Worse, that cache deliberately pins an empty
+ * geometry's bounding box to a point at the origin rather than leaving it at
+ * infinity, because `restingHeight` reads the box and a NaN position takes the
+ * renderer with it. So the box is finite, sits exactly on the object's
+ * position, and reads as a perfectly good neighbour a few centimetres away —
+ * which is how "54 mm to the model" comes to point at bare plate.
+ *
+ * Counting the vertices is the question actually being asked: not "is this
+ * object switched on" but "is there a surface here that a gap could be between".
+ */
+const drawsSomething = (mesh) =>
+  Boolean(mesh?.visible) && (mesh.geometry?.getAttribute('position')?.count ?? 0) > 0
+
 const _box = new THREE.Box3()
 const _size = new THREE.Vector3()
 const AXES = ['x', 'y', 'z']
@@ -56,7 +75,7 @@ export function nearestNeighbour(movingIds, objects, meshes) {
   const mine = new THREE.Box3().makeEmpty()
   for (const id of moving) {
     const mesh = meshes.get(id)
-    if (mesh?.visible) mine.union(boxOf(mesh, _box))
+    if (drawsSomething(mesh)) mine.union(boxOf(mesh, _box))
   }
   if (mine.isEmpty()) return null
 
@@ -64,9 +83,9 @@ export function nearestNeighbour(movingIds, objects, meshes) {
   for (const o of objects) {
     if (moving.has(o.id)) continue
     const mesh = meshes.get(o.id)
-    // A combined hole is not drawn, and measuring to something nobody can see
-    // would be reporting a gap to thin air.
-    if (!mesh?.visible) continue
+    // A combined hole is not drawn, and neither is a model whose triangles
+    // went missing. Measuring to either is reporting a gap to thin air.
+    if (!drawsSomething(mesh)) continue
     const theirs = boxOf(mesh, _box)
 
     // Clear air on each axis, and none of it counted twice: an axis they
