@@ -219,10 +219,9 @@ export default function HelpModal({ onClose, onShowWelcome, touch = false }) {
             <p>
               Any block can be a <strong>hole</strong> instead of a solid — the switch is at the
               top of the rail. A hole goes grey and see-through, and it cuts its shape out of every
-              solid it overlaps, straight away. Push a tube through a cube and the cube has a
-              tube-shaped hole in it while you are still pushing. The one exception is a model you
-              have imported: that is cut once, when you <strong>Combine</strong> the two, because
-              cutting a big model is slow and a hole being lined up moves a hundred times first.
+              solid it overlaps. Push a tube through a cube and the cube has a tube-shaped hole in
+              it a moment after you let go — the cutting is done in the background, so a big
+              imported model takes a while to catch up but never stops you working while it does.
             </p>
             <p>
               <strong>Combine</strong> is how you finish: it puts the grey ghost away and leaves

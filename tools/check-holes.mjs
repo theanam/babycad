@@ -116,18 +116,12 @@ console.log('\nwho cuts whom…')
   const loose = [block('cube', { id: 's' }), block('cube', { id: 'h', hole: true })]
   if (cuttersByObject(loose, []).get('s')?.length !== 1) fail('an overlapping loose hole did not cut a block')
 
-  // Except an imported model, which waits for Combine: cutting one is the one
-  // expensive thing here, and a hole being lined up moves a hundred times.
+  // An imported model is no exception any more: the cut runs off the main
+  // thread, so there is nothing to spare it from.
   const { registerMesh } = await import('../src/shapes/meshStore.js')
   const tri = registerMesh('t', new Float32Array([0, 0, 0, 10, 0, 0, 0, 10, 0]))
   const overModel = [block('model', { id: 'm', params: { mesh: tri } }), block('cube', { id: 'h', hole: true })]
-  if (cuttersByObject(overModel, []).has('m')) fail('a loose hole cut an imported model before Combine')
-  const GM = [{ id: 'gm', memberIds: ['m', 'h'] }]
-  const combinedModel = [
-    block('model', { id: 'm', params: { mesh: tri }, parentGroupId: 'gm' }),
-    block('cube', { id: 'h', hole: true, parentGroupId: 'gm' }),
-  ]
-  if (cuttersByObject(combinedModel, GM).get('m')?.length !== 1) fail('a combined hole did not cut the model it was combined with')
+  if (cuttersByObject(overModel, []).get('m')?.length !== 1) fail('a loose hole did not cut an imported model')
 
   // Combined with the block it sits in: it cuts that block.
   const joined = [block('cube', inG({ id: 's' })), block('cube', inG({ id: 'h', hole: true }))]
@@ -241,43 +235,30 @@ console.log('\nand a hole that swallows the block leaves a finite box…')
 }
 
 /*
- * The live cut is synchronous and on the main thread, and against a hollow
- * imported part its cost grows with about the 1.9th power of the triangle
- * count — 48k triangles measured at 8.8 seconds, which extrapolates to a
- * couple of minutes for an ordinary STL off a model site. Past the budget the
- * block has to come back whole and instantly; the export cuts it properly with
- * Manifold. See `LIVE_CUT_TRIANGLES`.
+ * The worker and the synchronous path both go through `cutArrays`, so they
+ * cannot disagree about the shape — but that is only true if `cutArrays` itself
+ * is right, and it is the one piece that has no other check. A tube drilled
+ * through a cube, straight from arrays: the volume has to come out as the cube
+ * less the cylinder, and nothing in it may be NaN.
  */
-console.log('\nand a model too detailed to cut live is left whole…')
+console.log('\nand the shared core cuts the same as the cache does…')
 {
-  const { LIVE_CUT_TRIANGLES, tooHeavyToCut } = await import('../src/shapes/csg.js')
-  const { registerMesh } = await import('../src/shapes/meshStore.js')
-
-  // Two imported models either side of the budget, as plain triangle soup.
-  const soup = (tris) => {
-    const positions = new Float32Array(tris * 9)
-    for (let i = 0; i < tris; i++) {
-      const x = (i % 97) * 0.31
-      positions.set([x, 0, 0, x + 1, 0, 0, x, 1, 0], i * 9)
-    }
-    return registerMesh('test', positions)
-  }
-  const light = block('model', { id: 'light', params: { mesh: soup(500) } })
-  const heavy = block('model', { id: 'heavy', params: { mesh: soup(LIVE_CUT_TRIANGLES + 1000) } })
-
-  if (tooHeavyToCut(light)) fail('a 500-triangle model was refused a live cut')
-  else console.log('  ok  a small model is cut while you watch')
-  if (!tooHeavyToCut(heavy)) fail(`a ${LIVE_CUT_TRIANGLES + 1000}-triangle model was still cut live`)
-  else console.log('  ok  a model past the budget is not')
-
-  // And asking for the cut has to be instant, not merely refused in principle.
-  const drill = block('cube', { hole: true, params: { width: 60, height: 60, depth: 60 } })
-  const t0 = performance.now()
-  const out = acquireShape(heavy, [drill])
-  const ms = performance.now() - t0
-  if (ms > 250) fail(`the refused cut still took ${ms.toFixed(0)}ms`)
-  else console.log(`  ok  and it comes back whole in ${ms.toFixed(0)}ms`)
-  releaseShape(out)
+  const { cutArrays, arraysOf } = await import('../src/shapes/cutCore.js')
+  const { buildGeometry } = await import('../src/shapes/geometryCache.js')
+  const solid = arraysOf(buildGeometry('cube', defaultParams('cube')))
+  const drill = arraysOf(
+    buildGeometry('cylinder', { ...defaultParams('cylinder'), bottomRadius: 5, topRadius: 5, height: 60, sides: 64 })
+  )
+  const out = cutArrays(solid, [{ ...drill, matrix: new THREE.Matrix4().toArray() }])
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.BufferAttribute(out.positions, 3))
+  const m = volume(g)
+  const expected = 8000 - Math.PI * 25 * 20
+  if (Math.abs(m.volume - expected) > 20) fail(`cutArrays: volume ${m.volume.toFixed(1)}, expected about ${expected.toFixed(1)}`)
+  else if (m.nan) fail(`cutArrays: ${m.nan} NaN triangles`)
+  else console.log(`  ok  drilled cube from arrays — ${m.volume.toFixed(0)} mm³`)
+  if (out.normals?.length !== out.positions.length) fail('cutArrays came back without normals')
+  else console.log('  ok  and it carries its normals')
 }
 
 console.log(problems ? `\n${problems} problem(s)` : '\nall clear')

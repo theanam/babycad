@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ContactShadows, Grid } from '@react-three/drei'
@@ -12,7 +12,7 @@ import { OrbitCamera } from './orbit'
 import { useScene } from './sceneStore'
 import { HOME_CAMERA, viewport } from './viewportApi'
 import { HEAVY_SCENE, PLATE, PLATE_HALF, SNAP } from '../constants'
-import { cuttersByObject, tooHeavyToCut } from '../shapes/csg'
+import { cutFailedFor, cuttersByObject, onCutReady } from '../shapes/csg'
 import { gesture } from './gesture'
 import MarqueeSelect from './MarqueeSelect'
 import { toast } from '../ui/Toast'
@@ -131,40 +131,45 @@ function Blocks() {
   /*
    * Holes that are overlapping something and getting nowhere.
    *
-   * A solid too detailed to cut while you watch is drawn whole instead (see
-   * shapes/csg), and a hole whose every target is like that has to stay on
-   * screen even once it is combined — otherwise combining it hides the one
-   * thing that said a hole was there and leaves a block that looks solid. A
-   * hole that reaches into two blocks and gets through to one of them has done
-   * its job and steps back as it always did, and so does one that overlaps
-   * nothing at all: that is a hole in the wrong place, not a hole that failed.
+   * A cut the worker gave up on — the clock ran out on a model too detailed
+   * to cut — leaves its block drawn whole (see shapes/csg), and a hole whose
+   * every target is like that has to stay on screen even once it is combined:
+   * otherwise combining it hides the one thing that said a hole was there and
+   * leaves a block that looks solid. A hole that reaches into two blocks and
+   * gets through to one of them has done its job and steps back as it always
+   * did, and so does one that overlaps nothing at all — that is a hole in the
+   * wrong place, not a hole that failed.
+   *
+   * `outcomes` is bumped when any cut lands or fails, so this is re-read then.
    */
+  const [outcomes, setOutcomes] = useState(0)
+  useEffect(() => onCutReady(() => setOutcomes((n) => n + 1)), [])
   const stalled = useMemo(() => {
-    const byId = new Map(objects.map((o) => [o.id, o]))
     const reached = new Set()
     const blocked = new Set()
     for (const [id, holes] of cutters) {
-      const heavy = tooHeavyToCut(byId.get(id))
-      for (const hole of holes) (heavy ? blocked : reached).add(hole.id)
+      const failed = cutFailedFor(id)
+      for (const hole of holes) (failed ? blocked : reached).add(hole.id)
     }
     for (const id of reached) blocked.delete(id)
     return blocked
-  }, [cutters, objects])
+  }, [cutters, outcomes])
 
   // Said once per block, because a hole that is not cutting looks exactly like
   // one that has not been pushed in far enough yet, and the difference matters.
   const told = useRef(new Set())
-  useEffect(() => {
-    const byId = new Map(objects.map((o) => [o.id, o]))
-    for (const id of cutters.keys()) {
-      if (told.current.has(id) || !tooHeavyToCut(byId.get(id))) continue
-      told.current.add(id)
-      toast(
-        `That model has too many triangles to cut through while you watch — the hole still cuts it in the file you export`,
-        'warn'
-      )
-    }
-  }, [cutters, objects])
+  useEffect(
+    () =>
+      onCutReady(({ objectId, failed }) => {
+        if (!failed || told.current.has(objectId)) return
+        told.current.add(objectId)
+        toast(
+          `That model is too detailed to cut through here — the hole still cuts it in the file you export`,
+          'warn'
+        )
+      }),
+    []
+  )
 
   // Past a heavy scene, stop every block casting a shadow rather than let the
   // frame rate collapse.

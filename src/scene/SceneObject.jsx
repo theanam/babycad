@@ -1,7 +1,7 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Edges, Outlines } from '@react-three/drei'
 import { keyOfParams } from '../shapes'
-import { acquireShape, isFinished, releaseShape } from '../shapes/csg'
+import { acquireShapeLive, isFinished, onCutReady, releaseShape } from '../shapes/csg'
 import { registerMesh } from './meshRegistry'
 import { useScene } from './sceneStore'
 import { useFonts } from '../shapes/fontStore'
@@ -69,14 +69,24 @@ function SceneObject({ object, selected, onSelect, holes, cutting = true, castSh
       ? `|${object.position}|${object.rotation}|${object.scale}` +
         holes.map((h) => `#${keyOfParams(h.type, h.params)}@${h.position}|${h.rotation}|${h.scale}`).join('')
       : '')
+  // The cut is made off the main thread. What comes back from
+  // `acquireShapeLive` right now is whatever is honest to draw this frame — the
+  // cut if it is cached, otherwise the last one this block showed, or the plain
+  // shape — and the worker's answer arrives through `onCutReady`. Bumping
+  // `landed` is what makes the memo below ask again, and this time get the cut.
+  const [landed, setLanded] = useState(0)
+  useEffect(
+    () => onCutReady(({ objectId }) => objectId === object.id && setLanded((n) => n + 1)),
+    [object.id]
+  )
   const geometry = useMemo(() => {
-    const g = acquireShape(object, holes)
+    const g = acquireShapeLive(object, holes)
     mark(
       `block geometry: ${object.type}${object.hole ? ' (hole)' : ''} → ${(g.getAttribute('position')?.count / 3 || 0).toLocaleString()} tris` +
         (holes?.length ? `, cut by ${holes.length}` : '')
     )
     return g
-  }, [shapeKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [shapeKey, landed]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => releaseShape(geometry), [geometry])
 
   // A combined hole has done its cutting and gets out of the way, leaving the

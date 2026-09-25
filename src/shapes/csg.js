@@ -3,16 +3,17 @@
  *
  * A block is either a solid or a hole, and a hole cuts every solid it reaches
  * into — straight away, while you are still pushing it around. Drop a tube
- * through a cube and the cube has a tube-shaped hole in it. That is the trick
- * the app is built around, and it is cheap on the shapes the app builds, which
- * are hundreds or a few thousand triangles.
+ * through a cube and the cube has a tube-shaped hole in it.
  *
- * An imported model is the exception, and the reason there is one. The cut is
- * cached by where the hole sits relative to the block, so every nudge of the
- * hole is a fresh cut, and on a heavy STL each one locked the tab for as long
- * as it took — at a couple of minutes a time, which reads as a crash. So a
- * loose hole passes an imported model by: it is drawn as its grey ghost over
- * the model, and the model is cut once, when the two are combined.
+ * The cutting happens off the main thread. While a hole is being dragged the
+ * block shows the last cut it had, or its plain shape the first time, and the
+ * hole is its grey ghost; the subtraction runs in a worker (`cutWorker`) and
+ * the block takes the result when it lands. On a cube and a tube that is a
+ * frame or two. On an imported model it can be minutes — the cost of a cut
+ * grows with about the 1.9th power of the triangle count on a hollow part —
+ * and the tab keeps answering throughout, which is the whole reason for the
+ * worker: before it, each of those minutes was the tab locked solid, on every
+ * nudge of the hole.
  *
  * `Combine` is where a hole settles. Once combined it cuts its own piece —
  * the solids it was combined with, up to the top group — and nothing else,
@@ -29,40 +30,28 @@
  * Results are cached and reference counted, the same deal the plain shape
  * cache gets and for the same reason: a cut geometry is expensive to build and
  * leaks GPU buffers if it is dropped without `dispose()`.
+ *
+ * There is still a synchronous path — `acquireShape` — for the exporter's
+ * fallback and for the checks, which run under Node and have no worker. Both
+ * paths call the same `cutArrays`, so they cannot disagree about the shape.
  */
 import * as THREE from 'three'
-import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg'
 import { acquireGeometry, measured, releaseGeometry } from './geometryCache'
 import { keyOfParams } from './index'
 import { onFaceLoaded } from './fontStore'
+import { arraysOf, cutArrays } from './cutCore'
+import { submitCut } from './cutQueue'
 import { mark, trace } from '../debug/trace'
 
 const IDLE_MAX = 24
 
 /**
- * How many triangles a solid may have and still be cut while you watch.
- *
- * The subtraction is synchronous and on the main thread, which is fine for
- * every shape this app builds — they are hundreds or a few thousand triangles
- * and a cut lands in a frame or two. An imported model is a different animal,
- * and the cost is not linear in its size. Measured against a hollow printed
- * part, where the cutting block passes through a lot of thin wall:
- *
- *      6k tris   0.2s        18k tris   1.3s        37k tris   4.9s
- *     12k tris   0.6s        25k tris   2.3s
- *
- * That is an exponent of about 1.9 — near enough quadratic — so 200k
- * triangles, which is an ordinary STL off a model site, is something like two
- * minutes of locked-up tab. A convex mesh of the same size is thirty times
- * cheaper, so there is no single honest number here; this one is set where the
- * worst case is still about two seconds, which is a wait rather than a hang.
- *
- * Past it the block is simply drawn whole and the hole stays the grey ghost it
- * already is. Nothing is lost from the file: `io/solidCut` cuts it again with
- * Manifold on the way out, which is a different implementation and a far
- * faster one, and that is the cut a printer sees.
+ * Past this, a synchronous cut is written to the console with its size and
+ * cost. Only the synchronous path can stall the tab now, and it only runs for
+ * an export whose Manifold cut was refused — but that is exactly the moment
+ * to know about.
  */
-export const LIVE_CUT_TRIANGLES = 24_000
+const SLOW_CUT_MS = 500
 
 /** Triangles in a shape, straight off the cache. */
 function triangleCount(object) {
@@ -71,18 +60,6 @@ function triangleCount(object) {
   releaseGeometry(geometry)
   return n
 }
-
-/**
- * Whether this solid is too detailed to cut while you watch. Asked before the
- * cut is attempted, so the first attempt can never be the two-minute one.
- */
-export const tooHeavyToCut = (object) => triangleCount(object) > LIVE_CUT_TRIANGLES
-
-const evaluator = new Evaluator()
-// Our geometries carry position and normal; a brush pair whose attribute sets
-// disagree throws, so pin the evaluator to the two both are guaranteed to have.
-evaluator.attributes = ['position', 'normal']
-evaluator.useGroups = false
 
 const entries = new Map() // key -> { key, geometry, refs }
 const byGeometry = new WeakMap()
@@ -107,15 +84,6 @@ function matrixOf(object, target) {
 
 /** Trimmed so a nudge of a thousandth of a millimetre isn't a new cache entry. */
 const matrixKey = (m) => m.elements.map((n) => Math.round(n * 1e4) / 1e4).join(',')
-
-function brushAt(geometry, matrix) {
-  const brush = new Brush(geometry)
-  brush.matrixAutoUpdate = false
-  brush.matrix.copy(matrix)
-  brush.matrix.decompose(brush.position, brush.quaternion, brush.scale)
-  brush.updateMatrixWorld(true)
-  return brush
-}
 
 /**
  * The key a cut is cached under: this solid's shape, plus each hole's shape
@@ -147,20 +115,38 @@ export function relativeCutters(object, holes) {
   }))
 }
 
-/**
- * Past this, a cut is written to the console with its size and its cost.
- *
- * Not a limit — `LIVE_CUT_TRIANGLES` is the limit — but a witness. A cut that
- * stalls the tab is indistinguishable, from the outside, from any other stall,
- * and the report that comes back is "it froze". This is the line that turns
- * that into "the cut on a 31k-triangle model took 14 seconds", or into its
- * absence, which says just as much.
- */
-const SLOW_CUT_MS = 500
+/** A geometry's arrays, as fresh copies, borrowed from the shape cache. */
+function arraysFor(type, params) {
+  const geometry = acquireGeometry(type, params)
+  const out = arraysOf(geometry)
+  releaseGeometry(geometry)
+  return out
+}
 
+/** A geometry back from the worker's arrays, measured and ready to draw. */
+function geometryFromArrays({ positions, normals }) {
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  if (normals?.length === positions.length) g.setAttribute('normal', new THREE.BufferAttribute(normals, 3))
+  else g.computeVertexNormals()
+  // A hole can be bigger than the thing it cuts, and then there is nothing
+  // left: an empty geometry, whose box measures from +infinity to -infinity.
+  // Align, the clearance readout and the gizmo all read that box, and the
+  // first arithmetic any of them does on it is NaN. See `measured`.
+  return measured(g)
+}
+
+/**
+ * The cut, synchronously, on this thread. The exporter's fallback and the
+ * checks; nothing that draws while you watch.
+ */
 function buildCut(object, holes) {
   const started = performance.now()
-  const cut = buildCutNow(object, holes)
+  const cutters = relativeCutters(object, holes).map(({ hole, matrix }) => ({
+    ...arraysFor(hole.type, hole.params),
+    matrix: matrix.toArray(),
+  }))
+  const cut = geometryFromArrays(cutArrays(arraysFor(object.type, object.params), cutters))
   const ms = performance.now() - started
   if (ms > SLOW_CUT_MS) {
     console.warn(
@@ -172,38 +158,24 @@ function buildCut(object, holes) {
   return cut
 }
 
-function buildCutNow(object, holes) {
-  const inverse = matrixOf(object, _a).clone().invert()
-  let result = null
-
-  for (const hole of holes) {
-    const solidGeometry = result ?? acquireGeometry(object.type, object.params)
-    const holeGeometry = acquireGeometry(hole.type, hole.params)
-    const relative = inverse.clone().multiply(matrixOf(hole, _b))
-
-    const cut = evaluator.evaluate(
-      brushAt(solidGeometry, _b.identity()),
-      brushAt(holeGeometry, relative),
-      SUBTRACTION
-    )
-    releaseGeometry(holeGeometry)
-    if (result) result.dispose()
-    else releaseGeometry(solidGeometry)
-    result = cut.geometry
+/** Take a reference on a cache entry, lifting it out of the idle pool. */
+function take(entry) {
+  if (entry.refs === 0) {
+    const at = idle.indexOf(entry.key)
+    if (at !== -1) idle.splice(at, 1)
   }
-
-  // A hole can be bigger than the thing it cuts, and then there is nothing
-  // left: an empty geometry, whose box measures from +infinity to -infinity.
-  // Align, the clearance readout and the gizmo all read that box, and the
-  // first arithmetic any of them does on it is NaN. See `measured`.
-  return measured(result)
+  entry.refs++
+  return entry.geometry
 }
 
-/**
- * The geometry a block should actually be drawn with: its plain shape when
- * nothing cuts it, and the cut when something does. Release it with
- * `releaseShape`, which hands it back to whichever cache lent it.
- */
+/** Put a finished cut in the cache. Refs start at zero; the next acquire takes one. */
+function remember(key, geometry) {
+  const entry = { key, geometry, refs: 0 }
+  entries.set(key, entry)
+  byGeometry.set(geometry, entry)
+  return entry
+}
+
 /** The cut-geometry twin of `forgetType`, for the same reason. */
 export function forgetCutsOf(type) {
   for (const key of [...entries.keys()]) {
@@ -216,35 +188,150 @@ export function forgetCutsOf(type) {
   }
 }
 
+/**
+ * The geometry a block should be drawn with, synchronously: its plain shape
+ * when nothing cuts it, and the cut — built here and now, on this thread —
+ * when something does. For the exporter's fallback and the checks. The
+ * viewport uses `acquireShapeLive`. Release either with `releaseShape`.
+ */
 export function acquireShape(object, holes) {
   const near = object.hole || !holes?.length ? [] : holes
   if (!near.length) return acquireGeometry(object.type, object.params)
-  if (tooHeavyToCut(object)) {
-    mark(`cut skipped: ${object.type} is over the live budget (${triangleCount(object).toLocaleString()} tris)`)
-    return acquireGeometry(object.type, object.params)
-  }
 
   const key = cutKey(object, near)
   let entry = entries.get(key)
   if (entry) mark(`cut cached: ${object.type} with ${near.length} hole(s)`)
   if (!entry) {
-    entry = {
+    entry = remember(
       key,
-      geometry: trace(
+      trace(
         `buildCut(${object.type}, ${triangleCount(object).toLocaleString()} tris, ${near.length} hole(s))`,
         () => buildCut(object, near)
-      ),
-      refs: 0,
-    }
-    entries.set(key, entry)
-    byGeometry.set(entry.geometry, entry)
+      )
+    )
   }
-  if (entry.refs === 0) {
-    const at = idle.indexOf(key)
-    if (at !== -1) idle.splice(at, 1)
+  return take(entry)
+}
+
+/* --------------------------------------------------- the live path -- */
+
+/** Cut keys the worker is on, or has been asked for. */
+const pending = new Set()
+/** The cut each block last showed, so a block catches up rather than flashes. */
+const lastShown = new Map() // objectId -> key
+/** The cut each block last asked for, so a result nobody wants goes to idle. */
+const lastWanted = new Map() // objectId -> key
+/**
+ * Solid geometries the worker gave up on — the clock ran out, or the worker
+ * itself fell over. Keyed on the solid alone rather than the cut: a model that
+ * cannot be cut in two minutes cannot be cut in two minutes wherever the hole
+ * is, and trying again on every nudge would burn a core for nothing.
+ */
+const hopeless = new Set() // solid geometry key
+/** Blocks whose latest cut could not be done, for the chrome to say so. */
+const failedSolids = new Set() // objectId
+const listeners = new Set()
+
+/**
+ * Hear when a cut lands, or fails. `cb({ objectId, key, failed })`. Returns
+ * the unsubscribe. A block subscribes for its own id and re-reads its geometry.
+ */
+export function onCutReady(cb) {
+  listeners.add(cb)
+  return () => listeners.delete(cb)
+}
+const announce = (objectId, key, failed = false) => {
+  for (const cb of listeners) cb({ objectId, key, failed })
+}
+
+/** Whether this block's most recent cut could not be done. */
+export const cutFailedFor = (objectId) => failedSolids.has(objectId)
+
+function schedule(key, object, near) {
+  if (pending.has(key)) return
+  pending.add(key)
+  lastWanted.set(object.id, key)
+  const solidKey = keyOfParams(object.type, object.params)
+  const providers = new Map([[solidKey, () => arraysFor(object.type, object.params)]])
+  const holes = relativeCutters(object, near).map(({ hole, matrix }) => {
+    const k = keyOfParams(hole.type, hole.params)
+    providers.set(k, () => arraysFor(hole.type, hole.params))
+    return { key: k, matrix: matrix.toArray() }
+  })
+  mark(`cut scheduled: ${object.type} (${triangleCount(object).toLocaleString()} tris) with ${near.length} hole(s)`)
+  const started = performance.now()
+
+  submitCut({ key, objectId: object.id, solidKey, holes, arraysFor: (k) => providers.get(k)() })
+    .then((arrays) => {
+      pending.delete(key)
+      mark(`cut landed: ${object.type} after ${((performance.now() - started) / 1000).toFixed(2)}s`)
+      if (!entries.has(key)) {
+        const entry = remember(key, geometryFromArrays(arrays))
+        // A result nobody is waiting for any more — the hole moved on — goes
+        // straight to the idle pool, so it can be reused if the hole comes
+        // back and let go of if it does not.
+        if (lastWanted.get(object.id) !== key) {
+          idle.push(key)
+          while (idle.length > IDLE_MAX) {
+            const dead = entries.get(idle.shift())
+            if (!dead || dead.refs > 0) continue
+            entries.delete(dead.key)
+            dead.geometry.dispose()
+          }
+          return
+        }
+        void entry
+      }
+      failedSolids.delete(object.id)
+      announce(object.id, key)
+    })
+    .catch((error) => {
+      pending.delete(key)
+      if (error?.superseded) return // a newer request for the same block replaced it
+      mark(`cut failed: ${object.type} — ${error?.message}`)
+      if (error?.timeout || /worker stopped/.test(error?.message ?? '')) hopeless.add(solidKey)
+      failedSolids.add(object.id)
+      announce(object.id, key, true)
+    })
+}
+
+/**
+ * The geometry a block should be drawn with, right now, without waiting.
+ *
+ * Its plain shape when nothing cuts it. The cut, when one is cached. And when
+ * the cut it needs has not been made yet, the cut it last showed — so a block
+ * with a hole being dragged through it catches up with the hole rather than
+ * flashing whole between one position and the next — or its plain shape the
+ * first time. Asking is what starts the worker on it; `onCutReady` says when
+ * to ask again.
+ */
+export function acquireShapeLive(object, holes) {
+  const near = object.hole || !holes?.length ? [] : holes
+  if (!near.length) {
+    lastShown.delete(object.id)
+    lastWanted.delete(object.id)
+    failedSolids.delete(object.id)
+    return acquireGeometry(object.type, object.params)
   }
-  entry.refs++
-  return entry.geometry
+
+  const key = cutKey(object, near)
+  const entry = entries.get(key)
+  if (entry) {
+    lastShown.set(object.id, key)
+    lastWanted.set(object.id, key)
+    return take(entry)
+  }
+
+  if (hopeless.has(keyOfParams(object.type, object.params))) {
+    failedSolids.add(object.id)
+  } else {
+    schedule(key, object, near)
+  }
+
+  const shown = lastShown.get(object.id)
+  const previous = shown && entries.get(shown)
+  if (previous) return take(previous)
+  return acquireGeometry(object.type, object.params)
 }
 
 export function releaseShape(geometry) {
@@ -281,14 +368,14 @@ function rootGroupOf(groupId, groups) {
 /**
  * Which holes cut which solids, worked out once for the whole scene.
  *
- * Three rules, in the order they are asked:
+ * Two rules, and one mode:
  *
+ *   - A loose hole cuts every solid it overlaps. That is the trick the app is
+ *     built around, and now that the cut runs off the main thread it holds
+ *     for an imported model too.
  *   - A combined hole cuts its own piece — the solids in the same top group —
- *     and nothing outside it. `groups` is what says which piece is which.
- *   - A loose hole cuts every solid it overlaps, live, *except* an imported
- *     model. The model waits for Combine: cutting it is the one expensive
- *     thing here, and a hole being lined up moves a hundred times before it is
- *     where it is going.
+ *     and nothing outside it, however far it reaches. `groups` is what says
+ *     which piece is which.
  *   - `loose` mode pairs by overlap alone, whatever is combined with what. The
  *     example builder uses it to *find* the groups it is about to make — it
  *     has holes sitting in blocks and no groups yet, and "which does this hole
@@ -322,15 +409,8 @@ function cuttersNow(objects, groups, loose) {
     worldBox(object, _boxB)
     let near = null
     for (let i = 0; i < holes.length; i++) {
-      if (!loose) {
-        if (holePieces[i]) {
-          // Combined: its own piece, and only that.
-          if (holePieces[i] !== piece) continue
-        } else if (object.type === 'model') {
-          // Loose over an import: the ghost, and the cut waits for Combine.
-          continue
-        }
-      }
+      // Combined: its own piece, and only that. Loose: anything it reaches.
+      if (!loose && holePieces[i] && holePieces[i] !== piece) continue
       if (!_boxB.intersectsBox(holeBoxes[i])) continue
       ;(near ??= []).push(holes[i])
     }

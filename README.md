@@ -31,8 +31,8 @@ which is what makes it a reasonable first CAD program at any age.
   says 30 mm. Type 30 mm and it does the same thing. A tube has a radius, a
   gear has teeth and a module, a screw has a pitch.
 - **Holes that cut.** Mark any block as a hole and it takes its own volume out
-  of whatever it overlaps — a tray, a bore, the pips on a die. An imported
-  model is cut once, when you Combine the two.
+  of whatever it overlaps — a tray, a bore, the pips on a die. The cutting runs
+  in the background, so even a heavy imported model never stops you working.
 - **Variables.** Point several numbers at one variable and drag it; everything
   that follows it moves together.
 - **Copy and paste that travels.** Blocks go on the real clipboard — with the

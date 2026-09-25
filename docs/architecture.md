@@ -372,50 +372,61 @@ gesture that is still warm and a slow export can outlast one, and both a
 refusal and a dismissal fall through to the download path rather than losing
 the file. Every caller keeps its old behaviour when sharing is off or refused.
 
-### Cutting, and what it costs
+### Cutting, and where it runs
 
-**A loose hole cuts live, except through an imported model; a combined hole
-cuts only its own piece.** The live cut is the trick the app is built around
-and is cheap on anything it builds itself. On an imported model it is the
-freeze: the cut is cached by where the hole sits relative to the block, so
-every nudge is a fresh one, and a heavy STL locked the tab for minutes at a
-time. So `cuttersByObject` lets a loose hole pass a model by — the ghost shows
-over it, and the model is cut once, at Combine. Once combined, a hole is paired
-only with solids in its own root group, never the block next door. The example
-builder is the one caller that pairs by overlap alone (`loose: true`), because
-it is discovering the groups it is about to make.
-
-**The cut at Combine is still bounded, because `three-bvh-csg` is not.** A hole
-subtracts itself from the solids in its piece, synchronously, on the main
-thread. That is fine for the shapes this app builds — hundreds or a few thousand triangles, a
-cut lands in a frame or two — and it is not fine for an imported model, because
-the cost is not linear in the triangle count. Measured against a hollow printed
-part, where the cutting block passes through a lot of thin wall:
+**The cut runs in a worker, and the block shows what is honest until it
+lands.** A hole cuts every solid it overlaps, and the subtraction is cached by
+where the hole sits relative to the block — so a hole being lined up asks for a
+fresh cut on every nudge. On the shapes this app builds that is a frame or
+two. On an imported model it is not: measured against a hollow printed part,
+the cost grows with about the 1.9th power of the triangle count —
 
 ```
    6k tris  0.2s     18k tris  1.3s     37k tris   4.9s
   12k tris  0.6s     25k tris  2.3s     48k tris   8.8s
 ```
 
-That is an exponent of about 1.9. Extrapolated, a 200k-triangle STL — an
-ordinary download — is something like two minutes of locked tab. A convex mesh
-of the same size is thirty times cheaper, so there is no honest single number;
-`LIVE_CUT_TRIANGLES` in `shapes/csg` is set where the *worst* case is about two
-seconds. Past it `acquireShape` returns the block whole and the hole stays the
-grey ghost it already was.
+— and a 200k-triangle STL is minutes. Done on the main thread, each of those
+minutes was the tab locked solid, on every move. So `cutWorker` does the
+subtraction off the main thread, and `acquireShapeLive` answers immediately
+with whatever is honest to draw this frame: the cut if it is cached; otherwise
+the cut this block last showed, so it catches up with the hole rather than
+flashing whole between one position and the next; or the plain shape the first
+time. `onCutReady` says when to ask again. Measured with the same 48k-triangle
+cut: 9 s in the worker, and the main thread answered with a median of 1 ms and
+a worst of 11 ms throughout, at 60 fps.
 
-Nothing is lost from the file. `io/solidCut` cuts it again with Manifold on the
-way out — a different implementation and a far faster one — and that is the cut
-a printer sees. What the budget costs is the live preview, on the one kind of
-block that has no parameters to preview against anyway.
+**`cutQueue` runs one job at a time and drops the stale ones.** Most requests
+are out of date before they start — five nudges in a second are five cuts of
+which four are wrong — so a job that has not started is dropped the moment a
+newer one arrives for the same block. The running one is left to finish; a
+subtraction cannot be stopped halfway short of killing the worker, and a cut
+that keeps being killed never lands. Geometry crosses to the worker once, by
+key; what the worker does not have it asks for (`missing`), which is what makes
+restarting it safe. A job past two minutes kills the worker and marks that
+*solid* hopeless — keyed on the solid, not the cut, because a model that cannot
+be cut in two minutes cannot be cut in two minutes wherever the hole is.
 
-**A hole whose every target was refused stays visible even when combined.**
-Combining is what normally puts the grey ghost away, and doing that here would
-leave a block that looks solid with nothing on screen to say a hole is in it,
-and nothing left to select. `isFinished` takes a second argument for this and
+**Three paths, one subtraction.** `cutCore.cutArrays` is the whole of the
+cutting, over plain arrays with nothing around it. The worker calls it; the
+synchronous `acquireShape` — the exporter's fallback when Manifold refuses a
+mesh, and the Node checks, which have no worker — calls it; and
+`check:holes` calls it directly and compares. They cannot disagree about the
+shape.
+
+**A hole whose every target was given up on stays visible even when combined.**
+Combining is what normally puts the ghost away, and doing that here would leave
+a block that looks solid with nothing on screen to say a hole is in it, and
+nothing left to select. `isFinished` takes a second argument for this and
 `Viewport`'s `stalled` set works out who it applies to — a hole that reaches
 two blocks and gets through to one of them has done its job and still steps
 back.
+
+**Combined holes cut only their own piece.** A loose hole cuts whatever it
+overlaps; once combined it is paired only with solids in its own root group,
+never the block next door. The example builder is the one caller that pairs by
+overlap alone (`loose: true`), because it is discovering the groups it is about
+to make.
 
 ## Performance
 
