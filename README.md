@@ -8,7 +8,7 @@
 plate, give them real millimetres, and take the result away as an STL you can
 print.
 
-[**Open BabyCAD →**](https://theanam.github.io/babycad/)
+[**Open BabyCAD →**](https://babycad.org)
 
 No account. No cloud. Nothing you build ever leaves your device.
 

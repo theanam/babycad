@@ -54,8 +54,9 @@ const analytics = () => ({
   },
 })
 
-// Relative base so the same bundle works on a GitHub Pages project site
-// (user.github.io/babycad/) without hardcoding the repo name.
+// Relative base, so one bundle works wherever it is served from: babycad.org
+// at a domain root, and a fork's GitHub Pages project site at
+// user.github.io/babycad/, without the repo name being written down here.
 export default defineConfig({
   base: './',
   plugins: [react(), analytics()],

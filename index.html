@@ -23,20 +23,23 @@
 
     <!--
       Absolute URLs, because a crawler reading a shared link has no page to
-      resolve a relative one against. They name the published site, so a fork
-      that wants its own preview card changes them to its own address — there
-      is no way to write these once and have them be right everywhere.
+      resolve a relative one against. They name the published site —
+      babycad.org, which is where BabyCAD lives; the GitHub repo is where its
+      source lives and is not the same thing. A fork that wants its own
+      preview card changes them to its own address, and the address drawn
+      into `og.png` itself with it (`node tools/render-og.mjs`). There is no
+      way to write these once and have them be right everywhere.
     -->
-    <link rel="canonical" href="https://theanam.github.io/babycad/" />
+    <link rel="canonical" href="https://babycad.org/" />
     <meta property="og:site_name" content="BabyCAD" />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://theanam.github.io/babycad/" />
+    <meta property="og:url" content="https://babycad.org/" />
     <meta property="og:title" content="BabyCAD — 3D modelling for absolute beginners, in the browser" />
     <meta
       property="og:description"
       content="Drop shapes on the plate, give them real millimetres, and take the result away as an STL you can print. No account, no cloud, no upload."
     />
-    <meta property="og:image" content="https://theanam.github.io/babycad/og.png" />
+    <meta property="og:image" content="https://babycad.org/og.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta
@@ -51,7 +54,7 @@
       name="twitter:description"
       content="Drop shapes on the plate, give them real millimetres, and take the result away as an STL you can print. No account, no cloud, no upload."
     />
-    <meta name="twitter:image" content="https://theanam.github.io/babycad/og.png" />
+    <meta name="twitter:image" content="https://babycad.org/og.png" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
