@@ -1487,6 +1487,24 @@ a.foot-btn, a.icon-btn { text-decoration: none; }
 
 .props-act.on { background: var(--accent-soft); color: var(--ink); }
 
+/* A tooltip, portalled to the body so a scrolling rail cannot clip it. Fixed
+   rather than absolute for the same reason: it is positioned off the
+   button's own rectangle, in page space. */
+.tip {
+  position: fixed; z-index: 60;
+  max-width: 240px;
+  padding: 8px 11px;
+  border-radius: var(--r-control);
+  background: var(--panel-raised);
+  border: 1px solid var(--line-raised);
+  box-shadow: 0 16px 34px -14px #000;
+  pointer-events: none;
+  animation: fade var(--fade);
+  display: flex; flex-direction: column; gap: 3px;
+}
+.tip b { font-size: 14px; font-weight: 800; color: var(--ink); }
+.tip span { font-size: 12px; font-weight: 600; color: var(--muted); line-height: 1.4; text-wrap: pretty; }
+
 /* ------------------------------------------------------ the drawing board --
 
    A second workspace rather than a dialog: it takes the whole screen, because

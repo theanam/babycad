@@ -4,6 +4,7 @@ import { useScene } from '../scene/sceneStore'
 import { useUI } from '../state/ui'
 import { viewport } from '../scene/viewportApi'
 import { ChevronUpIcon, ShapeIcon } from './icons'
+import { useTooltip } from './Tooltip'
 
 /**
  * Left rail of shapes. Tapping one drops it at the camera's look-at point,
@@ -24,6 +25,11 @@ export default function ShapeTray() {
   const [open, setOpen] = useState(false)
   const addShape = useScene((s) => s.addShape)
   const drawNew = useUI((s) => s.drawNew)
+  // The rail is pictures and nothing else, so hovering one has to say what it
+  // is. The browser's own `title` takes over a second to appear, which is
+  // longer than anybody spends deciding a rail button is not the one they
+  // want — see `ui/Tooltip`.
+  const tip = useTooltip()
   const wrap = useRef(null)
 
   const place = (type) => {
@@ -51,8 +57,8 @@ export default function ShapeTray() {
       key={s.type}
       className="tray-btn"
       onClick={() => place(s.type)}
-      title={s.blurb ? `Add a ${s.label.toLowerCase()} — ${s.blurb}` : `Add a ${s.label.toLowerCase()}`}
       aria-label={`Add a ${s.label.toLowerCase()}`}
+      {...tip.bind(s.label, s.blurb)}
     >
       <ShapeIcon type={s.type} size={open ? 38 : 34} />
     </button>
@@ -65,8 +71,8 @@ export default function ShapeTray() {
           className="tray-head"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
-          title={open ? 'Hide the shape names' : 'Show the shape names'}
           aria-label={open ? 'Hide shape names' : 'Show shape names'}
+          {...tip.bind(open ? 'Hide the names' : 'Show the names', 'Every shape, with what it is called')}
         >
           <span>SHAPES</span>
           <ChevronUpIcon size={14} stroke="#59627A" style={{ transform: open ? 'rotate(-90deg)' : 'rotate(90deg)' }} />
@@ -85,14 +91,16 @@ export default function ShapeTray() {
           <button
             className="tray-btn"
             onClick={drawNew}
-            title="Draw an outline and make it solid"
             aria-label="Draw an outline"
+            {...tip.bind('Drawing', 'Draw a flat outline, or open an SVG, and give it a thickness.')}
           >
             <ShapeIcon type="sketch" size={open ? 38 : 34} />
           </button>
           {GENERATORS.map(trayButton)}
         </div>
       </nav>
+
+      {tip.node}
 
       {open && (
         <div className="flyout" role="menu" aria-label="Pick a shape">
