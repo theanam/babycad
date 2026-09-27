@@ -59,8 +59,8 @@ export default function MoreSheet({ onClose, onSave, onImport, onExport, onVaria
         )}
         {row(
           <ImportIcon size={20} stroke="#8A93A5" />,
-          'Bring a model in',
-          'STL, OBJ, 3MF',
+          'Bring something in',
+          'STL, OBJ, 3MF, SVG',
           run(onImport)
         )}
       </div>

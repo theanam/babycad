@@ -5,6 +5,7 @@ import { acquireShapeLive, isFinished, onCutReady, releaseShape } from '../shape
 import { registerMesh } from './meshRegistry'
 import { useScene } from './sceneStore'
 import { useFonts } from '../shapes/fontStore'
+import { useUnion } from '../shapes/sketch/union'
 import { dragBus } from './dragBus'
 import { useUI } from '../state/ui'
 import { mark } from '../debug/trace'
@@ -62,8 +63,14 @@ function SceneObject({ object, selected, onSelect, holes, cutting = true, castSh
   // them. Nothing about the object changes when it lands, so the generation
   // counter is what makes the key differ — see shapes/fontStore.
   const fontGeneration = useFonts((s) => s.generation)
+  // And the same for a drawing: until Manifold is up, overlapping outlines
+  // are extruded as separate pieces, which is honest and is not what the
+  // drawing says. When it lands they are folded into one — see
+  // `shapes/sketch/union`.
+  const unionGeneration = useUnion((s) => s.generation)
   const shapeKey =
     (object.type === 'text' ? `f${fontGeneration}` : '') +
+    (object.type === 'sketch' ? `u${unionGeneration}` : '') +
     keyOfParams(object.type, object.params) +
     (holes?.length
       ? `|${object.position}|${object.rotation}|${object.scale}` +

@@ -37,8 +37,18 @@ import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js'
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js'
 import { ThreeMFLoader } from 'three/examples/jsm/loaders/3MFLoader.js'
 import { registerMesh } from '../shapes/meshStore'
+import { SVG_EXTENSIONS } from './importSvg'
 
 export const MODEL_EXTENSIONS = ['.stl', '.obj', '.3mf']
+
+/**
+ * Everything Import will open, which is two quite different things: triangles
+ * (here) and outlines (`io/importSvg`). One picker, because "Import" is one
+ * button and nobody should have to know which kind of file they have before
+ * they can go looking for it; `App.onImport` looks at the extension and sends
+ * each one the right way.
+ */
+export const IMPORT_EXTENSIONS = [...MODEL_EXTENSIONS, ...SVG_EXTENSIONS]
 
 /** Past this a model is more triangles than the rest of a build put together. */
 const BUSY_TRIANGLES = 250_000
@@ -172,16 +182,21 @@ export async function readModelFile(file) {
   }
 }
 
-/** Ask for model files. Returns [] if the picker was dismissed. */
-export async function pickModelFiles() {
+/** Ask for files to import. Returns [] if the picker was dismissed. */
+export async function pickImportFiles() {
   if (typeof window !== 'undefined' && window.showOpenFilePicker) {
     try {
       const handles = await window.showOpenFilePicker({
         multiple: true,
         types: [
           {
-            description: 'Models',
-            accept: { 'model/stl': ['.stl'], 'model/3mf': ['.3mf'], 'text/plain': ['.obj'] },
+            description: 'Models and drawings',
+            accept: {
+              'model/stl': ['.stl'],
+              'model/3mf': ['.3mf'],
+              'text/plain': ['.obj'],
+              'image/svg+xml': ['.svg'],
+            },
           },
         ],
       })
@@ -195,7 +210,7 @@ export async function pickModelFiles() {
   return new Promise((resolve) => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = MODEL_EXTENSIONS.join(',')
+    input.accept = IMPORT_EXTENSIONS.join(',')
     input.multiple = true
     const done = () => {
       const files = [...(input.files ?? [])]

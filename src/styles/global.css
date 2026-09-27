@@ -1486,3 +1486,172 @@ a.foot-btn, a.icon-btn { text-decoration: none; }
 }
 
 .props-act.on { background: var(--accent-soft); color: var(--ink); }
+
+/* ------------------------------------------------------ the drawing board --
+
+   A second workspace rather than a dialog: it takes the whole screen, because
+   there is nothing behind it worth keeping in view and because a drawing
+   wants every pixel it can get. Everything here is scoped under `.sketch`.
+*/
+.sketch-scrim { padding: 0; z-index: 45; background: #07080bee; }
+
+.sketch {
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column;
+  background: var(--shell);
+}
+
+.sketch-head {
+  display: flex; align-items: center; gap: 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+.sketch-head .modal-title { font-size: 20px; }
+
+.sketch-tools { display: flex; gap: 6px; margin-left: 8px; }
+.sketch-tool {
+  height: var(--tap); padding: 0 14px;
+  border-radius: var(--r-control-lg);
+  background: var(--control); color: var(--ink-dim);
+  display: flex; align-items: center; gap: 8px;
+  font-size: 14px; font-weight: 800;
+  border: 2px solid transparent;
+  transition: background var(--fade), border-color var(--fade), color var(--fade);
+}
+.sketch-tool:active { background: var(--control-hi); }
+.sketch-tool.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); }
+
+.sketch-acts { display: flex; gap: 6px; margin-left: auto; }
+.sketch-act {
+  width: var(--tap); height: var(--tap);
+  border-radius: var(--r-control-lg); background: var(--control);
+  display: flex; align-items: center; justify-content: center;
+  transition: background var(--fade), opacity var(--fade);
+}
+.sketch-act:active { background: var(--control-hi); }
+.sketch-act:disabled { opacity: 0.35; }
+.sketch-head .modal-close { margin-left: 0; }
+
+/* The photo strip: only on screen while there is a photo to control, which
+   is why it is a row of its own rather than more buttons in the head. */
+.sketch-trace {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-raised);
+  flex: none;
+}
+.sketch-tool.small { height: 34px; padding: 0 12px; font-size: 13px; }
+.sketch-fade {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 800; color: var(--muted);
+}
+.sketch-fade input.param-slider { width: 140px; margin: 0; }
+.sketch-trace-size { font-family: var(--mono); font-size: 11px; color: var(--muted-deep); }
+.sketch-trace .sketch-act { margin-left: auto; width: 34px; height: 34px; }
+.sketch-act.on { background: var(--accent-soft); }
+
+/* The board. `touch-action: none` so a finger draws instead of scrolling the
+   page under it, and the cursor says which tool is in hand. */
+.sketch-board {
+  position: relative; flex: 1; min-height: 0;
+  overflow: hidden;
+  touch-action: none;
+  background: var(--panel);
+  outline: none;
+}
+.sketch-board.tool-select,
+.sketch-board.tool-photo { cursor: default; }
+.sketch-board.tool-line,
+.sketch-board.tool-rect,
+.sketch-board.tool-circle { cursor: crosshair; }
+.sketch-board svg { display: block; }
+
+.sketch-grid line { stroke: #ffffff0c; stroke-width: 1; }
+.sketch-grid.coarse line { stroke: #ffffff1a; }
+.sketch-axes line { stroke: #ffffff2e; stroke-width: 1; }
+.sketch-plate { fill: none; stroke: var(--line-raised); stroke-width: 1.5; stroke-dasharray: 6 6; }
+
+/* The solid, as it will be built — holes and all, by the even-odd rule the
+   flattener already worked out. */
+.sketch-solid { fill: #7c4dff38; stroke: none; }
+
+.sketch-ring { fill: none; stroke: var(--accent-ink); stroke-width: 1.6; }
+.sketch-ring.hole { stroke: #9a8ad0; }
+/* Left out of the solid, and saying so: an unclosed run, one that crosses
+   itself, one with no area. Drawn rather than hidden — a line you can see is
+   a line you can fix. */
+.sketch-ring.open,
+.sketch-ring.crossing,
+.sketch-ring.tiny { stroke: var(--danger-ink); stroke-dasharray: 5 4; stroke-width: 1.4; }
+.sketch-ring.picked { stroke: #fff; stroke-width: 2.4; }
+
+.sketch-draft { fill: #7c4dff1f; stroke: #fff; stroke-width: 1.6; stroke-dasharray: 5 4; }
+/* The pen's control handle, drawn through its anchor. Thin and in the accent,
+   because it is scaffolding for the curve rather than part of the drawing. */
+.sketch-pull line { stroke: var(--accent); stroke-width: 1.2; }
+.sketch-pull circle { fill: var(--accent); }
+.sketch-handle { fill: var(--shell); stroke: #fff; stroke-width: 2; }
+
+/* The measurements: ordinary DOM over the picture, which is the whole reason
+   the board is SVG and not a canvas. */
+.sketch-labels { position: absolute; inset: 0; pointer-events: none; }
+.sketch-dim {
+  position: absolute; transform: translate(-50%, -50%);
+  pointer-events: auto;
+  height: 22px; padding: 0 7px;
+  border-radius: 6px;
+  background: #12151cdd; border: 1px solid var(--line-raised);
+  font-family: var(--mono); font-size: 11px; color: var(--ink);
+  white-space: nowrap;
+  transition: border-color var(--fade), background var(--fade);
+}
+.sketch-dim:hover { border-color: var(--accent); background: var(--panel-raised); }
+/* The line being drawn: a readout, not a field. No border to press, no
+   pointer events to catch, and the accent so it reads as "this is happening
+   now" rather than as one more number on the drawing. */
+.sketch-dim.live {
+  pointer-events: none;
+  background: var(--accent-soft); border-color: var(--accent-edge);
+  color: var(--accent-ink);
+  display: flex; align-items: center;
+}
+.sketch-dim.editing {
+  width: 66px; text-align: center;
+  border-color: var(--accent); background: var(--control-hi);
+}
+
+.sketch-hint {
+  position: absolute; left: 16px; bottom: 14px;
+  pointer-events: none;
+  font-size: 13px; font-weight: 700; color: var(--muted-deep);
+}
+
+.sketch-foot {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  flex: none;
+}
+.sketch-size { font-family: var(--mono); font-size: 12px; color: var(--ink-dim); }
+.sketch-snap { font-family: var(--mono); font-size: 12px; color: var(--muted-deep); }
+/* `.foot-btn` pushes itself right; here there are two of them, so only the
+   first does and the second sits beside it. Order matters — the general rule
+   has to come first or it would win over the one below it. */
+.sketch-foot .foot-btn { margin-left: 0; }
+.sketch-foot .foot-btn:first-of-type { margin-left: auto; }
+.foot-btn.primary { background: var(--accent); color: #fff; font-weight: 800; }
+.foot-btn.primary:disabled { opacity: 0.4; }
+
+/* The way into it from a block that already has a drawing. */
+.param-edit {
+  margin-top: 8px; width: 100%; height: 34px;
+  border-radius: var(--r-control);
+  background: var(--control); color: var(--ink-dim);
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: 13px; font-weight: 800;
+  transition: background var(--fade);
+}
+.param-edit:active { background: var(--control-hi); }
+.param-edit:disabled { opacity: 0.4; }

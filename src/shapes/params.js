@@ -8,8 +8,10 @@
  *
  *   { kind, key, label, default, ...bounds }
  *
- * `kind` is one of 'number' | 'int' | 'bool' | 'choice' | 'text' | 'mesh'.
+ * `kind` is one of 'number' | 'int' | 'bool' | 'choice' | 'text' | 'mesh' |
+ * 'sketch'.
  */
+import { digestSketch, normalizeSketch } from './sketch/doc'
 
 /** A continuous value. `soft` bounds the slider without bounding what you can type. */
 export const num = (key, label, def, opts = {}) => ({
@@ -85,6 +87,28 @@ export const text = (key, label, def, opts = {}) => ({
  */
 export const mesh = (key = 'mesh') => ({ kind: 'mesh', key, label: 'Model', default: '' })
 
+/**
+ * A drawing, in millimetres — see `shapes/sketch/doc`.
+ *
+ * The one parameter whose value is not a scalar, which two other things in
+ * this file have to know about: `coerce` hands back a fresh document every
+ * time, because two blocks sharing one by reference would let an edit to one
+ * show up in the other; and `paramsKey` cannot concatenate an object, so the
+ * spec carries a `digest` for it to key on instead.
+ *
+ * The default is frozen rather than made fresh per shape. It is the empty
+ * drawing every new block starts as, it is shared by all of them, and the
+ * freeze is what says out loud that a document is never edited in place.
+ */
+const EMPTY_SKETCH = Object.freeze({ nodes: Object.freeze([]) })
+export const sketch = (key = 'sketch', label = 'Drawing') => ({
+  kind: 'sketch',
+  key,
+  label,
+  default: EMPTY_SKETCH,
+  digest: digestSketch,
+})
+
 /** `options` is [{ value, label }]; values may be numbers or strings. */
 export const choice = (key, label, def, options, opts = {}) => ({
   kind: 'choice',
@@ -112,6 +136,11 @@ export function coerce(spec, value) {
       return spec.options.some((o) => o.value === value) ? value : spec.default
     case 'mesh':
       return typeof value === 'string' ? value : spec.default
+    // Always a fresh, validated document — never the object it was handed.
+    // A file or a clipboard can carry any nonsense at all, and two blocks
+    // must not end up pointing at one drawing.
+    case 'sketch':
+      return normalizeSketch(value)
     case 'text': {
       // Runs of whitespace collapse and the ends are trimmed, so two spellings
       // of the same words settle to one stored value — and therefore, once
@@ -173,8 +202,29 @@ export function accepts(spec, variable) {
 /** Stable cache key — spec order, so it never depends on object key order. */
 export function paramsKey(specs, params) {
   let key = ''
-  for (const s of specs) key += `|${s.key}:${params?.[s.key] ?? s.default}`
+  for (const s of specs) {
+    const value = params?.[s.key] ?? s.default
+    // A drawing is an object, and an object stringifies to `[object Object]`:
+    // without its digest every sketch in a build would share one cache entry
+    // and they would all show the same solid.
+    key += `|${s.key}:${s.digest ? s.digest(value) : value}`
+  }
   return key
+}
+
+/**
+ * Are two parameter values the same?
+ *
+ * Everything here is a scalar and compares with `===` — except a drawing,
+ * which is an object, and a freshly coerced one is never the same object as
+ * the last even when it is the same drawing. Somewhere that matters: the two
+ * `sameParams` checks, in `sceneStore` and in `scene/variables`, are what stop
+ * a no-op landing on the undo stack.
+ */
+export const sameParamValue = (a, b) => {
+  if (a === b) return true
+  if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false
+  return digestSketch(a) === digestSketch(b)
 }
 
 export const clamp = (n, lo, hi) => (n < lo ? lo : n > hi ? hi : n)

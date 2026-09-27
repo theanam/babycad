@@ -102,9 +102,15 @@ for (const [type, axes] of Object.entries(AXIS_PARAMS)) {
 
 console.log('\na parameter that follows a variable is refused…')
 for (const [type, axes] of Object.entries(AXIS_PARAMS)) {
-  const key = axes.x[0]
-  if (!key) continue
-  const result = resizeToParams(object(type, { [key]: 'some-variable' }), [2, 1, 1])
+  // Whichever axis this shape actually puts a length on. Not always x: a
+  // drawing's footprint comes out of the drawing, so the only length it has
+  // is its thickness, on y.
+  const axis = ['x', 'y', 'z'].find((a) => axes[a]?.length)
+  if (!axis) continue
+  const key = axes[axis][0]
+  const ratio = [1, 1, 1]
+  ratio['xyz'.indexOf(axis)] = 2
+  const result = resizeToParams(object(type, { [key]: 'some-variable' }), ratio)
   const uniform = resizeToParams(object(type, { [key]: 'some-variable' }), [2, 2, 2])
   if (!result?.blocked && !uniform?.blocked) {
     fail(`${type} let a resize through while ${key} follows a variable`)
@@ -128,9 +134,14 @@ console.log('\na handle pulls every axis the shape ties to it…')
     const got = coupledMask(type, mask)
     if (got.join() !== want.join()) fail(`${type} mask ${mask} widened to ${got}, expected ${want}`)
   }
-  // And the widened pull is always something the shape can then express.
+  // And the widened pull is always something the shape can then express —
+  // on the axes the shape claims. A mapping may deliberately leave one out:
+  // a drawing's footprint is the drawing, so it puts a length on y alone and
+  // a corner pull is honestly the multiplier rather than a gap in the table.
   for (const type of Object.keys(AXIS_PARAMS)) {
+    const axes = AXIS_PARAMS[type]
     for (const mask of [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 0, 1]]) {
+      if (mask.some((on, i) => on && !axes['xyz'[i]]?.length)) continue
       const m = coupledMask(type, mask)
       const ratio = m.map((on) => (on ? 1.5 : 1))
       if (!resizeToParams(object(type), ratio)?.params) fail(`${type}: a ${mask} handle, widened to ${m}, still cannot be baked`)

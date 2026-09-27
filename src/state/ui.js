@@ -1,6 +1,7 @@
 /**
- * Chrome state: which side panel is showing, and whether something has asked
- * for a particular variable to be brought up.
+ * Chrome state: which side panel is showing, whether something has asked for
+ * a particular variable to be brought up, and whether the drawing board is
+ * open.
  *
  * In a store rather than in App because the ask can come from inside the 3D
  * canvas — a size label on the bounding box names the variable driving that
@@ -29,6 +30,20 @@ export const useUI = create((set) => ({
    * the selection is being made, not what is in it.
    */
   pickMore: false,
+
+  /**
+   * The drawing board, when it is open: `{ id }` for a block being edited, or
+   * `{ id: null }` for a drawing that has not been placed yet.
+   *
+   * Here rather than in `App` for the same reason the variables panel is: it
+   * is opened from four places — the shape tray, the shape sheet, the
+   * properties rail and the selection sheet — and three of them are nowhere
+   * near the fourth.
+   */
+  sketchEditing: null,
+  drawNew: () => set({ sketchEditing: { id: null } }),
+  editDrawing: (id) => set({ sketchEditing: { id } }),
+  closeSketch: () => set({ sketchEditing: null }),
 
   togglePickMore: () => set((s) => ({ pickMore: !s.pickMore })),
   setPickMore: (pickMore) => set({ pickMore }),

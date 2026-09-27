@@ -317,12 +317,58 @@ export default function HelpModal({ onClose, onShowWelcome, touch = false }) {
               it arrives.
             </p>
 
+            <h3>Drawing a shape</h3>
+            <p>
+              <b>Drawing</b>, at the bottom of the shape rail, opens a flat board marked out in the
+              same millimetres as the plate. Draw boxes, circles and runs of lines on it; every
+              measurement shows as a number, and <strong>clicking a number lets you type a new
+              one</strong>. What you draw comes out as a solid with a thickness you set afterwards,
+              like any other block.
+            </p>
+            <p>
+              While you are drawing a run of lines it tells you how long the new line is and
+              what corner it is making with the last one — 90 for a right angle, 180 for
+              straight on.
+            </p>
+            <p>
+              Outlines that <em>overlap</em> become one shape, so a bracket drawn as two
+              crossing boxes comes out as one piece rather than two standing in the same place.
+              An outline drawn <em>inside</em> another one is a hole through it — and one inside
+              <em>that</em> is solid again, which is how the middle of an O works. A run of lines
+              has to be closed to be part of the shape: click the first corner again to close it.
+              Anything left open is drawn in dashes and left out.
+            </p>
+            <p>
+              The <b>Pen</b> draws curves: click for a corner, or click and drag to pull a curve
+              out of the point you are placing. Click the first point again to close the shape.
+              Afterwards, <b>Pick</b> it and drag any of its points to push the curve about.
+            </p>
+            <p>
+              The picture button at the top right opens a <b>photo to trace over</b>. Scale it
+              until something in it is a size you know, fade it back, and draw over the top. The
+              photo is only a guide — it is never part of what you make, and it is not saved with
+              the build.
+            </p>
+            <p>
+              <strong>Esc</strong> backs out a step at a time: the shape you are drawing, then
+              the tool, then what is picked. Nothing lands on the plate until you say so, and the
+              whole session counts as one change — one <strong>Ctrl / ⌘ + Z</strong> afterwards
+              puts the drawing back as it was.
+            </p>
+
             <h3>Bringing a model in</h3>
             <p>
               <b>Import</b> in the top bar opens an <b>STL</b>, an <b>OBJ</b> or a <b>3MF</b> and
               drops it on the plate as a block like any other — move it, turn it, make it a hole,
               export it with the rest. Only the triangles come across: colours and materials are
               left behind, and the part takes a swatch here the way everything else does.
+            </p>
+            <p>
+              The same button opens an <b>SVG</b>, which is a drawing rather than a model: its
+              filled outlines come in as a flat shape with a thickness you can type, holes and
+              all. If the file says what size it is, that is the size it arrives; if it doesn&apos;t,
+              it comes in 40 mm across and says so — and <b>Open the drawing</b> in the panel puts
+              it on the board above, where you can measure it and type a size.
             </p>
             <p>
               It has no width or height to type, because a model is a bag of triangles with no

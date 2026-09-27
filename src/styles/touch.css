@@ -460,3 +460,48 @@
 .app.touch input[type='number'],
 .app.touch textarea,
 .app.touch select { font-size: 16px; }
+
+/* The drawing board, for a thumb.
+
+   The tools come out of the head and go along the bottom, where they can be
+   reached — the same call the shape rail and the properties rail already
+   make. What is left in the head is the name and the way out, on one line,
+   because three rows of chrome on a phone is most of the drawing. */
+.app.touch .sketch-head { padding: 8px 10px; gap: 8px; }
+.app.touch .sketch-head .modal-title { font-size: 17px; }
+.app.touch .sketch-act,
+.app.touch .sketch-head .modal-close { width: 40px; height: 40px; }
+
+.app.touch .sketch-tools {
+  margin: 0; padding: 8px 10px 0;
+  /* However many tools there are, across the width in one row. */
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 5px;
+  flex: none;
+}
+/* Scoped to the tool row: the photo strip has a `.sketch-tool` in it too, and
+   a stacked 56px column is the wrong shape for a button with two words on
+   it — the label spilled straight out of its own border. */
+.app.touch .sketch-tools .sketch-tool {
+  height: var(--tap-lg); padding: 0;
+  flex-direction: column; gap: 3px;
+  font-size: 10px; letter-spacing: 0;
+}
+.app.touch .sketch-tool.small { height: var(--tap); padding: 0 12px; font-size: 12px; }
+
+/* A 22px measurement is not a target a finger has. */
+.app.touch .sketch-dim { height: 30px; font-size: 13px; padding: 0 10px; }
+.app.touch .sketch-dim.editing { width: 84px; }
+/* The hint is for a cursor that hovers; there isn't one. */
+.app.touch .sketch-hint { display: none; }
+
+.app.touch .sketch-foot { padding: 10px; gap: 8px; }
+.app.touch .sketch-snap { display: none; }
+.app.touch .sketch-size { font-size: 11px; }
+.app.touch .sketch-foot .foot-btn { height: var(--tap); padding: 0 14px; font-size: 14px; }
+
+/* The photo strip, tightened: the fade slider keeps its width because it is
+   the one control here that a finger has to be precise with. */
+.app.touch .sketch-trace { padding: 6px 10px; gap: 8px; }
+.app.touch .sketch-trace-size { display: none; }
+.app.touch .sketch-fade { font-size: 11px; }
+.app.touch .sketch-fade input { width: 110px; }

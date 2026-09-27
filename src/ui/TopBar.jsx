@@ -105,7 +105,7 @@ export default function TopBar({
         <button
           className="bar-btn"
           onClick={onImport}
-          title="Bring an STL, OBJ or 3MF onto the plate"
+          title="Bring an STL, OBJ, 3MF or SVG onto the plate"
         >
           <ImportIcon size={18} stroke="#8A93A5" />
           Import

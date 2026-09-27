@@ -6,6 +6,7 @@ import { groupsAbove, pack, unpack } from './clipboard'
 import { adoptMeshes, meshesFor } from '../shapes/meshStore'
 import { defaultParams, normalizeParams, SHAPE_COLOR } from '../shapes'
 import { resizeToParams } from '../shapes/resize'
+import { sameParamValue } from '../shapes/params'
 import { measure, restingHeight } from '../shapes/geometryCache'
 import { mark, trace } from '../debug/trace'
 import { alignBounds, alignOffsets } from './align'
@@ -1250,7 +1251,7 @@ function settle(object, raw, byId) {
 
 const sameParams = (a = {}, b = {}) => {
   const keys = Object.keys(a)
-  return keys.length === Object.keys(b).length && keys.every((k) => a[k] === b[k])
+  return keys.length === Object.keys(b).length && keys.every((k) => sameParamValue(a[k], b[k]))
 }
 
 const same = (a = [], b = []) =>

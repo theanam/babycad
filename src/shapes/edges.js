@@ -307,3 +307,93 @@ export function capRims(geometry) {
   if (flat !== geometry) flat.dispose()
   return withFaces(geometry, positions, normals)
 }
+
+/**
+ * Smooth a mesh wherever its faces are nearly in line, and leave it sharp
+ * wherever they are not.
+ *
+ * This is what `extrude.js` does for its own walls, done afterwards to a mesh
+ * somebody else built — which in practice means `ExtrudeGeometry`, the one
+ * generator here that is not ours. It flat-shades everything it makes, and
+ * that is what turned a rounded edge on a drawing into a flight of steps:
+ * six facets are geometrically a curve and read as six facets, so Round and
+ * Bevel came out looking like the same thing. Shading is what says "curve".
+ *
+ * It is one threshold and it does three jobs at once:
+ *
+ *  - the bands of a round edge merge into one another *and* into the face
+ *    they run out onto, which is what a fillet does — it meets the flat
+ *    tangentially, with no line where it lands;
+ *  - a chamfer's single band meets both at 45°, so it stays a crisp chamfer;
+ *  - a flattened curve's wall — the thirty-two sides of a drawn circle —
+ *    smooths, while the corner where two straight walls meet does not.
+ *
+ * Faces are gathered by welded position rather than by vertex index, because
+ * a flat-shaded mesh has a separate vertex per face and nothing to say which
+ * of them were once the same point.
+ */
+export function smoothCreases(geometry, degrees = 35) {
+  const flat = geometry.getIndex() ? geometry.toNonIndexed() : geometry
+  if (flat !== geometry) geometry.dispose()
+  const pos = flat.getAttribute('position')
+  if (!pos) return flat
+  const count = pos.count
+  const triangles = count / 3
+
+  // One face normal per triangle, not normalised until it is used: the cross
+  // product's length is twice the area, which weights a big face more heavily
+  // than a sliver, and that is the right way to average them.
+  const faces = new Float32Array(triangles * 3)
+  for (let t = 0; t < triangles; t++) {
+    const i = t * 3
+    const ax = pos.getX(i), ay = pos.getY(i), az = pos.getZ(i)
+    const bx = pos.getX(i + 1), by = pos.getY(i + 1), bz = pos.getZ(i + 1)
+    const cx = pos.getX(i + 2), cy = pos.getY(i + 2), cz = pos.getZ(i + 2)
+    const ux = bx - ax, uy = by - ay, uz = bz - az
+    const vx = cx - ax, vy = cy - ay, vz = cz - az
+    faces[t * 3] = uy * vz - uz * vy
+    faces[t * 3 + 1] = uz * vx - ux * vz
+    faces[t * 3 + 2] = ux * vy - uy * vx
+  }
+
+  const key = (i) =>
+    `${Math.round(pos.getX(i) * 1e4)},${Math.round(pos.getY(i) * 1e4)},${Math.round(pos.getZ(i) * 1e4)}`
+  const sharing = new Map()
+  for (let i = 0; i < count; i++) {
+    const k = key(i)
+    const at = sharing.get(k)
+    if (at) at.push((i / 3) | 0)
+    else sharing.set(k, [(i / 3) | 0])
+  }
+
+  const limit = Math.cos((degrees * Math.PI) / 180)
+  const normals = new Float32Array(count * 3)
+  for (let i = 0; i < count; i++) {
+    const t = (i / 3) | 0
+    let nx = faces[t * 3]
+    let ny = faces[t * 3 + 1]
+    let nz = faces[t * 3 + 2]
+    const own = Math.hypot(nx, ny, nz) || 1
+    let sx = nx
+    let sy = ny
+    let sz = nz
+    for (const other of sharing.get(key(i)) ?? []) {
+      if (other === t) continue
+      const ox = faces[other * 3]
+      const oy = faces[other * 3 + 1]
+      const oz = faces[other * 3 + 2]
+      const len = Math.hypot(ox, oy, oz) || 1
+      if ((nx * ox + ny * oy + nz * oz) / (own * len) <= limit) continue
+      sx += ox
+      sy += oy
+      sz += oz
+    }
+    const len = Math.hypot(sx, sy, sz) || 1
+    normals[i * 3] = sx / len
+    normals[i * 3 + 1] = sy / len
+    normals[i * 3 + 2] = sz / len
+  }
+
+  flat.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3))
+  return flat
+}

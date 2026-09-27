@@ -143,6 +143,22 @@ export const CloseIcon = (p) => (
     <path d="M6 6l12 12M18 6 6 18" />
   </Svg>
 )
+/** A pencil, for the drawing board — the one tool here that makes a shape
+ *  by being drawn rather than by being placed. */
+export const DrawIcon = (p) => (
+  <Svg {...p}>
+    <path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17v3Z" />
+    <path d="M14.5 6.5 17.5 9.5" />
+  </Svg>
+)
+/** A photograph, for the picture you trace over on the drawing board. */
+export const PhotoIcon = (p) => (
+  <Svg {...p}>
+    <rect x="3" y="5" width="18" height="14" rx="2.5" />
+    <path d="M3 16.5 8.5 11l4.5 4.5L16 13l5 4.5" />
+    <circle cx="8.5" cy="9.5" r="1.4" />
+  </Svg>
+)
 export const CheckIcon = (p) => (
   <Svg width={2.8} {...p}>
     <path d="m5 13 5 5L19 7" />
@@ -395,6 +411,20 @@ const GLYPHS = {
       {[0, 1, 2, 3, 4].map((i) => (
         <path key={i} d={`M7 ${4.2 + i * 4} L17 ${2.4 + i * 4} L17 ${4.6 + i * 4} L7 ${6.4 + i * 4} Z`} fill="#7E8798" />
       ))}
+    </Glyph>
+  ),
+  sketch: (size) => (
+    <Glyph size={size}>
+      {/* A drawn outline lifted into a plate: the side wall, then the face
+          with a hole in it, so it reads as flat-and-solid rather than as a
+          picture of a shape. */}
+      <path d="M2.6 12.6 L12 18 L21.4 12.6 L21.4 16.2 L12 21.6 L2.6 16.2 Z" fill="#0E8C8C" />
+      <path
+        d="M2.6 12.6 L12 7.2 L21.4 12.6 L12 18 Z"
+        fill="#16C1C1"
+      />
+      <ellipse cx="12" cy="12.6" rx="3.1" ry="1.8" fill="#0B6E6E" />
+      <path d="M12 2.6 L12 5.6 M9.2 3.4 L10.6 5.4 M14.8 3.4 L13.4 5.4" stroke="#16C1C1" strokeWidth="1.3" strokeLinecap="round" />
     </Glyph>
   ),
   text: (size) => (

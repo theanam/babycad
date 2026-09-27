@@ -40,6 +40,13 @@ export const AXIS_PARAMS = {
   // one on its own and the multiplier is the only honest answer.
   text: { x: ['size'], y: ['thickness'], z: ['size'] },
   wedge: { x: ['width'], y: ['height'], z: ['depth'] },
+  // How wide a drawing is comes out of the drawing, which is a document in
+  // millimetres and the only thing that says how big this block is — so the
+  // top handle writes millimetres of thickness and a corner, finding no
+  // length on x or z, falls back to the scale multiplier. Stretching somebody
+  // else's outline along one axis is not a thing any parameter here can
+  // describe, and quietly distorting it would be worse than the multiplier.
+  sketch: { y: ['thickness'] },
   sphere: { x: ['radius'], y: ['radius'], z: ['radius'] },
   cone: { x: ['radius'], y: ['height'], z: ['radius'] },
   cylinder: {

@@ -17,7 +17,7 @@
  * fresh shape drops with a 20 mm footprint, the size of the yard's grid
  * squares, so anything placed sits on the grid like a building block.
  */
-import { choice, deg, defaultsOf, int, mesh, normalize, num, paramsKey, text } from './params'
+import { choice, deg, defaultsOf, int, mesh, normalize, num, paramsKey, sketch, text } from './params'
 import {
   buildCone,
   buildCube,
@@ -35,6 +35,7 @@ import { buildKnot, buildSpring } from './builders/spring'
 import { buildText, DEFAULT_TEXT } from './builders/text'
 import { DEFAULT_FAMILY, FONT_OPTIONS } from './fonts/catalogue'
 import { buildModel } from './builders/model'
+import { buildSketch } from './builders/sketch'
 
 /**
  * The largest a length may be, in millimetres. Ten metres.
@@ -115,6 +116,25 @@ export const SHAPE_DEFS = [
     imported: true,
     params: [mesh()],
     build: buildModel,
+  },
+  {
+    type: 'sketch',
+    label: 'Drawing',
+    family: 'generator',
+    color: '#16C1C1',
+    blurb: 'An outline — drawn here or imported from an SVG — lifted into a solid.',
+    // Not placed from the tray: a drawing with nothing in it is not a shape
+    // anybody wanted, so one arrives either out of a file or out of the
+    // editor, already holding something.
+    imported: true,
+    params: [
+      sketch(),
+      size('thickness', 'Thickness', 5),
+      smoothness(32),
+      edge(),
+      edgeStyle(),
+    ],
+    build: buildSketch,
   },
   {
     type: 'text',

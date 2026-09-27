@@ -113,7 +113,11 @@ export const FOOTPRINT = 20
 // v5 adds `hole`: a block that cuts the solids it is combined with instead of
 // being one. Purely additive — a v4 build has no holes in it, so it loads
 // looking exactly as it did.
-export const SCENE_VERSION = 6
+// v7 adds the sketch: a 2D drawing, in millimetres, kept in the block's own
+// parameters and extruded. Purely additive — a v6 build has no drawings in it
+// and opens unchanged — and the bump is here so a build made with this cannot
+// be quietly half-read by a version that does not know the type.
+export const SCENE_VERSION = 7
 export const MAX_HISTORY = 200
 
 // Past this many blocks we drop shadow quality rather than let the frame rate go.

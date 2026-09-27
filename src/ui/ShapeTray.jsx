@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { defaultParams, GENERATORS, SOLIDS } from '../shapes'
 import { useScene } from '../scene/sceneStore'
+import { useUI } from '../state/ui'
 import { viewport } from '../scene/viewportApi'
 import { ChevronUpIcon, ShapeIcon } from './icons'
 
@@ -22,6 +23,7 @@ import { ChevronUpIcon, ShapeIcon } from './icons'
 export default function ShapeTray() {
   const [open, setOpen] = useState(false)
   const addShape = useScene((s) => s.addShape)
+  const drawNew = useUI((s) => s.drawNew)
   const wrap = useRef(null)
 
   const place = (type) => {
@@ -75,6 +77,19 @@ export default function ShapeTray() {
           <div className="tray-divider">
             <span>MAKERS</span>
           </div>
+          {/* First of the makers, and the one that does not put anything
+              down: everything else in this rail is a shape with its numbers
+              already in it, and a drawing has to be drawn. It leads the
+              group because it is the one that makes a shape of your own
+              rather than one of ours. */}
+          <button
+            className="tray-btn"
+            onClick={drawNew}
+            title="Draw an outline and make it solid"
+            aria-label="Draw an outline"
+          >
+            <ShapeIcon type="sketch" size={open ? 38 : 34} />
+          </button>
           {GENERATORS.map(trayButton)}
         </div>
       </nav>
@@ -82,12 +97,26 @@ export default function ShapeTray() {
       {open && (
         <div className="flyout" role="menu" aria-label="Pick a shape">
           {[
-            ['TAP TO PLACE', SOLIDS],
-            ['GENERATORS', GENERATORS],
-          ].map(([label, shapes]) => (
+            ['TAP TO PLACE', SOLIDS, false],
+            ['GENERATORS', GENERATORS, true],
+          ].map(([label, shapes, leadsWithDrawing]) => (
             <div key={label} className="flyout-section">
               <div className="flyout-label">{label}</div>
               <div className="flyout-grid">
+                {leadsWithDrawing && (
+                  <button
+                    className="flyout-btn"
+                    role="menuitem"
+                    title="Draw an outline and make it solid"
+                    onClick={() => {
+                      drawNew()
+                      setOpen(false)
+                    }}
+                  >
+                    <ShapeIcon type="sketch" size={34} />
+                    Drawing
+                  </button>
+                )}
                 {shapes.map((s) => (
                   <button
                     key={s.type}

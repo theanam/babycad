@@ -10,6 +10,10 @@ src/
   shapes/
     index.js          the registry: every shape, its parameters, its builder
     extrude.js        2D contour -> solid, with twist and crease smoothing
+    sketch/doc.js     a drawing: nodes, normalize, digest — see sketches.md
+    sketch/flatten.js a drawing -> contours -> islands, wound for the extruder
+    sketch/union.js   overlapping outlines folded into one, in 2D, before extruding
+    manifoldWasm.js   starts Manifold once, for the union and the exporter
     geometryCache.js  reference-counted geometry, keyed on type + parameters
     params.js         parameter specs, coercion, and variable compatibility
     builders/
@@ -29,17 +33,20 @@ src/
     meshRegistry.js   id -> live mesh, so drags can bypass React
     dragBus.js        lets a block hand a body-drag to the gizmo
   ui/
+    sketch/           the drawing board: a flat profile you draw and extrude
     ParamMenu.jsx     the {} beside every setting: make a variable, or use one
     VariablesPanel.jsx  the whole list in the right rail, values you can drag
     ViewCube.jsx      orientation cube, axis triad and camera buttons
     ...               the rest of the DOM chrome
   io/
+    importSvg.js      an SVG's filled outlines -> a sketch document
     persistence.js    localStorage save/load
     exporters.js      GLB / STL / .babycad
   history/
     undoRedo.js       command pattern; every command carries its own inverse
 tools/
   check-shapes.mjs    builds every shape at every extreme of its parameters
+  check-sketch.mjs    drawings: nesting, winding, the Y flip, SVG units
 ```
 
 ### Shapes
@@ -74,6 +81,19 @@ reasons: twist, which a straight extrude can't do and which a helical gear and
 a twisted star both need; and crease smoothing, which is what leaves a gear's
 involute flanks smooth while its tooth tips stay sharp. `ExtrudeGeometry`
 flat-shades everything, which turns a 48-sided pipe into a faceted barrel.
+Where `ExtrudeGeometry` is used anyway — a bevel is the one thing our extruder
+cannot do — `smoothCreases` in `edges.js` shades the result afterwards, which
+is what makes a rounded edge read as a curve instead of a flight of steps.
+
+**A drawing is a shape with two ways in.** The `sketch` type holds a 2D
+document in millimetres — in its own `params`, where a model's triangles
+pointedly do not — and extrudes it through the extruder above. An imported SVG
+writes one of those documents; the drawing board in `ui/sketch` writes the
+same one by hand, and draws it by flattening it with the same call the builder
+makes, so the picture and the solid cannot disagree.
+[sketches.md](sketches.md) is the whole of it: the schema, the hole nesting,
+what a typed measurement does, why Edge shape looked for a while like a switch
+that did nothing, and what is still to build.
 
 **Gear teeth are real involutes.** Not triangles, not trapezoids — the curve
 traced by unwinding a string from the base circle, which is what makes two

@@ -3,6 +3,7 @@ import { defaultParams, GENERATORS, SOLIDS } from '../../shapes'
 import { useScene } from '../../scene/sceneStore'
 import { viewport } from '../../scene/viewportApi'
 import { ShapeIcon } from '../icons'
+import { useUI } from '../../state/ui'
 
 /**
  * The shape tray, as a sheet.
@@ -18,6 +19,7 @@ import { ShapeIcon } from '../icons'
  */
 export default function ShapeSheet({ onClose }) {
   const addShape = useScene((s) => s.addShape)
+  const drawNew = useUI((s) => s.drawNew)
 
   const place = (type) => {
     const params = defaultParams(type)
@@ -28,12 +30,27 @@ export default function ShapeSheet({ onClose }) {
   return (
     <Sheet scrim title="Put something down" onClose={onClose} className="shape-sheet">
       {[
-        ['SHAPES', SOLIDS],
-        ['MAKERS', GENERATORS],
-      ].map(([label, shapes]) => (
+        ['SHAPES', SOLIDS, false],
+        ['MAKERS', GENERATORS, true],
+      ].map(([label, shapes, leadsWithDrawing]) => (
         <section key={label} className="sheet-section">
           <div className="sheet-label">{label}</div>
           <div className="shape-grid">
+            {/* First of the makers: the one that makes a shape of your own
+                rather than one of ours. */}
+            {leadsWithDrawing && (
+              <button
+                className="shape-cell"
+                onClick={() => {
+                  drawNew()
+                  onClose()
+                }}
+                aria-label="Draw an outline"
+              >
+                <ShapeIcon type="sketch" size={36} />
+                <span>Drawing</span>
+              </button>
+            )}
             {shapes.map((s) => (
               <button
                 key={s.type}

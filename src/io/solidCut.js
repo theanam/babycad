@@ -27,6 +27,7 @@
  * screen a T-junction is invisible.
  */
 import * as THREE from 'three'
+import { manifoldWasm } from '../shapes/manifoldWasm'
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { acquireGeometry, releaseGeometry } from '../shapes/geometryCache'
 
@@ -38,45 +39,6 @@ import { acquireGeometry, releaseGeometry } from '../shapes/geometryCache'
  */
 const CREASE = (50 * Math.PI) / 180
 
-let loading = null
-
-/**
- * Where the WASM file is.
- *
- * Left to itself the module looks for `manifold.wasm` beside its own script,
- * which is right under node and wrong in the browser: the bundler moves the
- * script and gives the wasm a fingerprinted name, so the lookup lands on a URL
- * that is not there. A dev server answers a miss with the app's own index.html,
- * so what came back was a page of HTML being fed to the WebAssembly compiler —
- * it failed, the export quietly fell back to the viewport's cut, and the file
- * was as broken as before while still saying it had downloaded. Asking the
- * bundler where it actually put the file is the whole fix.
- */
-async function wasmPath() {
-  // `import.meta.env` is the bundler's; under node there is none, and the
-  // module's own guess is correct there.
-  if (typeof import.meta.env === 'undefined') return null
-  const asset = await import('manifold-3d/manifold.wasm?url')
-  return asset.default
-}
-
-/** The WASM module, started on first use and then kept. */
-function manifold() {
-  if (!loading) {
-    loading = Promise.all([import('manifold-3d'), wasmPath()])
-      .then(([m, url]) => (m.default ?? m)(url ? { locateFile: () => url } : {}))
-      .then((wasm) => {
-        wasm.setup()
-        return wasm
-      })
-      .catch((error) => {
-        // Let the next export try again rather than failing for the session.
-        loading = null
-        throw error
-      })
-  }
-  return loading
-}
 
 /** A three geometry as a Manifold solid, welded so its corners are shared. */
 function asManifold(wasm, geometry, matrix) {
@@ -138,7 +100,7 @@ function asGeometry(solid) {
 export async function cutForExport(type, params, holes) {
   let wasm
   try {
-    wasm = await manifold()
+    wasm = await manifoldWasm()
   } catch {
     return null
   }

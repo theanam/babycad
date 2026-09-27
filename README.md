@@ -48,6 +48,16 @@ which is what makes it a reasonable first CAD program at any age.
 - **Words as solids.** Type them, pick a typeface — two bundled, a dozen more
   from Google Fonts — and they come out as raised lettering.
 - **Bring your own models.** Import an STL, OBJ or 3MF and build around it.
+- **Draw a shape and give it a thickness.** **Drawing** at the bottom of the
+  shape rail opens a flat board in millimetres: boxes, circles, runs of lines
+  and a pen for curves, with every measurement on screen as a number you can
+  type over. What you draw comes out as a solid, and an outline inside another
+  one is a hole. Open a **photo to trace over** if you are copying something
+  real.
+- **Or bring a drawing in.** The Import button opens an **SVG** as well: its
+  filled outlines arrive as that same flat part, and open in the same board if
+  you want to measure or resize them. If the file says what size it is, that
+  is the size it arrives.
 - **Built for a finger as well as a mouse.** On a phone or a tablet the rails
   become a bottom bar and sheets that come up under your thumb, the handles
   grow for a fingertip, and Save hands the build to the device's own share
@@ -68,6 +78,7 @@ which is what makes it a reasonable first CAD program at any age.
 | Flip it | switch on **Mirror** and tap an arrow plate — works on one block or many |
 | Hold it still | the padlock in the panel — Align then brings others to it |
 | Measure | **Measure** in the top bar, then press two places |
+| Draw a shape | **Drawing** at the bottom of the shape rail — click a number on the board to type it |
 | Turn the view | right-drag |
 | Slide the view | middle-drag, or Shift + right-drag |
 | Zoom | scroll |

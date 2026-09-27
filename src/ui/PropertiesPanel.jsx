@@ -4,14 +4,33 @@ import { AXES } from '../scene/axes'
 import { useLive } from '../scene/liveStore'
 import { angleStepFor, COLOR_NAME, PALETTE, SNAP } from '../constants'
 import { getShapeDef, SHAPE_LABEL } from '../shapes'
-import { ColorDot, CombineIcon, CopyIcon, LockIcon, ResetIcon, SplitIcon, TrashIcon } from './icons'
+import { ColorDot, CombineIcon, CopyIcon, DrawIcon, LockIcon, ResetIcon, SplitIcon, TrashIcon } from './icons'
 import ParamMenu from './ParamMenu'
 import { useUI } from '../state/ui'
 import { meshInfo } from '../shapes/meshStore'
+import { digestSketch } from '../shapes/sketch/doc'
+import { sameParamValue } from '../shapes/params'
+import { sketchBounds } from '../shapes/sketch/flatten'
 import { isFontReady, useFonts } from '../shapes/fontStore'
 import { toast } from './Toast'
 
 const DEG = 180 / Math.PI
+
+/**
+ * How big a drawing came out, measured once per drawing rather than on every
+ * render: measuring means flattening every curve in it, and the rail
+ * re-renders on every frame of a slider drag. Keyed on the digest, which is
+ * what says two documents are the same one.
+ */
+const measuredSketches = new Map()
+const sizeOfSketch = (doc) => {
+  const key = digestSketch(doc)
+  if (!measuredSketches.has(key)) {
+    if (measuredSketches.size > 32) measuredSketches.clear()
+    measuredSketches.set(key, sketchBounds(doc))
+  }
+  return measuredSketches.get(key)
+}
 const round = (n, places = 2) => {
   const v = Number(n.toFixed(places))
   return Object.is(v, -0) ? 0 : v
@@ -82,6 +101,7 @@ function ParamField({
   mixed,
   variable,
   variables,
+  onEdit,
   onBegin,
   onPreview,
   onCommit,
@@ -172,6 +192,7 @@ function ParamField({
             <button
               key={String(o.value)}
               className={`param-seg-btn${!mixed && o.value === value ? ' on' : ''}`}
+              title={`${spec.label}: ${o.label}`}
               aria-pressed={!mixed && o.value === value}
               onClick={() => onCommit(o.value)}
             >
@@ -198,6 +219,37 @@ function ParamField({
         <div className="param-readout" title={model ? `${model.triangles} triangles` : undefined}>
           {model ? `${model.name} · ${model.triangles.toLocaleString()} triangles` : 'missing'}
         </div>
+      </div>
+    )
+  }
+
+  // A drawing has no numbers of its own to put here — it *is* the outline, and
+  // what is worth saying is how big it came out and how many pieces it is in.
+  // Changing it is the editor's job.
+  if (spec.kind === 'sketch') {
+    const bounds = mixed ? null : sizeOfSketch(value)
+    const outlines = value?.nodes?.length ?? 0
+    const mm = (n) => Math.round(n * 10) / 10
+    return (
+      <div className="param">
+        {/* No variable button here either: a whole drawing is not a number,
+            and the dimensions inside it carry their own. */}
+        <div className="param-top">
+          <span className="param-name">{spec.label}</span>
+        </div>
+        <div className="param-readout">
+          {mixed
+            ? 'Mixed'
+            : bounds
+              ? `${outlines === 1 ? '1 outline' : `${outlines} outlines`} · ${mm(bounds.width)} × ${mm(bounds.height)} mm`
+              : 'empty'}
+        </div>
+        {onEdit && (
+          <button className="param-edit" onClick={onEdit} disabled={mixed}>
+            <DrawIcon size={16} stroke="currentColor" />
+            Open the drawing
+          </button>
+        )}
       </div>
     )
   }
@@ -249,6 +301,7 @@ function ParamField({
           <span className="param-name">{spec.label}</span>
           <button
             className={`param-toggle${value ? ' on' : ''}`}
+            title={`${spec.label} — ${value ? 'on' : 'off'}`}
             aria-pressed={!!value}
             onClick={() => onCommit(!value)}
           >
@@ -321,6 +374,7 @@ function ShapeSection({ sel }) {
   const resetParams = useScene((s) => s.resetParams)
   const variables = useScene((s) => s.variables)
   const promoteToVariable = useScene((s) => s.promoteToVariable)
+  const editDrawing = useUI((s) => s.editDrawing)
   const bindParam = useScene((s) => s.bindParam)
   const unbindParam = useScene((s) => s.unbindParam)
   const snapshot = useRef(null)
@@ -364,7 +418,9 @@ function ShapeSection({ sel }) {
 
       <div className="param-list">
         {def.params.map((spec) => {
-          const mixed = sel.some((o) => o.params[spec.key] !== primary.params[spec.key])
+          // By value, not by reference: a drawing is an object, so two
+          // blocks holding the same drawing would otherwise read as mixed.
+          const mixed = sel.some((o) => !sameParamValue(o.params[spec.key], primary.params[spec.key]))
           // Only call it bound if the *whole* selection follows the same
           // variable; a half-linked selection reads as unlinked, and picking a
           // variable from the menu links all of it.
@@ -378,6 +434,9 @@ function ShapeSection({ sel }) {
               mixed={mixed}
               variable={allBound ? byId.get(boundTo) : null}
               variables={variables}
+              // Only with one block picked: which of three drawings the
+              // board would open is not a question worth guessing at.
+              onEdit={sel.length === 1 ? () => editDrawing(primary.id) : null}
               onPromote={(name) => promoteToVariable(ids, spec.key, name)}
               onBind={(id) => bindParam(ids, spec.key, id)}
               onUnbind={() => unbindParam(ids, spec.key)}

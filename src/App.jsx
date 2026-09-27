@@ -35,9 +35,13 @@ const ARROWS = {
   ArrowRight: [0, 1],
   ArrowLeft: [0, -1],
 }
-import { pickModelFiles, readModelFile } from './io/importModel'
+import { pickImportFiles, readModelFile } from './io/importModel'
+import { isSvg, readSvgFile } from './io/importSvg'
 import { warmFontsFor } from './shapes/fontStore'
+import { warmUnion } from './shapes/sketch/union'
 import HelpModal from './ui/HelpModal'
+import SketchEditor from './ui/sketch/SketchEditor'
+import { adoptTrace, dropTrace } from './ui/sketch/trace'
 import TabStrip from './ui/TabStrip'
 import Toasts, { toast } from './ui/Toast'
 import { buildExample, getExample } from './examples'
@@ -52,6 +56,44 @@ import {
   takeLegacyProjects,
   writeSession,
 } from './io/persistence'
+
+/** Millimetres, to one decimal, for a toast. */
+const mm = (n) => Math.round(n * 10) / 10
+
+/** An STL, OBJ or 3MF: triangles, into a `model` block. */
+async function placeModel(file) {
+  const model = await readModelFile(file)
+  mark(`imported ${model.name}: ${model.triangles.toLocaleString()} triangles`)
+  const params = { mesh: model.id }
+  const at = viewport.placementPoint('model', useScene.getState().objects, params)
+  const object = useScene.getState().addShape('model', at, params)
+  if (model.busy) {
+    toast(`${model.name} is ${Math.round(model.triangles / 1000)}k triangles — it may feel slow`, 'warn')
+  }
+  return {
+    id: object.id,
+    note: `${model.name} — ${mm(model.size.x)} × ${mm(model.size.z)} × ${mm(model.size.y)} mm`,
+  }
+}
+
+/** An SVG: outlines, into a `sketch` block, which the builder extrudes. */
+async function placeDrawing(file) {
+  const drawing = await readSvgFile(file)
+  mark(`imported ${drawing.name}: ${drawing.outlines} outlines`)
+  const params = { sketch: drawing.doc }
+  const at = viewport.placementPoint('sketch', useScene.getState().objects, params)
+  const object = useScene.getState().addShape('sketch', at, params)
+  // An SVG that carries no real unit has no size of its own, and one was
+  // picked for it. Saying so is the difference between a part that is the
+  // wrong size and a part that is mysteriously the wrong size.
+  if (drawing.guessed) {
+    toast(`${drawing.name} doesn't say what size it is — it came in ${mm(drawing.size.width)} mm across`, 'warn')
+  }
+  return {
+    id: object.id,
+    note: `${drawing.name} — ${mm(drawing.size.width)} × ${mm(drawing.size.height)} mm, ${drawing.outlines === 1 ? '1 outline' : `${drawing.outlines} outlines`}`,
+  }
+}
 
 export default function App() {
   const objects = useScene((s) => s.objects)
@@ -75,6 +117,20 @@ export default function App() {
   // the UI store because a variable's name is clickable from inside the canvas
   // as well as from the rail — see state/ui.
   const showVariables = useUI((s) => s.variablesOpen)
+  // The drawing board, if it is open: a block being edited, or a drawing that
+  // has not been placed yet.
+  const sketching = useUI((s) => s.sketchEditing)
+  const closeSketch = useUI((s) => s.closeSketch)
+  const sketchingBlock = sketching?.id ? objects.find((o) => o.id === sketching.id) : null
+
+  // Manifold's 2D half folds overlapping outlines into one before they are
+  // extruded, and it is WebAssembly that has to be started first. Started
+  // when there is a drawing to fold rather than on every visit, since most
+  // builds have none — and when the board opens, because the next thing that
+  // happens there is somebody drawing two shapes that cross.
+  useEffect(() => {
+    if (sketching || objects.some((o) => o.type === 'sketch')) warmUnion()
+  }, [sketching, objects])
   const toggleVariables = useUI((s) => s.toggleVariables)
   const closeVariables = useUI((s) => s.closeVariables)
   // The welcome screen is simply what no open builds looks like — on a first
@@ -240,6 +296,11 @@ export default function App() {
       e.target.isContentEditable
 
     const onKeyDown = (e) => {
+      // The drawing board is a workspace of its own with its own undo stack,
+      // its own Delete and its own Alt. Nothing here applies while it is up,
+      // and these listeners are on the window, so stopping the event inside
+      // the board would not reach them.
+      if (useUI.getState().sketchEditing) return
       // Alt suspends grid snapping for as long as it's held.
       if (e.key === 'Alt') useScene.getState().setFreeMove(true)
       if (typing(e)) return
@@ -527,17 +588,23 @@ export default function App() {
   // out of the file dialog should put you back where you were, not on an
   // empty plate you didn't ask for.
   /**
-   * Bring models onto the plate.
+   * Bring files onto the plate.
    *
-   * Each one lands like any other block — placed by the same `placementPoint`,
-   * so two imports sit side by side rather than inside one another — and is
-   * selected afterwards, because the first thing anybody does with a part they
-   * have just brought in is move or resize it.
+   * Two quite different things arrive through one button: an STL, OBJ or 3MF
+   * is triangles and makes a `model` block, an SVG is outlines and makes a
+   * `sketch` block that gets extruded. Nobody should have to know which kind
+   * of file they have before they can go looking for it, so the picker takes
+   * both and the extension decides here.
+   *
+   * Either way it lands like any other block — placed by the same
+   * `placementPoint`, so two imports sit side by side rather than inside one
+   * another — and is selected afterwards, because the first thing anybody
+   * does with a part they have just brought in is move or resize it.
    */
   const onImport = useCallback(async () => {
     let files = []
     try {
-      files = await pickModelFiles()
+      files = await pickImportFiles()
     } catch {
       return toast('That file could not be opened', 'warn')
     }
@@ -548,28 +615,49 @@ export default function App() {
     const added = []
     for (const file of files) {
       try {
-        const model = await readModelFile(file)
-        mark(`imported ${model.name}: ${model.triangles.toLocaleString()} triangles`)
-        const params = { mesh: model.id }
-        const at = viewport.placementPoint('model', useScene.getState().objects, params)
-        const object = useScene.getState().addShape('model', at, params)
-        added.push({ object, model })
-        if (model.busy) {
-          toast(`${model.name} is ${Math.round(model.triangles / 1000)}k triangles — it may feel slow`, 'warn')
-        }
+        added.push(await (isSvg(file.name) ? placeDrawing(file) : placeModel(file)))
       } catch (error) {
-        toast(error.message ?? 'That model could not be read', 'warn')
+        toast(error.message ?? 'That file could not be read', 'warn')
       }
     }
     if (!added.length) return
-    useScene.getState().setSelection(added.map((a) => a.object.id))
-    const [first] = added
-    const mm = (n) => Math.round(n * 10) / 10
-    toast(
-      added.length === 1
-        ? `${first.model.name} — ${mm(first.model.size.x)} × ${mm(first.model.size.z)} × ${mm(first.model.size.y)} mm`
-        : `${added.length} models brought in`
-    )
+    useScene.getState().setSelection(added.map((a) => a.id))
+    toast(added.length === 1 ? added[0].note : `${added.length} parts brought in`)
+  }, [])
+
+  /**
+   * Close the drawing board, keeping what was drawn.
+   *
+   * The whole session lands as one change: an existing block gets one
+   * `setParams`, a new drawing gets one `addShape`. Everything that happened
+   * inside the board went on the board's own undo stack and is gone with it —
+   * see `ui/sketch/SketchEditor`.
+   *
+   * A brand-new drawing with nothing in it is not put down at all. There is
+   * no block worth making out of it, and one that draws nothing would sit on
+   * the plate being mysterious.
+   */
+  const onDrawingDone = useCallback((doc) => {
+    const { sketchEditing, closeSketch } = useUI.getState()
+    closeSketch()
+    if (!sketchEditing) return
+    const scene = useScene.getState()
+    if (sketchEditing.id) {
+      scene.setParams({ [sketchEditing.id]: { sketch: doc } }, 'edit drawing')
+      return
+    }
+    // Nothing drawn, so nothing is placed — and the photo that was being
+    // traced over goes with the attempt rather than turning up behind the
+    // next drawing somebody starts.
+    if (!doc.nodes.length) return dropTrace('new')
+    if (!useDocs.getState().docs.length) useDocs.getState().open({})
+    setWelcomeAsked(false)
+    const params = { sketch: doc }
+    const at = viewport.placementPoint('sketch', scene.objects, params)
+    const object = useScene.getState().addShape('sketch', at, params)
+    // The photo was keyed to "the drawing being made" because there was no
+    // block to key it to. Now there is.
+    adoptTrace('new', object.id)
   }, [])
 
   const onOpenFile = useCallback(async () => {
@@ -637,6 +725,26 @@ export default function App() {
             setClosing(null)
           }}
           onCancel={() => setClosing(null)}
+        />
+      )}
+
+      {/* The drawing board takes the whole screen on either shell — it is a
+          second workspace rather than a dialog, and there is nothing behind
+          it worth keeping in view. */}
+      {sketching && (
+        <SketchEditor
+          doc={sketchingBlock?.params?.sketch}
+          sides={sketchingBlock?.params?.sides ?? 32}
+          existing={Boolean(sketching.id)}
+          touch={touch}
+          traceKey={sketching.id ?? 'new'}
+          onDone={onDrawingDone}
+          onCancel={() => {
+            // Backing out of a drawing that was never placed takes its
+            // tracing photo with it; an existing block keeps its own.
+            if (!sketching.id) dropTrace('new')
+            closeSketch()
+          }}
         />
       )}
 

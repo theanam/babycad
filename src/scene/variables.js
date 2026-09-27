@@ -19,7 +19,7 @@
  */
 import { evaluate, namesIn } from './expression'
 import { getShapeDef, normalizeParams } from '../shapes'
-import { accepts, kindOf } from '../shapes/params'
+import { accepts, kindOf, sameParamValue } from '../shapes/params'
 
 export const KIND_LABEL = { number: 'Number', bool: 'Yes / no', choice: 'Choice' }
 
@@ -163,7 +163,7 @@ export const variableKindFor = kindOf
 
 const sameParams = (a, b) => {
   const keys = Object.keys(a)
-  return keys.length === Object.keys(b).length && keys.every((k) => a[k] === b[k])
+  return keys.length === Object.keys(b).length && keys.every((k) => sameParamValue(a[k], b[k]))
 }
 
 /* ------------------------------------------------------------- sums -- */
