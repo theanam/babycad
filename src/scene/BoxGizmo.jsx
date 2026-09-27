@@ -154,6 +154,18 @@ const LIFT_SIZE = 1.0
 const HANDLE_SCREEN = 0.017
 
 /**
+ * How much a resize handle grows under the cursor.
+ *
+ * Small on purpose. A handle that jumps when the pointer crosses it draws the
+ * eye away from the block, and there are nine of them close enough together
+ * that nine things flinching in turn is worse than none. This is enough to
+ * say "this one" and not enough to notice as movement — the *change* is the
+ * signal, not the size. A drag takes it to 1.45, which is a different
+ * statement: that one is "you have hold of this".
+ */
+const HANDLE_HOVER = 1.15
+
+/**
  * Handles are sized for a finger only where a finger is what's pointing.
  *
  * A fingertip covers a good deal more screen than a cursor does, so on a
@@ -409,6 +421,16 @@ export default function BoxGizmo() {
   // see what you are about to turn about; moving off puts it away again,
   // unless a turn was actually made, in which case `heldDial` keeps it up.
   const hoverDial = useRef(null)
+  /**
+   * The resize handle the cursor is over, if any.
+   *
+   * A ref rather than state: it is read by the frame loop, which runs sixty
+   * times a second and already owns every handle's size, colour and opacity.
+   * Pushing a hover through React would re-render the whole block tree to
+   * change one number that the loop is about to write anyway — the same
+   * reason the drag itself bypasses React.
+   */
+  const hoverHandle = useRef(null)
   /** The turn currently on show, so typing starts from the number being read. */
   const liveTurn = useRef(0)
   // The ref is what the frame loop reads; the state is what mounts the readout
@@ -602,6 +624,7 @@ export default function BoxGizmo() {
     occludeAt.current = 0
     if (locked) {
       hoverDial.current = null
+      hoverHandle.current = null
       hold(null)
     }
   }, [locked, hold])
@@ -1226,10 +1249,14 @@ export default function BoxGizmo() {
       const { sign, lift, turn } = node.userData
       const on = key === active
       if (sign) {
+        // Hovering is ignored mid-drag: the pointer is captured by whatever
+        // is being dragged, and a second handle lighting up under it would
+        // say two things have hold of it.
+        const over = !dragging && key === hoverHandle.current
         node.position.set(sign[0] * f.half.x, sign[1] * f.half.y, sign[2] * f.half.z)
-        node.scale.setScalar(k * (on ? 1.45 : 1) * grab)
+        node.scale.setScalar(k * (on ? 1.45 : over ? HANDLE_HOVER : 1) * grab)
         node.material.color.set(on ? '#7C4DFF' : '#EDEFF4')
-        node.material.opacity = quiet(on) ?? 0.72
+        node.material.opacity = quiet(on) ?? (over ? 0.95 : 0.72)
       } else if (lift) {
         // Far enough above the box that it never crowds the height handle
         // sitting on the top face. It used to stand 2.2k up, which on a tall
@@ -1637,6 +1664,16 @@ export default function BoxGizmo() {
             ref={bind(def.key, { sign: def.handle })}
             renderOrder={3}
             onPointerDown={(e) => startScale(def, e)}
+            // A mouse only. A finger has no hover — the first a touchscreen
+            // hears of a pointer is that it is already pressing — and some
+            // browsers fire one anyway on tap, which would leave a handle
+            // swollen after the finger had gone.
+            onPointerOver={(e) => {
+              if (e.pointerType === 'mouse') hoverHandle.current = def.key
+            }}
+            onPointerOut={() => {
+              if (hoverHandle.current === def.key) hoverHandle.current = null
+            }}
           >
             <boxGeometry args={[1, 1, 1]} />
             <meshBasicMaterial
